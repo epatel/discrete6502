@@ -68,7 +68,9 @@ The Pico's VSYS (pin 39) is tied to board VCC; GNDs are shared.
 - **Bench supply** on the VCC/VSS bond pads (croc clips) powers board *and*
   Pico. USB may be connected simultaneously for serial.
 - **USB-only demo mode**: with pin 39 soldered, the Pico's USB powers the
-  whole board (~0.35 A at ~4.8 V) — fine from USB-3 or a charger.
+  whole board — ~0.35 A at ~4.8 V typical, up to ~0.65 A worst case (every
+  pull-up low and every LED lit). Fine from USB-3 or a charger; a legacy
+  500 mA port may not be.
 - **For the 3.3 V bring-up: leave the pin-39 castellation UNSOLDERED at
   first.** With it soldered + USB plugged, VSYS drags board VCC to ~4.8 V
   and a 3.3 V bench setting cannot win. Unsoldered: USB powers the Pico,

@@ -1,6 +1,6 @@
 # discrete6502
 
-A working **MOS 6502 CPU built from 4,051 discrete surface-mount transistors**, laid out as a
+A working **MOS 6502 CPU built from 4,051 discrete surface-mount transistors** (3,996 logic + 55 LED drivers), laid out as a
 291 × 322 mm six-layer PCB that visually reproduces the original 6502 die — every FET sits at
 its transistor's die-true position, 55 LEDs blink the register bits in place, and a ring of
 die-scaled bond pads around the edge takes crocodile clips.
@@ -30,9 +30,9 @@ Design complete and verified; ready to order (fab package in `gen/fab/`, checkli
 ## Highlights
 
 - **Faithful dynamic NMOS logic** — not a static re-design: the visual6502 netlist's 3,239 unique
-  transistors, with the 783 pass transistors implemented as back-to-back FET pairs (BSS138K)
-  (clock-edge bootstrap validated in SPICE with the manufacturer's model) and 1,018 pull-up
-  resistors standing in for the depletion loads. Realistic clock ~10–20 kHz — the decode-PLA
+  transistors, with the 778 bidirectional pass transistors implemented as back-to-back FET pairs
+  (BSS138K; clock-edge bootstrap validated in SPICE with the manufacturer's model) and 1,023
+  pull-up resistors standing in for the depletion loads. Realistic clock ~10–20 kHz — the decode-PLA
   input lines drive up to 71 discrete gates behind one 10k pull-up (`sim/fanout_speed.sp`).
 - **Machine-checked correctness**: a switch-level simulator proves the transformed netlist
   produces bit-identical traces to the original visual6502 netlist while running real 6502

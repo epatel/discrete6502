@@ -16,3 +16,11 @@ Assembly implications for this project:
 - Choose a transistor package that is cheap, in deep JLCPCB stock, and economic-class (e.g., SOT-23 or smaller like SOT-323/SOT-723; smaller packages shrink the board but check economic-class eligibility and stock depth before committing).
 - Double-sided assembly is offered but costs more; single-sided placement is preferable if the size target allows.
 - Verify stock quantity before ordering: one board consumes thousands of the same MOSFET; multiply by board quantity.
+
+## What this project actually ordered (2026-07-25)
+
+6 layers, 290.7 x 322 mm (~9.4 dm2), 1.6 mm FR-4, ENIG, 0.127/0.127 mm trace/space,
+0.45/0.2 mm vias, **double-sided** Standard assembly (the "single-sided is preferable"
+guidance above lost to the die-mimicry directive: front face is transistors only, so every
+passive is on the back). 9 distinct parts, all basic-library, 5,328 placements per board.
+Real quote for 5 assembled boards: EUR 131 PCB + EUR 716 PCBA + EUR 65 shipping.

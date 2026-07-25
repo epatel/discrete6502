@@ -14,6 +14,7 @@ Transform rules (all decided 2026-07-18):
 1. Drop always-off transistors (gate=vss; 17 — ESD clamps and die dummies) and no-ops (c1=c2; 3).
 2. Merge exact parallel duplicates (270).
 3. Channel touching vss → single FET, source on vss (2,276). Channel touching vcc → single FET, source on the non-vcc side (165).
+   *(Counts here are at this step; rule 7 later drops 3 FETs, so the final netlist has 164 vcc-side and 778 pass pairs.)*
 4. Pass transistors (779 after dedup) → back-to-back FET pair, common source node `t<N>_mid`, gates on the original gate net.
 5. Every '+'-flagged node (1,018) → 10k pull-up to vcc.
 6. LED taps (55): A/X/Y/S/PCL/PCH bits + P flags (p0–p4,p6,p7) each get a gate-tap FET sinking LED+2.2k from vcc — capacitive load only on the monitored node.
