@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>discrete6502 — JLCPCB ordering checklist</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1a2130; --muted: #6b7484;
+    --accent: #0b6e4f; --accent2: #0b4f6e; --warn: #9a5b00; --warnbg: #fff7e8;
+    --line: #e3e6eb; --done: #9aa3b2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --card: #1d2129; --ink: #e8ebf0; --muted: #98a1b0;
+      --accent: #4dc79c; --accent2: #5ab0d6; --warn: #e5a54b; --warnbg: #2a2418;
+      --line: #2c313b; --done: #5b6472;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 40px 20px 80px; }
+  header { margin-bottom: 28px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 14px; }
+  .progress {
+    margin: 18px 0 6px; height: 8px; background: var(--line);
+    border-radius: 4px; overflow: hidden;
+  }
+  .progress > div {
+    height: 100%; width: 0%; background: var(--accent);
+    transition: width .25s ease; border-radius: 4px;
+  }
+  .pct { font-size: 13px; color: var(--muted); }
+  .step {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; margin: 14px 0; padding: 16px 18px;
+  }
+  .step-head { display: flex; align-items: baseline; gap: 12px; cursor: pointer; }
+  .step-head input { transform: scale(1.35); accent-color: var(--accent); cursor: pointer; }
+  .step-head h2 { font-size: 17px; margin: 0; flex: 1; }
+  .num { color: var(--accent2); font-weight: 700; font-size: 15px; }
+  .step.done h2, .step.done .body { color: var(--done); text-decoration-color: var(--done); }
+  .step.done h2 { text-decoration: line-through; }
+  .body { margin: 10px 0 0 34px; font-size: 14.5px; color: var(--ink); }
+  .body ul { margin: 6px 0; padding-left: 18px; }
+  .body li { margin: 4px 0; }
+  kbd, .val {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px; font: 13px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: nowrap;
+  }
+  .warn {
+    background: var(--warnbg); border-left: 3px solid var(--warn);
+    padding: 8px 12px; border-radius: 0 8px 8px 0; margin: 8px 0;
+  }
+  .warn b { color: var(--warn); }
+  .files { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .file {
+    background: var(--bg); border: 1px dashed var(--line); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; font-family: ui-monospace, Menlo, monospace;
+  }
+  footer { margin-top: 30px; color: var(--muted); font-size: 13px; }
+  @media print {
+    .progress, .pct { display: none; }
+    .step { break-inside: avoid; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>discrete6502 — JLCPCB ordering checklist</h1>
+    <div class="sub">6-layer · 291 × 322 mm · 5,328 SMD parts/board · files in <span class="val">gen/fab/</span></div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="pct" id="pct">0 of 10 done</div>
+    <div class="files">
+      <span class="file">discrete6502_gerbers.zip</span>
+      <span class="file">discrete6502_bom.csv</span>
+      <span class="file">discrete6502_cpl.csv</span>
+    </div>
+  </header>
+
+  <div class="step" data-id="s0">
+    <label class="step-head"><input type="checkbox"><span class="num">0</span><h2>Pre-flight: eyeball the board yourself</h2></label>
+    <div class="body">Open <span class="val">gen/discrete6502.kicad_pcb</span> in KiCad, check the 3D view front and back. You are the last gate before money moves.</div>
+  </div>
+
+  <div class="step" data-id="s1">
+    <label class="step-head"><input type="checkbox"><span class="num">1</span><h2>Upload gerbers</h2></label>
+    <div class="body">jlcpcb.com → <i>Order now</i> → upload <span class="val">discrete6502_gerbers.zip</span>.
+      Verify auto-detect: <b>6 layers</b>, <b>291 × 322 mm</b>.</div>
+  </div>
+
+  <div class="step" data-id="s2">
+    <label class="step-head"><input type="checkbox"><span class="num">2</span><h2>PCB options</h2></label>
+    <div class="body"><ul>
+      <li>Qty <span class="val">5</span> · thickness <span class="val">1.6 mm</span> · color your choice (green shown in renders)</li>
+      <li>Surface finish: <b>ENIG</b> recommended (croc-clip pads wear HASL); HASL OK if saving ~$50–100</li>
+      <li>Impedance control: <b>No</b> · default 6-layer stackup is fine</li>
+      <li>Order number: pay ~$1.5 to remove, or JLC prints theirs on the die face</li>
+    </ul></div>
+  </div>
+
+  <div class="step" data-id="s3">
+    <label class="step-head"><input type="checkbox"><span class="num">3</span><h2>Enable assembly</h2></label>
+    <div class="body">Toggle <i>PCB Assembly</i>: type <b>Standard</b> · sides <b>Both</b> · assembly qty <span class="val">5</span> (or 2 to save ~$350).</div>
+  </div>
+
+  <div class="step" data-id="s4">
+    <label class="step-head"><input type="checkbox"><span class="num">4</span><h2>Upload BOM + CPL</h2></label>
+    <div class="body">Upload <span class="val">discrete6502_bom.csv</span> and <span class="val">discrete6502_cpl.csv</span>. Column mapping should auto-detect; 9 BOM lines expected.</div>
+  </div>
+
+  <div class="step" data-id="s5">
+    <label class="step-head"><input type="checkbox"><span class="num">5</span><h2>Part matching — FET stock</h2></label>
+    <div class="body">
+      <div class="warn"><b>Critical:</b> FET <span class="val">C139444</span> (2N7002W-7-F, SOT-323) — need ≈ <b>20,300 pcs</b> for 5 boards. Live stock was ~4.4k when this package was made.</div>
+      In order of preference:
+      <ul>
+        <li>Use <b>Global Sourcing</b> if offered (adds days + small fee)</li>
+        <li>Or pick any in-stock 2N7002W in <b>SOT-323</b> (budget alt: <span class="val">C5334591</span>) — any 2N7002W works, design validated on generic parameters</li>
+        <li>Or pre-order parts to your JLC library first, order PCBA when they land</li>
+      </ul>
+      Never substitute a SOT-23 part — footprint is SOT-323. Other 8 lines are basic parts, should match green.
+    </div>
+  </div>
+
+  <div class="step" data-id="s6">
+    <label class="step-head"><input type="checkbox"><span class="num">6</span><h2>Placement review (don't skip)</h2></label>
+    <div class="body"><ul>
+      <li><b>LEDs D1–D55</b> and <b>diodes D56–D67</b>: check polarity, rotate 180° in their editor if wrong</li>
+      <li>Spot-check FET orientation in a few regions (a systematic flip is visible)</li>
+      <li>Pico area must show <b>only 26 resistors</b> — no module</li>
+    </ul></div>
+  </div>
+
+  <div class="step" data-id="s7">
+    <label class="step-head"><input type="checkbox"><span class="num">7</span><h2>Sanity-check the quote</h2></label>
+    <div class="body">Ballpark: PCB $500–750 · setup+stencil ~$70 · joints ~$115 · parts ~$180 · shipping $50–70 → <b>total $900–1,200</b>.
+      <div class="warn">If the PCB line is far above range, <b>stop</b> — large-format 6-layer sometimes needs a different service tier; re-check before paying.</div></div>
+  </div>
+
+  <div class="step" data-id="s8">
+    <label class="step-head"><input type="checkbox"><span class="num">8</span><h2>Pay & answer DFM review</h2></label>
+    <div class="body">After payment JLC engineers review (1–2 days). Expected questions — answer "by design":
+      <ul>
+        <li>Silk over copper in the FET field (region titles — intentional, clips in print)</li>
+        <li>Large square THT pads around the edge (bond-pad ring, croc-clip probing)</li>
+      </ul></div>
+  </div>
+
+  <div class="step" data-id="s9">
+    <label class="step-head"><input type="checkbox"><span class="num">9</span><h2>While waiting (~2.5–4 weeks)</h2></label>
+    <div class="body">Order a <b>Raspberry Pi Pico 2 W</b> separately · start M6 prep: Pico firmware (clock gen, 16 KB memory image, trace logger) · 5 V / ≥1 A bench supply ready.</div>
+  </div>
+
+  <footer>Checklist state is saved in this browser. Details: <span class="val">gen/fab/README.md</span> · plan: <span class="val">project-plan.md</span></footer>
+</div>
+<script>
+  const KEY = "discrete6502-ordering";
+  const state = JSON.parse(localStorage.getItem(KEY) || "{}");
+  const steps = document.querySelectorAll(".step");
+  const bar = document.getElementById("bar"), pct = document.getElementById("pct");
+  function refresh() {
+    let done = 0;
+    steps.forEach(s => {
+      const c = s.querySelector("input").checked;
+      s.classList.toggle("done", c);
+      if (c) done++;
+    });
+    bar.style.width = (100 * done / steps.length) + "%";
+    pct.textContent = done + " of " + steps.length + " done" + (done === steps.length ? " — order placed! 🎉" : "");
+  }
+  steps.forEach(s => {
+    const box = s.querySelector("input");
+    box.checked = !!state[s.dataset.id];
+    box.addEventListener("change", () => {
+      state[s.dataset.id] = box.checked;
+      localStorage.setItem(KEY, JSON.stringify(state));
+      refresh();
+    });
+  });
+  refresh();
+</script>
+</body>
+</html>
