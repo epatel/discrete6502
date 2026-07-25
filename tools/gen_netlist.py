@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "visual6502"
 GEN = ROOT / "gen"
 
-FET_VALUE, FET_LCSC = "2N7002W", "C82175-verify"
+FET_VALUE, FET_LCSC = "2N7002W", "C139444"
 FET_FOOTPRINT = "Package_TO_SOT_SMD:SOT-323_SC-70"
 PULLUP_VALUE, PULLUP_LCSC = "10k", "C25744"
 R_FOOTPRINT = "Resistor_SMD:R_0402_1005Metric"
