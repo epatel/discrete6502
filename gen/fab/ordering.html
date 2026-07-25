@@ -75,7 +75,7 @@
 <div class="wrap">
   <header>
     <h1>discrete6502 — JLCPCB ordering checklist</h1>
-    <div class="sub">6-layer · 291 × 322 mm · 5,328 SMD parts/board · files in <span class="val">gen/fab/</span></div>
+    <div class="sub">6-layer · 290.7 × 322 mm · 5,328 SMD parts/board · files in <span class="val">gen/fab/</span></div>
     <div class="progress"><div id="bar"></div></div>
     <div class="pct" id="pct">0 of 10 done</div>
     <div class="files">
@@ -93,14 +93,14 @@
   <div class="step" data-id="s1">
     <label class="step-head"><input type="checkbox"><span class="num">1</span><h2>Upload gerbers</h2></label>
     <div class="body">jlcpcb.com → <i>Order now</i> → upload <span class="val">discrete6502_gerbers.zip</span>.
-      Verify auto-detect: <b>6 layers</b>, <b>291 × 322 mm</b>.</div>
+      Verify auto-detect: <b>6 layers</b>, <b>290.7 × 322 mm</b> (≈ 9.4 dm²).</div>
   </div>
 
   <div class="step" data-id="s2">
     <label class="step-head"><input type="checkbox"><span class="num">2</span><h2>PCB options</h2></label>
     <div class="body"><ul>
       <li>Qty <span class="val">5</span> · thickness <span class="val">1.6 mm</span> · color your choice (green shown in renders)</li>
-      <li>Surface finish: <b>ENIG</b> recommended (croc-clip pads wear HASL); HASL OK if saving ~$50–100</li>
+      <li>Surface finish: <b>ENIG</b> — the croc-clip bond pads see repeated contact and HASL wears; the quoted €131 PCB line is with ENIG, so the saving from HASL is small here</li>
       <li>Impedance control: <b>No</b> · default 6-layer stackup is fine</li>
       <li>Order number: pay ~$1.5 to remove, or JLC prints theirs on the die face</li>
     </ul></div>
@@ -108,25 +108,25 @@
 
   <div class="step" data-id="s3">
     <label class="step-head"><input type="checkbox"><span class="num">3</span><h2>Enable assembly</h2></label>
-    <div class="body">Toggle <i>PCB Assembly</i>: type <b>Standard</b> · sides <b>Both</b> · assembly qty <span class="val">5</span> (or 2 to save ~$350).</div>
+    <div class="body">Toggle <i>PCB Assembly</i>: type <b>Standard</b> · sides <b>Both</b> · assembly qty <span class="val">5</span>. Dropping to 2 saves less than proportionally — setup and stencil are one-time.</div>
   </div>
 
   <div class="step" data-id="s4">
     <label class="step-head"><input type="checkbox"><span class="num">4</span><h2>Upload BOM + CPL</h2></label>
-    <div class="body">Upload <span class="val">discrete6502_bom.csv</span> and <span class="val">discrete6502_cpl.csv</span>. Column mapping should auto-detect; 9 BOM lines expected.</div>
+    <div class="body">Upload <span class="val">discrete6502_bom.csv</span> and <span class="val">discrete6502_cpl.csv</span>. Column mapping should auto-detect; <b>22 BOM rows covering 9 distinct parts</b> — the bulk parts are split across several rows because JLC rejects any Designator cell over 2,048 characters. That is expected, not a duplicate.</div>
   </div>
 
   <div class="step" data-id="s5">
     <label class="step-head"><input type="checkbox"><span class="num">5</span><h2>Part matching — FET stock</h2></label>
     <div class="body">
-      <div class="warn"><b>Critical:</b> FET <span class="val">C139444</span> (2N7002W-7-F, SOT-323) — need ≈ <b>20,300 pcs</b> for 5 boards. Live stock was ~4.4k when this package was made.</div>
-      In order of preference:
+      <div class="warn"><b>Volume item:</b> FET <span class="val">C504052</span> (JSCJ BSS138K, SOT-323) — need ≈ <b>20,300 pcs</b> for 5 boards. Confirm live stock covers it before paying.</div>
+      This replaced 2N7002W <span class="val">C139444</span>, which JLC had no inventory for (2026-07-25). BSS138 was the project's pre-approved fallback since M2 and is SPICE-validated; its lower Vth (0.8–1.5 V) also helps the 3.3 V bring-up.
       <ul>
-        <li>Use <b>Global Sourcing</b> if offered (adds days + small fee)</li>
-        <li>Or pick any in-stock 2N7002W in <b>SOT-323</b> (budget alt: <span class="val">C5334591</span>) — any 2N7002W works, design validated on generic parameters</li>
-        <li>Or pre-order parts to your JLC library first, order PCBA when they land</li>
+        <li>If C504052 dries up: any <b>2N7002W / BSS138-class part in SOT-323</b> with Vgs(th) ≤ 2.5 V and Ciss ≤ 60 pF</li>
+        <li><b>Never</b> a SOT-23 part (footprint is SOT-323), never AO3400-class (~1 nF Ciss — far too slow with 10k pull-ups)</li>
+        <li>Or use <b>Global Sourcing</b> / pre-order parts into your JLC library, then order PCBA when they land</li>
       </ul>
-      Never substitute a SOT-23 part — footprint is SOT-323. Other 8 lines are basic parts, should match green.
+      The other 8 parts are basic-library, should match green.
     </div>
   </div>
 
@@ -141,8 +141,15 @@
 
   <div class="step" data-id="s7">
     <label class="step-head"><input type="checkbox"><span class="num">7</span><h2>Sanity-check the quote</h2></label>
-    <div class="body">Ballpark: PCB $500–750 · setup+stencil ~$70 · joints ~$115 · parts ~$180 · shipping $50–70 → <b>total $900–1,200</b>.
-      <div class="warn">If the PCB line is far above range, <b>stop</b> — large-format 6-layer sometimes needs a different service tier; re-check before paying.</div></div>
+    <div class="body">Real cart figures (2026-07-25, 5 boards, ENIG, both sides):
+      <ul>
+        <li>PCB, 5 pcs, 6-layer ENIG — <b>€131.44</b></li>
+        <li>PCBA, both sides, parts + assembly + setup — <b>€716.38</b></li>
+        <li>Shipping, UPS Worldwide Express Saver to Sweden — <b>€64.54</b></li>
+        <li>Swedish import VAT 25%, billed later by the courier — <b>≈ €228</b></li>
+      </ul>
+      <b>≈ €1,140 landed ≈ €230 per assembled CPU.</b>
+      <div class="warn"><b>Two line items, one order.</b> The PCB and the PCBA appear as separate rows in the cart under a single <i>JLCPCB (1)</i> header — they are linked halves of the same order, <b>not</b> duplicates. Deleting one deletes the pairing and there is no undo; re-entry costs ~10 minutes.</div></div>
   </div>
 
   <div class="step" data-id="s8">
@@ -156,7 +163,13 @@
 
   <div class="step" data-id="s9">
     <label class="step-head"><input type="checkbox"><span class="num">9</span><h2>While waiting (~2.5–4 weeks)</h2></label>
-    <div class="body">Order a <b>Raspberry Pi Pico 2 W</b> separately · start M6 prep: Pico firmware (clock gen, 16 KB memory image, trace logger) · 5 V / ≥1 A bench supply ready.</div>
+    <div class="body"><ul>
+      <li>Order a <b>Raspberry Pi Pico 2 W</b> (SMD/castellated) separately — it is not part of this assembly</li>
+      <li>Bench supply ready: <b>5 V / ≥1 A</b> (board draws ~0.3 A); a 3.3 V setting is wanted for first power-up</li>
+      <li>Firmware is already scaffolded in <span class="val">pico-controller/</span> — build <span class="val">tester</span> against pico-sdk 2.x so it is flashed and waiting</li>
+      <li>Open sim item: SPICE the pass pair at <b>VCC = 3.3 V</b>, the recommended first bring-up rail</li>
+      <li>Bring-up reminders: leave the Pico's <b>pin-39 (VSYS) castellation unsoldered</b> during the 3.3 V test, and note the board has <b>no pull-up on clk0</b> — 5 V open-drain clocking needs an external 10k croc-clipped Φ0→VCC</li>
+    </ul></div>
   </div>
 
   <footer>Checklist state is saved in this browser. Details: <span class="val">gen/fab/README.md</span> · plan: <span class="val">project-plan.md</span></footer>

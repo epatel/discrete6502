@@ -4,11 +4,12 @@ Generated 2026-07-25 from `gen/discrete6502.kicad_pcb` (git 93360f0+).
 
 ## Files
 - `discrete6502_gerbers.zip` — 6 copper layers, silk, mask, paste, edge cuts, Excellon drill
-- `discrete6502_bom.csv` — 9 line items, 5,328 SMD placements/board
+- `discrete6502_bom.csv` — 9 distinct parts in 22 rows (Designator cells chunked to
+  <=2000 chars; JLC rejects anything over 2048), 5,328 SMD placements/board
 - `discrete6502_cpl.csv` — placement file (4,106 top / 1,222 bottom)
 
 ## Order settings
-- 6 layers, 291 x 322 mm, 1.6 mm FR-4, HASL or ENIG (ENIG recommended: croc-clip
+- 6 layers, 290.7 x 322 mm (~9.4 dm2), 1.6 mm FR-4, HASL or ENIG (ENIG recommended: croc-clip
   bond pads wear), min trace/space used: 0.127 mm, min via: 0.45/0.2 mm
 - Standard PCBA, double-sided assembly, qty 5 boards
 - The Pico module site and 56 ballast-cap footprints are intentionally unpopulated
@@ -26,5 +27,9 @@ Generated 2026-07-25 from `gen/discrete6502.kicad_pcb` (git 93360f0+).
    and 1N4148WS diodes (D56-D67) — fix rotations in their UI if mismatched.
 4. Silk overlaps the FET field in places (region titles) — intentional, ink
    clips over pads; no action.
-5. Real quote will differ from estimate mainly on the 6-layer large-format
-   PCB line (est. $500-750/5) — sanity-check before paying.
+5. Real quote obtained 2026-07-25 (5 boards, ENIG, both sides):
+   PCB EUR 131.44 + PCBA EUR 716.38 + UPS Express Saver EUR 64.54,
+   plus ~25% Swedish import VAT => ~EUR 1,140 landed, ~EUR 230 per
+   assembled CPU. The earlier $500-750 PCB estimate was pessimistic.
+6. PCB and PCBA show as two linked line items under one order header --
+   they are not duplicates; deleting one un-pairs the order with no undo.
