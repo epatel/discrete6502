@@ -134,12 +134,23 @@
   </div>
 
   <div class="step" data-id="s6">
-    <label class="step-head"><input type="checkbox"><span class="num">6</span><h2>Placement review (don't skip)</h2></label>
-    <div class="body"><ul>
-      <li><b>LEDs D1–D55</b> and <b>diodes D56–D67</b>: check polarity, rotate 180° in their editor if wrong</li>
-      <li>Spot-check FET orientation in a few regions (a systematic flip is visible)</li>
-      <li>Pico area must show <b>only 26 resistors</b> — no module</li>
-    </ul></div>
+    <label class="step-head"><input type="checkbox"><span class="num">6</span><h2>Placement review &amp; rotation (don't skip)</h2></label>
+    <div class="body">
+      Set <b>Confirm Parts Placement = Yes</b> so JLC sends the placement preview for approval, and paste this into the <b>PCBA remark</b>:
+      <div class="warn"><b>Order note:</b> Rotation convention: CPL follows KiCad footprint orientation.
+        Q* (SOT-323, C504052) at 0°: <b>pin1 = Gate upper-left, pin2 = Source lower-left, pin3 = Drain right</b>.
+        D1–D55 (LED 0603): <b>pad 1 = cathode</b>. D56–D67 (1N4148WS SOD-323): <b>pad 1 = cathode</b>.
+        Please confirm orientation before assembly.</div>
+      Our data, for comparison against their preview:
+      <ul>
+        <li><b>Q1–Q4051</b> SOT-323 @ 0°, top: pad&nbsp;1 Gate at (−0.887, −0.650) = upper-left, pad&nbsp;2 Source lower-left, pad&nbsp;3 Drain right-middle</li>
+        <li><b>D1–D55</b> LED 0603 @ 0°, top: pad&nbsp;1 = cathode</li>
+        <li><b>D56–D67</b> 1N4148WS SOD-323 @ 180°, bottom: pad&nbsp;1 = cathode (clamp-up cathode→VCC, clamp-down cathode→signal)</li>
+        <li>Pico area must show <b>only 26 resistors</b> — no module</li>
+      </ul>
+      <div class="warn"><b>The 3D preview is not evidence.</b> JLCPCB state the online previewer is reference-only and their engineer verifies position, rotation and polarity — their viewer places its own library model at its own orientation, so a body drawn 180° out is normal there. <b>Judge from the parts-placement preview, not the 3D view.</b></div>
+      Where the real risk lies: a 180°-rotated SOT-323 physically cannot sit on our pads (two leads over the single right pad), so a systematic FET flip is glaring. The dangerous parts are the <b>2-pin polarised</b> ones — the 55 LEDs and 12 clamp diodes — where 180° looks perfectly fine and is electrically fatal. Check one FET gate, one LED cathode, one clamp diode; if those three are right, all 5,328 are.
+    </div>
   </div>
 
   <div class="step" data-id="s7">
