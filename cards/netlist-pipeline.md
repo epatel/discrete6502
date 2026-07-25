@@ -19,8 +19,23 @@ Transform rules (all decided 2026-07-18):
 6. LED taps (55): A/X/Y/S/PCL/PCH bits + P flags (p0–p4,p6,p7) each get a gate-tap FET sinking LED+2.2k from vcc — capacitive load only on the monitored node.
 7. Iterative cleanup: drop FETs whose drain/source net is floating and non-external (3 spare die structures).
 
-Resulting totals: **5,179 components** (4,054 × 2N7002, 1,073 resistors, 55 LEDs — 5 distinct part numbers), 2,587 nets. Parts: 2N7002=C8545 (SOT-23), 10k=C25744, 2.2k=C25879 (0402), red LED=C2286 (0603) — all JLCPCB basic class.
+Resulting totals (final, as ordered): **5,421 components / 2,624 nets**, of which 5,328 are factory placements (the rest are the 36 THT bond pads, 56 DNP ballast caps and the unpopulated Pico site).
 
-Invariants the script checks (fails loudly if broken): all 36 external 6502 interface nets exist (ab0–15, db0–7, clk0/1out/2out, res, rdy, irq, nmi, rw, sync, so, vss, vcc); all LED nodes resolve; the only singleton nets are res/irq/nmi (each lost only its on-die ESD clamp — the discrete board should add its own input protection, e.g. series R + clamp diodes at the connector; open item for M5).
+| Qty | Part | LCSC | Package |
+|---|---|---|---|
+| 4,051 | BSS138K (core FET) | C504052 | SOT-323 |
+| 1,023 | 10k pull-up | C25744 | 0402 |
+| 96 | 100nF decoupler | C1525 | 0402 |
+| 55 | red LED | C2286 | 0603 |
+| 55 | 2.2k LED ballast | C25879 | 0402 |
+| 26 | 1k Pico series R | C11702 | 0402 |
+| 12 | 1N4148WS protection | C2128 | SOD-323 |
+| 6 | 100R input series | C25076 | 0402 |
+| 4 | 10µF bulk | C15850 | 0805 |
+| 56 | 100pF ballast — **DNP**, bring-up insurance | — | 0402 |
 
-Verification status: structural only so far. Behavioral equivalence (this netlist vs. the visual6502/perfect6502 golden model) is M4's job — the `origin` field on every component exists precisely to map back to original transistor IDs for that comparison.
+The core FET was 2N7002 (C8545, SOT-23) at M2, then 2N7002W (SOT-323) for the die-texture layout, and finally **BSS138K C504052** at order time (2026-07-25) because JLC had no 2N7002W stock — same package and pinout, lower Vth, SPICE-validated as the M2 fallback.
+
+Invariants the script checks (fails loudly if broken): all 36 external 6502 interface nets exist (ab0–15, db0–7, clk0/1out/2out, res, rdy, irq, nmi, rw, sync, so, vss, vcc); all LED nodes resolve; the only singleton nets are res/irq/nmi (each lost only its on-die ESD clamp — the discrete board adds its own input protection — 100R series + dual 1N4148WS clamps on res/irq/nmi/rdy/so/clk0).
+
+Verification status: **behavioral equivalence proven** (M4) — `tools/switchsim.py` runs this netlist and the original visual6502 netlist side by side and gets bit-identical traces on a real test program. Re-run it after any netlist change; it is the project's equivalence gate. The `origin` field on every component is what makes that mapping back to original transistor IDs possible.

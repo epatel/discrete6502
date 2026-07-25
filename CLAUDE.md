@@ -17,6 +17,11 @@ Always read @project-plan.md before starting — it holds the shared goal, miles
 log, and current handoff. Update its "Current state / handoff" (and append to Decisions) before
 finishing a work session.
 
+**Keep the agent files current.** Whenever a fact they assert changes — part numbers, board
+geometry, pipeline steps, tool names, milestone state — update this file, `project-plan.md`,
+and every affected card in the same change that made the fact stale. A stale card is worse than
+a missing one.
+
 ## Invariants (do not regress)
 
 - Any netlist change must keep the equivalence gate green: `python3 tools/switchsim.py`.
@@ -43,4 +48,6 @@ Load the matching card from `cards/` when a trigger fits the current task:
 - `cards/pass-pair-validation.md` — when implementing pass gates/latches, running or extending the SPICE sims in `sim/`, choosing FET/resistor parts, or estimating board size and power
 - `cards/netlist-pipeline.md` — when running or modifying `tools/gen_netlist.py`, consuming `gen/netlist.json`, importing into KiCad, or checking the transform rules and part numbers
 - `cards/verification.md` — when changing the netlist (must keep equivalence green), running `tools/switchsim.py` or the vendor-model SPICE sims, or reasoning about dynamic-node charge behavior
+- `pico-controller/README.md` — when working on bring-up firmware, the Pico pin map, logic levels
+  (3.3 V vs 5 V, the missing clk0 pull-up), or how board and Pico get powered
 - `cards/layout.md` — when working on the PCB (`gen/discrete6502.kicad_pcb`), the routing pipeline (`tools/route_nc.*` + finishing passes), DRC severity rationale, silkscreen (`tools/add_silk.py`), or the fab outputs in `gen/fab/`

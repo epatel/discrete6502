@@ -21,3 +21,13 @@ Key findings:
 Part selection (JLCPCB, checked 2026-07-18): primary FET **2N7002, part C8545** — basic library, SOT-23, huge stock, cheapest available; fallback **BSS138, C52895** if lower Vto proves necessary with real vendor models. Pull-ups: 10kΩ 0402 (basic). Power estimate at 10k pull-ups: ~half of 1,018 pulled-up nodes low at any time → ~0.25 A / ~1.3 W core power (vs. MOnSter's ~10 W incl. LEDs). A SOT-323/SOT-723 2N7002 variant (extended part, one-time reel fee only) is the lever for shrinking the board.
 
 Board-size target derived from this: ~4,022 FETs + ~1,018 resistors, double-sided assembly, 4 layers → roughly 225×225 mm with SOT-23, ~180×185 mm with SOT-323. Target: **fit within 200×250 mm** (about half the MOnSter's 305×380 mm footprint).
+
+**Superseded by later decisions (this section is the M2 record, kept for the reasoning):**
+the part is now **BSS138K, LCSC C504052, SOT-323** (the fallback above, chosen at order time —
+2N7002W was out of stock); the board is **290.7 × 322 mm, 6 layers**, deliberately larger than
+the packing minimum because the die-mimicry directive requires preserving the die's empty space.
+The power estimate held: measured-by-calculation ≈ 1.4–1.5 W at 5 V (see README).
+
+**Open sim item before bring-up:** re-run the pass-pair testbench at **VCC = 3.3 V** — the
+recommended first power-up runs the whole board at 3.3 V (single supply domain with the Pico),
+and the bootstrap margin at that rail has never been checked.

@@ -45,6 +45,8 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-07-25 (late): **Agent-file audit.** Added a standing "keep the agent files current" rule to `CLAUDE.md` and swept every card for facts the last month of work had made stale: board outline corrected to the real 290.7 × 322 mm (was 283 × 309.6), core FET updated to BSS138K/C504052 everywhere, the router description updated to the shipped configuration (G=0.13 fine grid, 4 routing layers, warm-startable history), the full as-ordered BOM table added to `cards/netlist-pipeline.md`, silk + fab-output documentation added to `cards/layout.md`, the M5 "remaining work" list replaced by the M5-complete verification results, and the M2 part/board-size paragraphs in `cards/pass-pair-validation.md` explicitly marked superseded. `pico-controller/README.md` added to the card trigger list. Open questions pruned to live items only; cost section replaced with the real quote. **No design or board files were touched** — documentation only; the golden board and fab package are unchanged.
+
 - 2026-07-18: Project initialized from `initial-idea.md`; agentic setup created (this plan, `cards/`, `CLAUDE.md`, project skills).
 - 2026-07-18: M1 research complete. visual6502 netlist in `data/visual6502/` (3,510 transistors → 3,239 unique; 1,018 pull-up nodes; 783 pass transistors needing body-effect treatment). MOnSter 6502 facts and our simplification divergences documented in `cards/monster6502-lessons.md`.
 - 2026-07-19 (routing saga, in progress): Freerouting abandoned (10h → 700/8,500 routed). Custom router built: `tools/route_signals.py` — per-net tree growth, multi-goal A*, 2 layers (F horiz / B vert), 0.15/0.15 rules. **Critical lesson: a tree-poisoning bug (failed pads still seeded the net tree) produced fake 100%-routed claims for several iterations — verify with `tools/check_gaps.py` (independent union-find connectivity), never trust the router's own count alone.** Honest state: greedy saturates — v12 (0.25mm+halo) 46%, v13 (0.3mm halo-free) 53% — congestion collapse, not capacity. Stage 2 built: **negotiated-congestion (PathFinder) router** — `tools/route_nc.py` (extract/emit) + `tools/route_nc.c` (C core: route through conflicts, penalize shared cells, rip-up/reroute conflicted nets until no cell shared); ~1s per full iteration vs 3h in Python. 2026-07-20 progression (each step documented in `cards/layout.md`): retune (soft pres cap + strong history) 980→750 conflicted nets; whole-net carve + real keepout zones: 14→4 hard fails; **rasterize diagonal tracks** (bbox marking over-blocked hugely) 750→149; **switch to 0.127/0.127 5-mil rules on 0.26mm grid** (JLC-capable) big drop; **skip paste-only pads** (Pico anchors were phantom obstacles) → 0 hard fails, all 8,421 connections routable. Coarse 0.26 grid plateaus at ~50 conflicted nets (31 micro-knots, quantization artifacts; grid-offset re-thread of ripped nets made it WORSE — frozen board + shifted lattice ≈ no corridors). **Fine grid G=0.13 (SCALE=2 body/halo stamping in C) breaks the plateau**: 76 conflicted at iter 2000 and still declining. 2026-07-21: power stitching completed to 100% by `tools/route_power_finish.py` run against the presignal snapshot (119 leftover pads; MUST run before signal routing — after, signal copper makes ~14 unfixable). Production run: fine grid on stitched snapshot, 8000 iters, in progress. Then: check_gaps + check_parity + DRC, renders, fab outputs. Pipeline: gen_pcb → route_power → snapshot `gen/board_presignal.kicad_pcb` (restore this before each router rerun!) → route_signals → DRC + check_gaps + check_parity. Known cosmetic leftovers: 2 Pico-internal DRC items, silk_over_copper ~146 (bond-pad labels), hole_to_hole ~14 to review before fab.
@@ -55,17 +57,36 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-18: M3 complete. KiCad chosen as EDA target (netlist-direct-to-pcbnew, scripted placement in M5; no hand schematic). `tools/gen_netlist.py` transforms visual6502 data → 5,179 components / 2,587 nets / 5 part numbers, all JLCPCB basic class, with LED taps included; invariant checks pass (`cards/netlist-pipeline.md`). Next: M4 — behavioral verification: export the transformed netlist to a simulator (perfect6502-style switch-level sim or SPICE subcircuits with vendor 2N7002 models), run real 6502 test programs, compare against visual6502 golden model; re-verify the bootstrap-dependent pass pairs with manufacturer models.
 - 2026-07-18: M2 complete. Dynamic latch with back-to-back pass-FET pair SPICE-validated for BSS138/2N7002/AO3400 (`sim/passpair_latch.sp`); clock-edge bootstrap over-charges stored '1' above VDD, eliminating threshold drop — but must be re-verified with manufacturer SPICE models and on more topologies (series pass chains, clock drivers) in M4. AO3400A rejected (1nF Ciss too slow with 10k pull-ups). Parts, voltages, and board target settled (see Decisions). Next: M3 — pick EDA tool (KiCad assumed) and build the scripted netlist→schematic/placement pipeline from `data/visual6502/transdefs.js` (dedup 271 parallel transistors, expand 783 pass FETs to pairs, emit pull-up resistors from segdefs '+' flags).
 
-## Cost estimate (preliminary, 2026-07-18)
+## Cost (real quote, 2026-07-25)
 
-~$360–420 for 5 bare boards + 2 assembled (JLCPCB): parts ≈ $35/board (FETs dominate), assembly ≈ $23/board joints + ~$66 setup/stencil (Standard double-sided; $0 extended-part fees — all 7 part numbers basic), PCB fab ≈ $150–200/5pcs (least certain), shipping $25–40. ≈ **$180–210 per assembled CPU**; each additional assembled board ≈ +$60. Real quote requires routed gerbers + BOM/CPL.
+JLCPCB cart for **5 PCBs + 5 fully assembled** (6-layer, 290.7 × 322 mm ≈ 9.4 dm², ENIG,
+both-sides assembly, 5,328 placements each):
+
+| Item | Cost |
+|---|---|
+| PCB fab, 5 pcs, 6-layer ENIG | €131.44 |
+| PCBA, both sides, 5 boards (parts + assembly + setup) | €716.38 |
+| Shipping (UPS Worldwide Express Saver to Sweden) | €64.54 |
+| Swedish import VAT (25%) | ≈ €228 |
+| **Landed total** | **≈ €1,140** (≈ **€230 per assembled CPU**) |
+
+(The 2026-07-18 preliminary estimate of ~$180–210/CPU assumed a 200×250 mm 4-layer board;
+the die-mimicry directive and the 6-layer decision account for the difference.)
 
 ## Open questions
 
-- Faithful dynamic NMOS logic (as in the real 6502/MOnSter) or adapted static logic? Dynamic logic on discrete MOSFETs is what MOnSter 6502 proved possible, but it constrains part choice and clock behavior.
-- How much smaller is "smaller"? Target board dimensions and whether double-sided assembly is acceptable.
-- Which MOSFET (and pull-up) parts are in JLCPCB's economic assembly library in sufficient stock (~4000+ placements)?
-- Budget ceiling per board (assembly of thousands of parts dominates cost)?
-- ~~LEDs on key buses/registers like the original, or omit for size?~~ **Resolved 2026-07-18**: some — registers + counters, buffered (see Decisions). Still open: whether to also add address/data bus and IR LEDs.
-- Does a back-to-back 3-terminal FET pair actually behave well enough as an NMOS transmission gate in the 6502's dynamic latches (charge sharing through two gate capacitances, threshold drop)? Needs SPICE validation in M2.
-- Licensing: `segdefs.js` is CC BY-NC-SA (noncommercial). Fine for a hobby build; clarify before any commercial use of derived design files.
-- ~~Does a back-to-back 3-terminal FET pair actually work in the dynamic latches?~~ **Resolved 2026-07-18** (M2 sim + M4 vendor model): yes for all source-driven transfers. Remaining M5 item: include DNP ballast-cap footprints (~100–220pF) on main bus nets as bring-up insurance against clock-edge charge injection.
+_(design questions from M1–M4 are settled and live in Decisions; only live items remain here)_
+
+- **Bring-up rail**: SPICE the pass pair at VCC = 3.3 V before boards arrive. The recommended
+  first power-up is the whole board at 3.3 V (single supply domain with the Pico); the
+  bootstrap margin at that rail is unverified.
+- **Clock drive at 5 V**: the board has no pull-up on clk0, so open-drain full-swing clocking
+  needs an external 10k croc-clipped from the Φ0 bond pad to VCC. Confirm at bring-up whether
+  the 3.3 V push-pull clock is enough, or the external pull-up is mandatory.
+- **Optional LEDs**: whether to add address/data-bus (24) and IR (8) LED taps in a future
+  revision — script-generated, cheap, but more parts and more routing.
+- **Licensing**: `segdefs.js` is CC BY-NC-SA (noncommercial). Fine for this hobby build;
+  would need clarifying before any commercial use of derived design files.
+- **Order status**: JLCPCB cart priced (€131 PCB + €716 PCBA + €65 UPS Express Saver;
+  ≈ €1,150–1,200 landed with 25% Swedish VAT ≈ €230/CPU). Record the real total and order
+  number here when placed — that commit marks the official start of M6.
