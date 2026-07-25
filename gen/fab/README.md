@@ -15,12 +15,12 @@ Generated 2026-07-25 from `gen/discrete6502.kicad_pcb` (git 93360f0+).
   (excluded from BOM/CPL); THT bond-pad ring is unassembled by design
 
 ## Order-time checklist
-1. **FET stock (the big one):** BOM uses 2N7002W SOT-323, LCSC `C139444`
-   (Diodes 2N7002W-7-F). 5 assembled boards need ~20,300 pcs (+attrition).
-   Live LCSC stock was only ~4.4k at package time — use JLCPCB Global
-   Sourcing / pre-order stock, or switch to another in-stock 2N7002W
-   SOT-323 (budget alt: Shikues `C5334591`). Any 2N7002W-compatible works;
-   design was SPICE-validated on generic 2N7002 parameters.
+1. **FET = LCSC `C504052`** (JSCJ BSS138K, SOT-323) — chosen 2026-07-25 for
+   stock; BSS138 was the project's pre-approved fallback FET and is fully
+   SPICE-validated (Vth 0.8-1.5V even helps the 3.3V bring-up). 5 assembled
+   boards need ~20,300 pcs (+attrition) — confirm quantity at order.
+   Fallbacks if it dries up: any 2N7002W/BSS138W in SOT-323 with
+   Vgs(th) <= 2.5V and Ciss <= 60pF (never SOT-23, never AO3400-class).
 2. Confirm stock for the 0402 passives (10k x 1,023/board is the other bulk item).
 3. In the JLCPCB part-placement preview, check polarized parts: LEDs (D1-D55)
    and 1N4148WS diodes (D56-D67) — fix rotations in their UI if mismatched.
