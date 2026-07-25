@@ -9,7 +9,8 @@ Generated 2026-07-25 from `gen/discrete6502.kicad_pcb` (git 93360f0+).
 - `discrete6502_cpl.csv` — placement file (4,106 top / 1,222 bottom)
 
 ## Order settings
-- 6 layers, 290.7 x 322 mm (~9.4 dm2), 1.6 mm FR-4, HASL or ENIG (ENIG recommended: croc-clip
+- 6 layers, 290.7 x 322 mm (~9.4 dm2; the quote shows 300.7 x 322 because JLC adds
+  two 5 mm assembly edge rails on the short sides -- expected), 1.6 mm FR-4, HASL or ENIG (ENIG recommended: croc-clip
   bond pads wear), min trace/space used: 0.127 mm, min via: 0.45/0.2 mm
 - Standard PCBA, double-sided assembly, qty 5 boards
 - The Pico module site and 56 ballast-cap footprints are intentionally unpopulated
@@ -33,3 +34,9 @@ Generated 2026-07-25 from `gen/discrete6502.kicad_pcb` (git 93360f0+).
    assembled CPU. The earlier $500-750 PCB estimate was pessimistic.
 6. PCB and PCBA show as two linked line items under one order header --
    they are not duplicates; deleting one un-pairs the order with no undo.
+7. Min via hole size: select 0.2mm/(0.3/0.35mm), ~+EUR 25. All 14,454 vias are
+   0.2 mm holes in 0.45 mm pads; the default 0.3 mm class enlarges them and
+   thins the annular ring to 0.075 mm. Checked: hole-to-hole survives either
+   way (closest pair on the board is 0.520 mm centre-to-centre).
+8. Via Covering: keep "Epoxy Filled & Capped" -- 3,817 vias sit inside SMD pad
+   copper, and unfilled via-in-pad wicks solder out of the joint at reflow.

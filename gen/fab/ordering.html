@@ -103,6 +103,9 @@
       <li>Surface finish: <b>ENIG</b> — the croc-clip bond pads see repeated contact and HASL wears; the quoted €131 PCB line is with ENIG, so the saving from HASL is small here</li>
       <li>Impedance control: <b>No</b> · default 6-layer stackup is fine</li>
       <li>Order number: pay ~$1.5 to remove, or JLC prints theirs on the die face</li>
+      <li><b>Min via hole size: choose <span class="val">0.2mm/(0.3/0.35mm)</span></b> (~+€25). Every via here is a 0.2&nbsp;mm hole in a 0.45&nbsp;mm pad; the default 0.3&nbsp;mm class would enlarge them and cut the annular ring from 0.125 to 0.075&nbsp;mm. Verified safe either way — closest hole pair on the board is 0.520&nbsp;mm centre-to-centre, so hole-to-hole stays ≥0.22&nbsp;mm even at 0.3&nbsp;mm — but with 14,454 vias on a large 6-layer board, and 3,817 of them inside SMD pads (epoxy filled &amp; capped), the thicker ring is cheap insurance against a single hard-to-find open.</li>
+      <li><b>Via Covering: keep <span class="val">Epoxy Filled &amp; Capped</span></b> — not an upsell here: 3,817 vias sit on SMD pad copper (the router terminates stubs inside their own pad), and unfilled via-in-pad wicks solder away from the joint during reflow.</li>
+      <li>JLCPCB adds two 5&nbsp;mm edge rails for assembly, so the quote reads <b>300.7 × 322&nbsp;mm</b> — expected, not an error (290.7 + 2×5). Plane copper stops 0.50&nbsp;mm from the outline, fine for scoring or routing. Decide whether to pay for depaneling rather than snapping a 290&nbsp;mm 6-layer board by hand.</li>
     </ul></div>
   </div>
 
