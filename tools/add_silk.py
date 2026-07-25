@@ -158,20 +158,169 @@ def main():
         board = pcbnew.LoadBoard(PCB)
     print("legacy ring labels removed:", len(legacy))
 
+    # ---- occupancy grid of front-side parts: silk text must miss pad copper,
+    # else the fab subtracts it and titles print half-eaten (seen on the
+    # first gerber review). Used for the region titles, register letters and
+    # the logo alike.
+    GRID = 2.0
+    W = int((cx1 - cx0) / GRID) + 1
+    H = int((cy1 - cy0) / GRID) + 1
+    occ = bytearray(W * H)
+    for fp in board.Footprints():
+        if fp.GetLayer() != pcbnew.F_Cu:
+            continue
+        bb = fp.GetBoundingBox()
+        ix0 = max(0, int((bb.GetLeft() / 1e6 - cx0) / GRID) - 1)
+        ix1 = min(W - 1, int((bb.GetRight() / 1e6 - cx0) / GRID) + 1)
+        iy0 = max(0, int((bb.GetTop() / 1e6 - cy0) / GRID) - 1)
+        iy1 = min(H - 1, int((bb.GetBottom() / 1e6 - cy0) / GRID) + 1)
+        for iy in range(iy0, iy1 + 1):
+            for ix in range(ix0, ix1 + 1):
+                occ[iy * W + ix] = 1
+
+    def is_free(ix0, iy0, nw, nh):
+        if ix0 < 0 or iy0 < 0 or ix0 + nw > W or iy0 + nh > H:
+            return False
+        return all(occ[(iy0 + b) * W + ix0 + a] == 0
+                   for b in range(nh) for a in range(nw))
+
+    def measure(s, h):
+        """width of a stroke-font string in mm at text height h.
+        KiCad's stroke font advances one text-width per glyph (we set width
+        to 0.9*h); 1.05 covers inter-glyph spacing. Deliberately a slight
+        over-estimate -- erring wide only buys extra clearance."""
+        return len(s) * h * 0.9 * 1.05
+
+    def fit(s, y_lo, y_hi, h):
+        """topmost-then-leftmost pad-free spot for text s at height h"""
+        nw = int((measure(s, h) + 1.5) / GRID) + 1
+        nh = int(h * 1.9 / GRID) + 1
+        iy_lo = max(0, int((y_lo - cy0) / GRID))
+        iy_hi = min(H - 1, int((y_hi - cy0) / GRID))
+        for iy in range(iy_lo, iy_hi - nh + 1):
+            for ix in range(0, W - nw):
+                if is_free(ix, iy, nw, nh):
+                    return ix, iy, nw, nh
+        return None
+
+    def claim(ix, iy, nw, nh):
+        for b in range(nh):
+            for a in range(nw):
+                occ[(iy + b) * W + ix + a] = 1
+
+    def fit_block(w_mm, h_mm, y_lo=None, y_hi=None):
+        """lowest (most datapath-ward) pad-free block of at least w x h mm"""
+        nw = int(w_mm / GRID) + 1
+        nh = int(h_mm / GRID) + 1
+        iy_lo = 0 if y_lo is None else max(0, int((y_lo - cy0) / GRID))
+        iy_hi = H - 1 if y_hi is None else min(H - 1, int((y_hi - cy0) / GRID))
+        best = None
+        for iy in range(iy_lo, iy_hi - nh + 1):
+            for ix in range(0, W - nw):
+                if is_free(ix, iy, nw, nh) and (best is None or iy > best[1]):
+                    best = (ix, iy, nw, nh)
+        return best
+
+    def place_free(s, y_lo, y_hi, heights, bold=True, near=None):
+        """Find a pad-free spot for text s inside the y band; returns
+        (x, y, h) of the placed text, or None. Prefers the top-left of the
+        band (section-header feel), or the nearest spot to `near`."""
+        iy_lo = max(0, int((y_lo - cy0) / GRID))
+        iy_hi = min(H - 1, int((y_hi - cy0) / GRID))
+        for h in heights:
+            w = measure(s, h) + 1.5          # margin either side
+            nw = int(w / GRID) + 1
+            nh = int(h * 1.9 / GRID) + 1
+            cands = []
+            for iy in range(iy_lo, iy_hi - nh + 1):
+                for ix in range(0, W - nw):
+                    if is_free(ix, iy, nw, nh):
+                        cands.append((ix, iy))
+            if not cands:
+                continue
+            if near is not None:
+                nx = (near[0] - cx0) / GRID
+                ny = (near[1] - cy0) / GRID
+                ix, iy = min(cands, key=lambda c: (c[0] - nx) ** 2 + (c[1] - ny) ** 2)
+            else:                              # topmost band, then leftmost
+                ix, iy = min(cands, key=lambda c: (c[1], c[0]))
+            x = cx0 + (ix + nw / 2) * GRID
+            y = cy0 + (iy + nh / 2) * GRID
+            for b in range(nh):                # claim it
+                for a in range(nw):
+                    occ[(iy + b) * W + ix + a] = 1
+            return x, y, h
+        return None
+
+    # ---- 2a. logo first: it is the signature element, so it gets first pick
+    # of the clear space (and claims it, so the band titles route around it).
+    # Attribution is split over two lines -- one long line needs more clear
+    # width than exists anywhere on the die.
+    LOGO = None
+    for ht in (6.0, 5.0, 4.2, 3.6, 3.0, 2.6):
+        hs, ha = ht * 0.34, max(1.3, ht * 0.34)
+        lines = [("MOS 6502", ht, True), ("discrete6502", hs, False),
+                 ("after visual6502.org", ha, False), ("CC BY-NC-SA", ha, False)]
+        need_w = max(measure(s, h) for s, h, _ in lines) + 2.0
+        need_h = sum(h * 1.75 for _, h, _ in lines) + 1.0
+        spot = fit_block(need_w, need_h)
+        if spot:
+            LOGO = (spot, lines, need_h)
+            break
+    if LOGO:
+        (ix, iy, nw, nh), lines, need_h = LOGO
+        claim(ix, iy, nw, nh)
+        cx = cx0 + (ix + nw / 2) * GRID
+        y = cy0 + iy * GRID + (nh * GRID - need_h) / 2
+        for s, h, bold in lines:
+            y += h * 1.75 / 2
+            txt(board, s, cx, y, h, pcbnew.F_SilkS, bold=bold)
+            y += h * 1.75 / 2
+        print("logo at (%.0f, %.0f) in %.0fx%.0fmm, title %.1fmm"
+              % (cx, cy0 + (iy + nh / 2) * GRID, nw * GRID, nh * GRID, lines[0][1]))
+    else:
+        print("no logo spot found")
+
     # ---- 2. functional region outlines (classic die floorplan bands) ----
+    # The die field is dense: a full-length title at 2.6mm needs ~64mm of
+    # clear width and the largest pad-free block in a band is ~36mm. Titles
+    # that cross pads get subtracted by the fab and print half-eaten, so
+    # instead try progressively shorter wordings, pick ONE height that every
+    # band can honour (uniform size reads as deliberate), and place each
+    # band's longest wording that fits at it.
     ch = cy1 - cy0
     regions = [
-        ("INSTRUCTION DECODE  (PLA)", cy0, cy0 + 0.27 * ch),
-        ("CONTROL LOGIC", cy0 + 0.27 * ch, cy0 + 0.52 * ch),
-        ("DATAPATH — REGISTERS & ALU", cy0 + 0.52 * ch, cy1),
+        (["INSTRUCTION DECODE (PLA)", "INSTRUCTION DECODE", "DECODE PLA", "PLA"],
+         cy0, cy0 + 0.27 * ch),
+        (["CONTROL LOGIC", "CONTROL"], cy0 + 0.27 * ch, cy0 + 0.52 * ch),
+        (["DATAPATH — REGISTERS & ALU", "DATAPATH & ALU", "DATAPATH"],
+         cy0 + 0.52 * ch, cy1),
     ]
-    first = True
-    for label, y0, y1 in regions:
+    HEIGHTS = (3.2, 2.8, 2.6, 2.4, 2.2, 2.0, 1.8, 1.6)
+    feasible = []
+    for variants, y0, y1 in regions:
+        hmax = next((h for h in HEIGHTS
+                     if any(fit(v, y0 + 2, y1 - 2, h) for v in variants)), 1.6)
+        feasible.append(hmax)
+    h_uni = min(feasible)
+    for variants, y0, y1 in regions:
         rect(board, cx0 - 1.5, y0, cx1 + 1.5, y1, pcbnew.F_SilkS, 0.25)
-        # first band: drop below the top pad-ring labels
-        txt(board, label, cx0 + 2.5, y0 + (6.2 if first else 3.2), 2.6,
-            pcbnew.F_SilkS, bold=True, left=True)
-        first = False
+        placed = False
+        for v in variants:                     # longest wording that fits
+            spot = fit(v, y0 + 2, y1 - 2, h_uni)
+            if spot:
+                ix, iy, nw, nh = spot
+                claim(ix, iy, nw, nh)
+                x = cx0 + (ix + nw / 2) * GRID
+                y = cy0 + (iy + nh / 2) * GRID
+                txt(board, v, x, y, h_uni, pcbnew.F_SilkS, bold=True)
+                print("region %-26s -> (%3.0f,%3.0f) h=%.1f" % (v, x, y, h_uni))
+                placed = True
+                break
+        if not placed:
+            txt(board, variants[-1], cx0 + 2.5, y0 + 3.2, h_uni,
+                pcbnew.F_SilkS, bold=True, left=True)
+            print("region %-26s -> no clear spot" % variants[-1])
 
     # ---- 3. register-row labels from LED positions ----
     nl = json.loads((ROOT / "gen" / "netlist.json").read_text())
@@ -188,48 +337,16 @@ def main():
             p = fp.GetPosition()
             fams[f].append((p.x / 1e6, p.y / 1e6))
     for f, pts in fams.items():
-        x = min(p[0] for p in pts) - 3.2
-        y = sum(p[1] for p in pts) / len(pts)
-        txt(board, f, x, y, 2.0, pcbnew.F_SilkS, bold=True)
-
-    # ---- 4. logo in the largest FET-free front area ----
-    GRID = 2.0
-    W = int((cx1 - cx0) / GRID) + 1
-    H = int((cy1 - cy0) / GRID) + 1
-    occ = bytearray(W * H)
-    for fp in board.Footprints():
-        if fp.GetLayer() != pcbnew.F_Cu:
-            continue
-        bb = fp.GetBoundingBox()
-        ix0 = max(0, int((bb.GetLeft() / 1e6 - cx0) / GRID) - 1)
-        ix1 = min(W - 1, int((bb.GetRight() / 1e6 - cx0) / GRID) + 1)
-        iy0 = max(0, int((bb.GetTop() / 1e6 - cy0) / GRID) - 1)
-        iy1 = min(H - 1, int((bb.GetBottom() / 1e6 - cy0) / GRID) + 1)
-        for iy in range(iy0, iy1 + 1):
-            for ix in range(ix0, ix1 + 1):
-                occ[iy * W + ix] = 1
-    best = None
-    for LW, LH in ((23, 6), (18, 5), (14, 4), (10, 3)):
-        for iy in range(H - LH):
-            for ix in range(W - LW):
-                if all(occ[(iy + b) * W + ix + a] == 0
-                       for b in range(LH) for a in range(LW)):
-                    if best is None or iy > best[1]:
-                        best = (ix, iy, LW, LH)
-        if best:
-            break
-    if best:
-        ix, iy, LW, LH = best
-        lx = cx0 + (ix + LW / 2) * GRID
-        ly = cy0 + (iy + LH / 2) * GRID
-        hh = LH * GRID
-        txt(board, "MOS 6502", lx, ly - hh * 0.12, hh * 0.42, pcbnew.F_SilkS, bold=True)
-        txt(board, "discrete6502", lx, ly + hh * 0.30, hh * 0.16, pcbnew.F_SilkS)
-        txt(board, "after visual6502.org · CC BY-NC-SA", lx, ly + hh * 0.30 + 3.2,
-            1.6, pcbnew.F_SilkS)
-        print("logo at (%.0f, %.0f) size %dx%dmm" % (lx, ly, LW * GRID, LH * GRID))
-    else:
-        print("no logo spot found")
+        # want it beside its LED row, but never printed onto pad copper
+        want_x = min(p[0] for p in pts) - 3.2
+        want_y = sum(p[1] for p in pts) / len(pts)
+        spot = place_free(f, want_y - 6.0, want_y + 6.0, (2.0, 1.6),
+                          near=(want_x, want_y))
+        if spot:
+            x, y, h = spot
+            txt(board, f, x, y, h, pcbnew.F_SilkS, bold=True)
+        else:
+            txt(board, f, want_x, want_y, 2.0, pcbnew.F_SilkS, bold=True)
 
     # ---- 5. Pico site on the back ----
     u1 = None
