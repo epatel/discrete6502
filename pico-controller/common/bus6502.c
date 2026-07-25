@@ -8,7 +8,12 @@ static uint8_t mem[BUS_MEM_SIZE];
 static bus_trace_t trace[BUS_TRACE_LEN];
 static uint32_t trace_head;   // next write slot
 static uint32_t trace_count;  // total entries ever written (min with LEN for avail)
-static uint32_t half_us = 10;
+// 50us half-period = 10 kHz.  Deliberately conservative: sim/fanout_speed.sp
+// shows the worst decode-PLA input line (ir2, 71 gate loads = 1.9nF behind a
+// 10k pull-up) needs ~7us at 5V / ~11us at 3.3V just to flip the receiving
+// stage, and ~25us to reach a comfortable level.  Speed up with 'p' once the
+// CPU is known good.
+static uint32_t half_us = 50;
 static bool clk_od;
 static bus_io_fn io_fn;
 uint32_t bus_cycle_count;

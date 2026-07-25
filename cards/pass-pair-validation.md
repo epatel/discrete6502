@@ -57,6 +57,43 @@ This is the documented, accepted limitation; the 6502 never relies on floating-t
 transfer, and the switch-level equivalence run is the logic-side evidence. The 56 DNP ballast
 caps exist as the hardware fallback if reality disagrees.
 
+## Clock ceiling is set by fanout, not by the pass pairs — `sim/fanout_speed.sp` (2026-07-25)
+
+The M2 speed rule (`rise ≈ 2.2·R·C` = 0.3 µs at 10k/30pF) silently assumed a node driving
+**one** gate. Real fanout, extracted from `gen/netlist.json` (gate pads per net × 27 pF Ciss):
+
+| net | gates | C | pulled up by | 10–90% rise |
+|---|---|---|---|---|
+| `cclk` | 482 | 13.0 nF | vcc_side FET (source follower) | fast — FET sources ~100 mA |
+| `cp1` | 198 | 5.4 nF | vcc_side FET | fast |
+| `ir2` | 71 | 1.9 nF | **10 kΩ resistor** | **43 µs** |
+| `ir4` | 69 | 1.9 nF | 10 kΩ resistor | 41 µs |
+| `irline3` | 63 | 1.7 nF | 10 kΩ resistor | 37 µs |
+
+Of 760 resistor-pulled nets, 17 rise slower than 10 µs and 2 slower than 40 µs — all of them
+decode-PLA input lines, exactly where you would expect the fanout to concentrate. The big
+clock nets are fine because the transform gave them FET pull-ups (`vcc_side`), not resistors.
+
+Simulated with a receiving stage on the far end, the functional numbers are better than the
+10–90% figure suggests, because the receiver flips as soon as the line crosses its threshold:
+
+| | 5.0 V | 3.3 V |
+|---|---|---|
+| Worst line (1.9 nF): delay until receiving stage flips | 7.0 µs | 11.4 µs |
+| Worst line: level reached 10 µs after release | 1.98 V | 1.31 V |
+| Worst line: level reached 25 µs after release | 3.60 V | 2.37 V |
+| Median net (27 pF): delay until receiver flips | 0.32 µs | 0.48 µs |
+
+**Consequence: the ≥50 kHz target from M2 is optimistic.** A 50 kHz clock gives a 10 µs
+half-cycle — marginal at 5 V, insufficient at 3.3 V. A realistic figure is **~20 kHz at 5 V**
+(25 µs half-cycle, ~3.5× margin) and **~10 kHz at 3.3 V**. The bring-up firmware default was
+changed to a 50 µs half-period (10 kHz) accordingly; the `p` command walks it up so the real
+ceiling can be measured rather than guessed. Expect *decode* errors first when it breaks.
+
+Levers if more speed is ever wanted: smaller pull-ups on the ~17 slow nets (costs static power,
+6.8k would buy ~30%), or a lower-Ciss FET. Neither is worth a respin — the MOnSter 6502 itself
+tops out at ~50 kHz with lower-capacitance array transistors.
+
 ## LED tap brightness vs rail — `sim/led_tap.sp` (2026-07-25)
 
 The only practical 3.3 V caveat, and it is not a logic problem. Deck models the real topology

@@ -32,7 +32,8 @@ Design complete and verified; ready to order (fab package in `gen/fab/`, checkli
 - **Faithful dynamic NMOS logic** — not a static re-design: the visual6502 netlist's 3,239 unique
   transistors, with the 783 pass transistors implemented as back-to-back FET pairs (BSS138K)
   (clock-edge bootstrap validated in SPICE with the manufacturer's model) and 1,018 pull-up
-  resistors standing in for the depletion loads. Target clock ≥ 50 kHz.
+  resistors standing in for the depletion loads. Realistic clock ~10–20 kHz — the decode-PLA
+  input lines drive up to 71 discrete gates behind one 10k pull-up (`sim/fanout_speed.sp`).
 - **Machine-checked correctness**: a switch-level simulator proves the transformed netlist
   produces bit-identical traces to the original visual6502 netlist while running real 6502
   code; board-vs-netlist parity and independent copper-connectivity checks close the chain.
@@ -48,26 +49,31 @@ Design complete and verified; ready to order (fab package in `gen/fab/`, checkli
 
 ## Power budget
 
-Dominated by the NMOS pull-up current, not switching (estimate from M2, at VCC = 5 V):
+Dominated by the NMOS pull-up current, not switching. Component counts are from
+`gen/netlist.json`; the LED figure is simulated (`sim/led_tap.sp`).
 
-| Contribution | Calculation | Current | Power |
+| Contribution | Basis | Typical | Worst case |
 |---|---|---|---|
-| Pull-up static current | 1,018 × 10 kΩ pull-ups; on average ~half the nodes pulled low → ~509 × 0.5 mA | ~0.25 A | **~1.3 W** |
-| Register LEDs | 55 × 1.42 mA (SPICE, `sim/led_tap.sp`); all lit at once is the worst case, ~half is typical | 0.04–0.08 A | 0.2–0.39 W |
-| Dynamic (gate-cap switching) | ~50 nF of total gate capacitance × V² × f at ≤50 kHz | — | ~60 mW |
-| **Total** | | **~0.31–0.35 A** | **≈ 1.6–1.8 W @ 5 V** |
+| Pull-up static current | 1,023 × 10 kΩ, 0.50 mA per node held low; ~half low at any moment (worst case: all) | 0.26 A / 1.28 W | 0.51 A / 2.56 W |
+| Register LEDs | 55 taps × 1.42 mA; ~half the monitored bits set (worst case: all lit) | 0.04 A / 0.20 W | 0.08 A / 0.39 W |
+| Dynamic switching | 109 nF total gate capacitance; 21 nF of it on clock-rate nets, rest at ~15% activity, at 10 kHz | ~9 mW | ~45 mW at 50 kHz |
+| Pico 2 W, if VSYS is soldered | ~30 mA at 3.3 V through its buck | 0.02 A / 0.12 W | 0.03 A / 0.15 W |
+| **Total @ 5 V** | | **≈ 0.32 A / 1.6 W** | **≈ 0.63 A / 3.2 W** |
 
-A 5 V / 1 A bench supply is comfortable. At the recommended 3.3 V first
-bring-up the same math gives ~0.21 A / ~0.7 W — and the LEDs drop to
-0.67 mA each, since the 2.2 kΩ ballast sees a 1.4 V smaller overhead above
-the LED's ~1.85 V forward drop. That is 47% of the 5 V current but only
-about a 20% drop in *perceived* brightness (perception goes roughly as the
-cube root of luminous output): dimmer, still perfectly readable.
-Spread over the 900 cm² board the heat is imperceptible — compare the
-original MOnSter 6502 at ~10 W.
-The interesting electrical moments are the clock edges (~25 nF of pass-gate
-capacitance per phase charged in a few µs → ~50 mA peaks), which is what the
-96 distributed 100 nF decouplers are for.
+**A 5 V / 1 A bench supply covers even the worst case.** Spread over the 900 cm²
+board the heat is imperceptible — compare the original MOnSter 6502 at ~10 W.
+
+At the recommended 3.3 V first bring-up (Pico on USB, off the board rail):
+**≈ 0.19 A / 0.64 W typical, 0.38 A / 1.3 W worst case**. The LEDs there draw
+0.67 mA each instead of 1.42 mA, because the 2.2 kΩ ballast has 1.4 V less
+headroom above the LED's ~1.85 V forward drop — 47% of the current, but only
+about 20% less *perceived* brightness (perception goes roughly as the cube root
+of luminous output): dimmer, still perfectly readable.
+
+Transient behaviour is more interesting than the average: the `cclk` net alone
+carries 13 nF of gate load (482 gates), so clock edges pull ~50–100 mA for a
+microsecond or two. That is what the 96 distributed 100 nF decouplers and 4 ×
+10 µF bulk caps are for — they hold the rail to ~10 mV of droop across an edge.
 
 ## Repository layout
 
@@ -76,7 +82,7 @@ capacitance per phase charged in a few µs → ~50 mA peaks), which is what the
 - `data/visual6502/` — the reverse-engineered netlist source data
 - `tools/` — the entire generation pipeline: netlist transform, die placement, power routing,
   the negotiated-congestion signal router, finishing passes, silkscreen, verification
-- `sim/` — ngspice testbenches for the dynamic pass-pair structures
+- `sim/` — ngspice testbenches: pass-pair latch, 3.3 V validation, LED brightness, fanout speed
 - `gen/` — generated artifacts: netlist, boards (`board_routed_golden.kicad_pcb`), renders,
   and the JLCPCB fabrication package (`gen/fab/`)
 

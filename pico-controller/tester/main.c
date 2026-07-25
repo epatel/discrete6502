@@ -45,7 +45,7 @@ static void help(void) {
            "  d [N]      dump last N trace entries (default 32)\n"
            "  x A L      hexdump L bytes of image at offset A (hex)\n"
            "  m A B..    poke bytes at offset A (all hex)\n"
-           "  p US       set clock half-period in us (default 10 = 50 kHz)\n"
+           "  p US       set clock half-period in us (default 50 = 10 kHz)\n"
            "  z          zero cycle counter + trace\n"
            "  h          this help\n"
            "columns: cycle  addr(14-bit)  data  r/W  SYNC\n");

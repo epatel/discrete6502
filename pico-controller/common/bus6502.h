@@ -42,7 +42,7 @@ typedef bool (*bus_io_fn)(uint16_t addr, bool is_write, uint8_t *data);
 // highs — see README "Logic levels" before choosing.
 void bus_init(bool clk_open_drain);
 
-void bus_set_half_period_us(uint32_t us);  // default 10 (=> 50 kHz)
+void bus_set_half_period_us(uint32_t us);  // default 50 (=> 10 kHz, see bus6502.c)
 void bus_set_io(bus_io_fn fn);
 
 void bus_reset_assert(void);   // /res low

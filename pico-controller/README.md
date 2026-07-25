@@ -49,9 +49,8 @@ The Pico is a 3.3 V device; the CPU core is designed for 5 V. This is the one
   default push-pull clock — one supply domain, no level questions. This is
   **simulation-cleared**: `sim/passpair_33v.sp` (2026-07-25) shows the dynamic
   latches still work at 3.3 V and even 3.0 V — the clock-edge bootstrap keeps
-  the stored '1' at or above the rail, and pull-up recovery (1.31 µs) leaves
-  ~7× margin inside a 50 kHz half-cycle. Expect the register LEDs to be dim
-  (~0.64 mA vs 1.4 mA at 5 V) — cosmetic, not a fault. Move to 5 V +
+  the stored '1' at or above the rail. Expect the register LEDs to be dim
+  (0.67 mA vs 1.42 mA at 5 V — `sim/led_tap.sp`) — cosmetic, not a fault. Move to 5 V +
   external clk pull-up + open-drain clock afterwards for full margin.
 
 ## Powering
@@ -98,6 +97,21 @@ A healthy CPU after `R` shows the 7-cycle reset sequence, a vector fetch at
 `3FFC/3FFD`, then the program's fetch/execute rhythm with SYNC marking each
 opcode. The default image increments A forever — the A-register LEDs count in
 binary and `$0300` follows.
+
+## Clock speed — start slow
+
+The firmware default is a **50 µs half-period (10 kHz)**, not the 50 kHz the
+project originally targeted. `sim/fanout_speed.sp` found the real ceiling: the
+decode-PLA input lines drive up to 71 discrete gates (≈ 1.9 nF) behind a single
+10k pull-up, so after the pull-down releases, the receiving stage needs ~7 µs at
+5 V (~11 µs at 3.3 V) just to flip, and ~25 µs for the line to reach a
+comfortable level. A 50 kHz clock leaves only a 10 µs half-cycle — marginal at
+5 V, too short at 3.3 V.
+
+At bring-up: start at the default, confirm correct execution, then walk the
+clock up with `p` (`p 25` = 20 kHz, `p 10` = 50 kHz) and find where it breaks.
+The failure mode should be instructive — expect decode errors first, since the
+PLA input lines are the slowest nets on the board.
 
 ## Roadmap
 
