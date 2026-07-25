@@ -30,7 +30,7 @@ Design complete and verified; ready to order (fab package in `gen/fab/`, checkli
 ## Highlights
 
 - **Faithful dynamic NMOS logic** — not a static re-design: the visual6502 netlist's 3,239 unique
-  transistors, with the 783 pass transistors implemented as back-to-back 2N7002W pairs
+  transistors, with the 783 pass transistors implemented as back-to-back FET pairs (BSS138K)
   (clock-edge bootstrap validated in SPICE with the manufacturer's model) and 1,018 pull-up
   resistors standing in for the depletion loads. Target clock ≥ 50 kHz.
 - **Machine-checked correctness**: a switch-level simulator proves the transformed netlist
@@ -45,6 +45,24 @@ Design complete and verified; ready to order (fab package in `gen/fab/`, checkli
   clock master and memory emulator (data bus, 14 address bits with 16 KB mirroring, reset,
   R/W, SYNC via factory-fitted series resistors). Solder a Pico on, flash firmware, and the
   CPU runs programs with full bus tracing — no other computer needed.
+
+## Power budget
+
+Dominated by the NMOS pull-up current, not switching (estimate from M2, at VCC = 5 V):
+
+| Contribution | Calculation | Power |
+|---|---|---|
+| Pull-up static current | 1,018 × 10 kΩ pull-ups; on average ~half the nodes are pulled low → ~509 × 0.5 mA | **~1.3 W** (0.25 A) |
+| Register LEDs | ≤55 × ~1.4 mA through 2.2 kΩ (worst case all lit) | ~75 mW |
+| Dynamic (gate-cap switching) | ~50 nF of total gate capacitance × V² × f at ≤50 kHz | ~60 mW |
+| **Total** | | **≈ 1.4–1.5 W @ 5 V (~0.3 A)** |
+
+A 5 V / 1 A bench supply is comfortable. At the recommended 3.3 V first
+bring-up the same math gives ~0.17 A / ~0.6 W. Spread over the 900 cm² board
+the heat is imperceptible — compare the original MOnSter 6502 at ~10 W.
+The interesting electrical moments are the clock edges (~25 nF of pass-gate
+capacitance per phase charged in a few µs → ~50 mA peaks), which is what the
+96 distributed 100 nF decouplers are for.
 
 ## Repository layout
 

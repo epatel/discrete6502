@@ -52,6 +52,20 @@ The Pico is a 3.3 V device; the CPU core is designed for 5 V. This is the one
   (Worth SPICE-checking the 3.3 V pass-pair case before boards arrive —
   open item in project-plan.md.)
 
+## Powering
+
+The Pico's VSYS (pin 39) is tied to board VCC; GNDs are shared.
+
+- **Bench supply** on the VCC/VSS bond pads (croc clips) powers board *and*
+  Pico. USB may be connected simultaneously for serial.
+- **USB-only demo mode**: with pin 39 soldered, the Pico's USB powers the
+  whole board (~0.35 A at ~4.8 V) — fine from USB-3 or a charger.
+- **For the 3.3 V bring-up: leave the pin-39 castellation UNSOLDERED at
+  first.** With it soldered + USB plugged, VSYS drags board VCC to ~4.8 V
+  and a 3.3 V bench setting cannot win. Unsoldered: USB powers the Pico,
+  the bench powers the board at any voltage, grounds stay shared. Solder
+  pin 39 once you move to 5 V operation.
+
 ## Build
 
 Requires the [pico-sdk](https://github.com/raspberrypi/pico-sdk) (2.x for RP2350)
