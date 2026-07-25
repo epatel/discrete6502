@@ -1,0 +1,63 @@
+*$
+**************** Power Discrete MOSFET Electrical Circuit Model *****************
+** Product Name: 2N7002
+** N-Channel Enhancement Mode Field Effect Transistor
+** Model Name: F2N7002
+** Model Type: BSIM3V3
+**-------------------------------------------------------------------------------
+.SUBCKT F2N7002 2 1 3    
+*Nom Temp=25 deg C
+Dbody 7 5    DbodyMOD
+Dbreak 5 11  DbreakMOD
+Ebreak 11 7 17 7 59.4
+Lgate 1 9    4.99e-9
+Ldrain 2 5   1.44e-9
+Lsource 3 7  2.49e-9
+RLgate 1 9   4.89
+RLdrain 2 5  10
+RLsource 3 7 10
+Rgate 9 6    10
+It 7 17      1
+Rbreak 17 7  RbreakMOD 1
+.MODEL RbreakMOD RES (TC1=7.51e-4 TC2=-2.05e-7)
+.MODEL DbodyMOD D (IS=5.05e-14  N=1      RS=1.42e-1   TRS1=2.1e-3 TRS2=4e-6 
++ CJO=2.64e-11     M=0.38       VJ=0.60  TT=3.25e-7   XTI=3       EG=1.15)
+.MODEL DbreakMOD D (RS=100e-3 TRS1=1.0e-3 TRS2=1.8e-5)
+Rdrain 5 16 RdrainMOD 0.82
+.MODEL RdrainMOD RES (TC1=8.4e-3 TC2=3.5e-6)
+M_BSIM3 16 6 7 7 Bsim3 W=0.033 L=2.0e-6 NRS=1
+.MODEL  Bsim3 NMOS (LEVEL=7 VERSION=3.1 MOBMOD=3 CAPMOD=2 PARAMCHK=1 NQSMOD=0
++ TOX=1000e-10   XJ=1.4e-6      NCH=6.03e16
++ U0=700         VSAT=1.0e5     DROUT=1.0
++ DELTA=0.1      PSCBE2=0       RSH=5.09e-3
++ VTH0=1.937     VOFF=-0.1      NFACTOR=1.1
++ LINT=1.28e-7   DLC=1.28e-7    
++ CGSO=2.2e-15   CGSL=0         CGDO=2.2e-13
++ CGDL=3.99e-9   CJ=0           CF=0
++ CKAPPA=0.1     KT1=-0.85      KT2=0
++ UA1=-1.52e-9   NJ=10)
+.ENDS
+**
+******************** Power Discrete MOSFET Thermal Model ************************
+** 60V N-Channel MOSFET and TO-92
+** RTHJA: 625C/W 
+**-------------------------------------------------------------------------------
+.SUBCKT F2N7002_Thermal TH TL
+CTHERM1 TH 6 1.04e-4
+CTHERM2 6 5  4.44e-4
+CTHERM3 5 4  6.32e-4
+CTHERM4 4 3  8.64e-4
+CTHERM5 3 2  1.12e-3
+CTHERM6 2 TL 6.02e-3
+RTHERM1 TH 6 5.20e-1
+RTHERM2 6 5  3.50e+0
+RTHERM3 5 4  1.20e+1
+RTHERM4 4 3  2.50e+1
+RTHERM5 3 2  1.24e+2
+RTHERM6 2 TL 4.60e+2
+.ENDS F2N7002_Thermal
+**-------------------------------------------------------------------------------
+** Creation: Jul.-06-2022   Rev.: 1.0
+** onsemi
+*$
+

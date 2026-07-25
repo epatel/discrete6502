@@ -1,0 +1,7 @@
+
+Checking parameters for BSIM 3.2 model xdrv:bsim3
+Warning: This model supports BSIM3v3.2, BSIM3v3.2.2, BSIM3v3.2.3, BSIM3v3.2.4
+You specified a wrong version number. Working now with BSIM3v3.2.4.
+Warning: Pscbe2 = 0 is not positive.
+Warning: Pd = 0 is less than W.
+Warning: Ps = 0 is less than W.

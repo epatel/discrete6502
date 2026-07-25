@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>monster6502v2 layout preview</title>
+<style>
+  body { font-family: -apple-system, sans-serif; margin: 0; display: flex; height: 100vh; background: #1a1a1e; color: #ddd; }
+  #side { width: 300px; padding: 14px; overflow-y: auto; background: #222; }
+  #main { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  canvas { background: #0d3320; box-shadow: 0 0 30px #000; }
+  h2 { font-size: 15px; margin: 4px 0 10px; }
+  button { margin: 2px 4px 2px 0; padding: 5px 10px; background: #444; color: #eee; border: 0; border-radius: 4px; cursor: pointer; }
+  button.on { background: #2a7; color: #fff; }
+  textarea { width: 100%; height: 90px; background: #333; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 6px; box-sizing: border-box; }
+  .lg { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 2px 0; }
+  .sw { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+  #comments { font-size: 12px; }
+  #comments div { border-bottom: 1px solid #333; padding: 4px 0; white-space: pre-wrap; }
+  #status { font-size: 12px; color: #7c7; min-height: 16px; }
+  small { color: #999; }
+</style>
+</head>
+<body>
+<div id="side">
+  <h2>monster6502v2 layout</h2>
+  <div>
+    <button id="bF" class="on" onclick="setSide('F')">Front (die look)</button>
+    <button id="bB" onclick="setSide('B')">Back</button>
+  </div>
+  <div style="margin:8px 0">
+    <label class="lg"><input type="checkbox" id="mirror" onchange="draw()"> mirror back view (as seen from behind)</label>
+    <label class="lg"><input type="checkbox" id="labels" checked onchange="draw()"> pad labels</label>
+  </div>
+  <div id="legend"></div>
+  <p><small>Scroll to zoom, drag to pan. Board <span id="dims"></span> mm.</small></p>
+  <h2>Comments</h2>
+  <textarea id="txt" placeholder="What should change? (e.g. 'move DB pads lower', 'PLA band not visible enough')"></textarea>
+  <button onclick="send()">Send comment</button>
+  <div id="status"></div>
+  <div id="comments"></div>
+</div>
+<div id="main"><canvas id="cv"></canvas></div>
+<script>
+const COLORS = {
+  pulldown:  "#c8c8cf", vcc_side: "#e8d9a0", pass_a: "#9fb8d8", pass_b: "#9fb8d8",
+  led_driver:"#c8c8cf", pullup: "#8a8f96", led_limit: "#8a8f96", ballast_dnp: "#5a4",
+  decoupling:"#7a6f5a", bulk: "#7a6f5a", input_protect: "#a98", clamp_up: "#a98",
+  clamp_dn:  "#a98", input_pullup: "#8a8f96", edge_pad: "#e7c34a", pico_site: "#3a6f4a",
+  pico_series:"#575", led: "#e33", "": "#888"
+};
+const LEGEND = [["edge_pad","bond pad"],["pulldown","logic FET"],["pass_a","pass-pair FET"],
+  ["vcc_side","vcc-side FET"],["led","LED"],["pullup","resistor"],
+  ["decoupling","cap"],["pico_site","Pico 2 W site"],["input_protect","protection"]];
+let data=null, side="F", scale=4, ox=20, oy=20;
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+
+fetch("/gen/layout.json").then(r=>r.json()).then(d=>{
+  data=d;
+  document.getElementById("dims").textContent = d.board_w+" × "+d.board_h;
+  const m=document.getElementById("main");
+  scale=Math.min((m.clientWidth-40)/d.board_w,(m.clientHeight-40)/d.board_h);
+  cv.width=d.board_w*scale+2*ox; cv.height=d.board_h*scale+2*oy;
+  draw(); loadComments();
+});
+function setSide(s){ side=s;
+  document.getElementById("bF").classList.toggle("on", s==="F");
+  document.getElementById("bB").classList.toggle("on", s==="B");
+  draw(); }
+function draw(){
+  if(!data) return;
+  const mirror = side==="B" && document.getElementById("mirror").checked;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle="#0d3320";
+  ctx.fillRect(ox,oy,data.board_w*scale,data.board_h*scale);
+  const X = x => ox + (mirror ? (data.board_w-x) : x)*scale;
+  for(const it of data.items){
+    const thru = it.role==="edge_pad" || it.ref.startsWith("H");
+    if(!thru && it.layer!==side) continue;
+    if(it.role==="pico_site" && side!=="B") continue;
+    let w=it.w*scale, h=it.h*scale;
+    ctx.fillStyle = COLORS[it.role] ?? "#888";
+    if(it.dnp && it.role!=="pico_site") ctx.globalAlpha=0.45;
+    if(it.role==="led"){ ctx.beginPath();
+      ctx.arc(X(it.x), oy+it.y*scale, Math.max(w,3)/2, 0, 7); ctx.fill(); }
+    else ctx.fillRect(X(it.x)-w/2, oy+it.y*scale-h/2, w, h);
+    ctx.globalAlpha=1;
+    if(it.role==="edge_pad" && document.getElementById("labels").checked){
+      ctx.fillStyle="#fd5"; ctx.font=(3.2*scale)+"px monospace";
+      let tx=X(it.x), ty=oy+it.y*scale;
+      ctx.save(); ctx.translate(tx,ty);
+      const left = it.x < data.board_w/2;
+      if(it.y>10 && it.y<data.board_h-10){ ctx.textAlign = (left^mirror)?"left":"right";
+        ctx.fillText(it.value,((left^mirror)?1:-1)*3.5*scale,scale); }
+      else { ctx.rotate(-Math.PI/2); ctx.textAlign = it.y<10?"right":"left";
+        ctx.fillText(it.value,(it.y<10?-1:1)*3.5*scale,scale); }
+      ctx.restore();
+    }
+  }
+}
+let drag=null;
+cv.onmousedown=e=>drag=[e.clientX,e.clientY];
+window.onmouseup=()=>drag=null;
+window.onmousemove=e=>{ if(!drag) return;
+  ox+=e.clientX-drag[0]; oy+=e.clientY-drag[1]; drag=[e.clientX,e.clientY]; draw(); };
+cv.onwheel=e=>{ e.preventDefault();
+  const f = e.deltaY<0?1.15:1/1.15;
+  const r=cv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  ox = mx-(mx-ox)*f; oy = my-(my-oy)*f; scale*=f; draw(); };
+const lg=document.getElementById("legend");
+for(const [k,label] of LEGEND){
+  lg.insertAdjacentHTML("beforeend",
+    `<div class="lg"><span class="sw" style="background:${COLORS[k]}"></span>${label}</div>`);
+}
+function send(){
+  const t=document.getElementById("txt").value.trim();
+  if(!t) return;
+  fetch("/comment",{method:"POST",body:JSON.stringify({text:t,side})})
+    .then(()=>{ document.getElementById("txt").value="";
+      document.getElementById("status").textContent="sent ✓";
+      setTimeout(()=>document.getElementById("status").textContent="",1500);
+      loadComments(); });
+}
+function loadComments(){
+  fetch("/comments").then(r=>r.json()).then(list=>{
+    document.getElementById("comments").innerHTML =
+      list.map(c=>`<div><small>${c.time} [${c.side}]</small><br>${c.text}</div>`).reverse().join("");
+  });
+}
+</script>
+</body>
+</html>
