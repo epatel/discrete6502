@@ -46,11 +46,13 @@ The Pico is a 3.3 V device; the CPU core is designed for 5 V. This is the one
   the VCC bond pad**, then `bus_init(true)` gives a full-swing 5 V clock
   (slower edges — start slow, `p 50` = 10 kHz).
 - **Recommended first bring-up**: run the whole CPU at **VCC = 3.3 V** with the
-  default push-pull clock — one supply domain, no level questions; 2N7002
-  threshold margins are thinner, so treat it as a logic smoke test. Then move
-  to 5 V + external clk pull-up + open-drain clock for full-margin operation.
-  (Worth SPICE-checking the 3.3 V pass-pair case before boards arrive —
-  open item in project-plan.md.)
+  default push-pull clock — one supply domain, no level questions. This is
+  **simulation-cleared**: `sim/passpair_33v.sp` (2026-07-25) shows the dynamic
+  latches still work at 3.3 V and even 3.0 V — the clock-edge bootstrap keeps
+  the stored '1' at or above the rail, and pull-up recovery (1.31 µs) leaves
+  ~7× margin inside a 50 kHz half-cycle. Expect the register LEDs to be dim
+  (~0.64 mA vs 1.4 mA at 5 V) — cosmetic, not a fault. Move to 5 V +
+  external clk pull-up + open-drain clock afterwards for full margin.
 
 ## Powering
 

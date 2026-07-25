@@ -28,6 +28,35 @@ the part is now **BSS138K, LCSC C504052, SOT-323** (the fallback above, chosen a
 the packing minimum because the die-mimicry directive requires preserving the die's empty space.
 The power estimate held: measured-by-calculation ≈ 1.4–1.5 W at 5 V (see README).
 
-**Open sim item before bring-up:** re-run the pass-pair testbench at **VCC = 3.3 V** — the
-recommended first power-up runs the whole board at 3.3 V (single supply domain with the Pico),
-and the bootstrap margin at that rail has never been checked.
+## 3.3 V validation (2026-07-25) — `sim/passpair_33v.sp`
+
+The recommended first power-up runs the whole board at 3.3 V (one supply domain with the Pico),
+so the bootstrap was re-checked at that rail. Same worst-path topology as the M4 vendor bench
+(driver → pass pair → 20 pF bus → pass pair → 5 pF storage node + LED tap → output inverter),
+three FET flavours in parallel — onsemi vendor 2N7002 BSIM3v3 (pessimistic Vth), BSS138 typical
+(Vto 1.1), BSS138K worst case (Vto 1.5) — swept over 5.0 / 3.3 / 3.0 V by `alterparam`.
+
+| Measurement (vendor model — the pessimistic one) | 5.0 V | 3.3 V | 3.0 V |
+|---|---|---|---|
+| Stored '1' after transfer, held 13 µs | 5.17 V | 3.39 V | 3.08 V |
+| … as a fraction of the rail | 1.035× | 1.027× | 1.027× |
+| Next-stage output driven low by that '1' | 0.9 mV | 1.0 mV | 1.2 mV |
+| Source-driven '0' through a pass pair | −1.11 V | −1.09 V | −1.08 V |
+| 10k pull-up recovery (10→90%) | 1.10 µs | 1.31 µs | 1.36 µs |
+
+**All four pass gates in the deck pass at every rail, including 3.0 V.** The bootstrap is not a
+5 V-only effect: it over-charges the storage node slightly *above* the rail at 3.3 V too, so the
+classic pass-gate threshold drop stays cancelled and the next stage sees full overdrive
+(1.4 V over Vth on the vendor model, 2.7 V on BSS138K worst case — the ordered part is the
+*better* case here, which is why its lower Vth was welcome). Pull-up recovery slows only 19% at
+3.3 V (1.3 µs), so a 50 kHz clock (10 µs half-cycle) still has ~7× margin.
+
+Known non-regression: writing '0' from one *floating* island to another still fails at 3.3 V
+exactly as it does at 5 V (the M4 finding) — the storage node holds ~2.6 V instead of going low.
+This is the documented, accepted limitation; the 6502 never relies on floating-to-floating '0'
+transfer, and the switch-level equivalence run is the logic-side evidence. The 56 DNP ballast
+caps exist as the hardware fallback if reality disagrees.
+
+Practical 3.3 V caveat that is *not* a logic problem: **LED brightness**. The taps sink through
+2.2 kΩ, so a red LED draws (3.3 − 1.9)/2.2k ≈ **0.64 mA** versus ≈ 1.4 mA at 5 V — lit and
+readable, but visibly dim. Expect that during the 3.3 V smoke test, not a fault.

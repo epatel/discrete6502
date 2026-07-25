@@ -45,6 +45,8 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-07-25 (later): **3.3 V pass-pair validation done** — `sim/passpair_33v.sp` added and run. The clock-edge bootstrap survives the lower rail (stored '1' still lands slightly *above* VCC at 3.3 V and even 3.0 V), the next stage is fully driven, source-driven '0' through a pass pair reaches −1.1 V, and 10k pull-up recovery slows only 19% (1.31 µs — 7x margin inside a 50 kHz half-cycle). BSS138K's lower Vth makes it the better case, not the risk. Known floating-island-'0' limitation is unchanged (not a 3.3 V regression). Only cosmetic consequence: register LEDs run ~0.64 mA instead of 1.4 mA. **The recommended first power-up at 3.3 V is now simulation-cleared**; the remaining bring-up unknowns are physical (assembly quality, clk0 pull-up choice at 5 V).
+
 - 2026-07-25 (late): **Agent-file audit.** Added a standing "keep the agent files current" rule to `CLAUDE.md` and swept every card for facts the last month of work had made stale: board outline corrected to the real 290.7 × 322 mm (was 283 × 309.6), core FET updated to BSS138K/C504052 everywhere, the router description updated to the shipped configuration (G=0.13 fine grid, 4 routing layers, warm-startable history), the full as-ordered BOM table added to `cards/netlist-pipeline.md`, silk + fab-output documentation added to `cards/layout.md`, the M5 "remaining work" list replaced by the M5-complete verification results, and the M2 part/board-size paragraphs in `cards/pass-pair-validation.md` explicitly marked superseded. `pico-controller/README.md` added to the card trigger list. Open questions pruned to live items only; cost section replaced with the real quote. **No design or board files were touched** — documentation only; the golden board and fab package are unchanged.
 
 - 2026-07-18: Project initialized from `initial-idea.md`; agentic setup created (this plan, `cards/`, `CLAUDE.md`, project skills).
@@ -77,9 +79,11 @@ the die-mimicry directive and the 6-layer decision account for the difference.)
 
 _(design questions from M1–M4 are settled and live in Decisions; only live items remain here)_
 
-- **Bring-up rail**: SPICE the pass pair at VCC = 3.3 V before boards arrive. The recommended
-  first power-up is the whole board at 3.3 V (single supply domain with the Pico); the
-  bootstrap margin at that rail is unverified.
+- ~~**Bring-up rail**: SPICE the pass pair at VCC = 3.3 V~~ **Resolved 2026-07-25**:
+  `sim/passpair_33v.sp` sweeps 5.0/3.3/3.0 V over three FET models; all four pass gates
+  (bootstrapped '1' >= rail, next stage fully driven, source-driven '0' valid, pull-up
+  recovery inside a 50 kHz half-cycle) pass at every rail. 3.3 V bring-up is cleared.
+  Expect dim LEDs (~0.64 mA vs 1.4 mA) — cosmetic. Details in `cards/pass-pair-validation.md`.
 - **Clock drive at 5 V**: the board has no pull-up on clk0, so open-drain full-swing clocking
   needs an external 10k croc-clipped from the Φ0 bond pad to VCC. Confirm at bring-up whether
   the 3.3 V push-pull clock is enough, or the external pull-up is mandatory.
