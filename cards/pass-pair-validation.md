@@ -57,6 +57,23 @@ This is the documented, accepted limitation; the 6502 never relies on floating-t
 transfer, and the switch-level equivalence run is the logic-side evidence. The 56 DNP ballast
 caps exist as the hardware fallback if reality disagrees.
 
-Practical 3.3 V caveat that is *not* a logic problem: **LED brightness**. The taps sink through
-2.2 kΩ, so a red LED draws (3.3 − 1.9)/2.2k ≈ **0.64 mA** versus ≈ 1.4 mA at 5 V — lit and
-readable, but visibly dim. Expect that during the 3.3 V smoke test, not a fault.
+## LED tap brightness vs rail — `sim/led_tap.sp` (2026-07-25)
+
+The only practical 3.3 V caveat, and it is not a logic problem. Deck models the real topology
+(VCC → 2.2 kΩ → red 0603 LED → tap FET → GND) with a diode fitted to Vf ≈ 1.90 V at 2 mA;
+the tap FET's saturation voltage turns out to be negligible (2–4 mV), so brightness is set
+entirely by (VCC − Vf)/2.2 kΩ.
+
+| VCC | LED current | LED Vf | vs 5 V | perceived (∝ I^⅓) |
+|---|---|---|---|---|
+| 5.0 V | 1.42 mA | 1.88 V | 100% | 100% |
+| 3.3 V | 0.67 mA | 1.83 V | 47% | ~78% |
+| 3.0 V | 0.54 mA | 1.82 V | 38% | ~72% |
+
+So the 3.3 V bring-up loses over half the LED *current* but only about a fifth of the apparent
+brightness — dim, clearly readable, not a fault. Nothing can be done about it without reworking
+the 2.2 kΩ ballasts, and it is not worth it.
+
+Consequence for the power budget: 55 LEDs at 1.42 mA is **~78 mA / 0.39 W at 5 V** with every
+LED lit (about half that in typical operation) — the README's earlier 75 mW figure for this row
+confused mA with mW. Board total is ≈ 1.6–1.8 W at 5 V, ≈ 0.7 W at 3.3 V.

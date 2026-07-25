@@ -50,16 +50,21 @@ Design complete and verified; ready to order (fab package in `gen/fab/`, checkli
 
 Dominated by the NMOS pull-up current, not switching (estimate from M2, at VCC = 5 V):
 
-| Contribution | Calculation | Power |
-|---|---|---|
-| Pull-up static current | 1,018 × 10 kΩ pull-ups; on average ~half the nodes are pulled low → ~509 × 0.5 mA | **~1.3 W** (0.25 A) |
-| Register LEDs | ≤55 × ~1.4 mA through 2.2 kΩ (worst case all lit) | ~75 mW |
-| Dynamic (gate-cap switching) | ~50 nF of total gate capacitance × V² × f at ≤50 kHz | ~60 mW |
-| **Total** | | **≈ 1.4–1.5 W @ 5 V (~0.3 A)** |
+| Contribution | Calculation | Current | Power |
+|---|---|---|---|
+| Pull-up static current | 1,018 × 10 kΩ pull-ups; on average ~half the nodes pulled low → ~509 × 0.5 mA | ~0.25 A | **~1.3 W** |
+| Register LEDs | 55 × 1.42 mA (SPICE, `sim/led_tap.sp`); all lit at once is the worst case, ~half is typical | 0.04–0.08 A | 0.2–0.39 W |
+| Dynamic (gate-cap switching) | ~50 nF of total gate capacitance × V² × f at ≤50 kHz | — | ~60 mW |
+| **Total** | | **~0.31–0.35 A** | **≈ 1.6–1.8 W @ 5 V** |
 
 A 5 V / 1 A bench supply is comfortable. At the recommended 3.3 V first
-bring-up the same math gives ~0.17 A / ~0.6 W. Spread over the 900 cm² board
-the heat is imperceptible — compare the original MOnSter 6502 at ~10 W.
+bring-up the same math gives ~0.21 A / ~0.7 W — and the LEDs drop to
+0.67 mA each, since the 2.2 kΩ ballast sees a 1.4 V smaller overhead above
+the LED's ~1.85 V forward drop. That is 47% of the 5 V current but only
+about a 20% drop in *perceived* brightness (perception goes roughly as the
+cube root of luminous output): dimmer, still perfectly readable.
+Spread over the 900 cm² board the heat is imperceptible — compare the
+original MOnSter 6502 at ~10 W.
 The interesting electrical moments are the clock edges (~25 nF of pass-gate
 capacitance per phase charged in a few µs → ~50 mA peaks), which is what the
 96 distributed 100 nF decouplers are for.
