@@ -39,12 +39,19 @@ The Pico is a 3.3 V device; the CPU core is designed for 5 V. This is the one
   resistors limit clamp current to ~1.4 mA per pin — the common practical
   arrangement, though formally out of RP2350 spec. Acceptable for bring-up;
   don't leave the CPU powered at 5 V with the Pico unpowered.
-- **Clock drive**: the pass-transistor bootstrap (see `cards/pass-pair-validation.md`)
-  assumes full-rail clock swing; a 3.3 V push-pull clock into a 5 V core
-  under-drives the pass gates. **The board has no pull-up on clk0**, so
-  open-drain needs an external one: croc-clip a **10k from the Φ0 bond pad to
-  the VCC bond pad**, then `bus_init(true)` gives a full-swing 5 V clock
-  (slower edges — start slow, `p 50` = 10 kHz).
+- **Clock drive**: **the board has no pull-up on clk0.** It is a pure input --
+  two FET gates, a 100R series resistor and the clamp diodes, nothing that
+  holds a level -- so the clock source must drive it *push-pull*. An
+  open-drain driver would pull it low and then leave it floating, which a
+  dynamic CPU cannot survive. `bus_init(false)` (the default) is therefore the
+  correct mode; `bus_init(true)` is only usable if you first croc-clip an
+  external **10k from the Φ0 bond pad to the VCC bond pad**.
+- **A 3.3 V clock into a 5 V core is fine**, and needs no such pull-up.
+  clk0 does not gate the pass transistors: it drives two pull-down gates, and
+  the internal clock phases (`cclk`, 482 gates; `cp1`, 198 gates) are
+  regenerated on-board at full VCC swing. Simulated, a 3.3 V clk0 into a 5 V
+  core gives an input-inverter low of 1.7 mV and 17 ns of delay, against
+  1.4 mV / 7 ns for a 5 V clock -- no functional difference.
 - **Recommended first bring-up**: run the whole CPU at **VCC = 3.3 V** with the
   default push-pull clock — one supply domain, no level questions. This is
   **simulation-cleared**: `sim/passpair_33v.sp` (2026-07-25) shows the dynamic
