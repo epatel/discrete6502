@@ -108,6 +108,30 @@ A healthy CPU after `R` shows the 7-cycle reset sequence, a vector fetch at
 opcode. The default image increments A forever — the A-register LEDs count in
 binary and `$0300` follows.
 
+## Reading the LEDs
+
+The 55 register LEDs sit at their die-true positions inside the transistor
+field — there is no room for per-LED silk labels (measured: only 3 of 55 have
+a pad-free spot even at 1.0 mm text), so use `gen/led_map.svg` as the
+reference. Layout:
+
+| Register | Column | Order |
+|---|---|---|
+| Y | x ≈ 60 mm | bit 0 top → bit 7 bottom |
+| X | x ≈ 64 mm | bit 0 top → bit 7 bottom |
+| S | x ≈ 75 mm | bit 0 top → bit 7 bottom |
+| A | x ≈ 145 mm | bit 0 top → bit 7 bottom |
+| PCH | x ≈ 164 mm | bit 0 top → bit 7 bottom |
+| PCL | x ≈ 190 mm | bit 0 top → bit 7 bottom |
+
+All six register columns span y ≈ 183–270 mm. The 7 **P status flags** are not
+in a row — they sit where the die puts them, in the control-logic band:
+`I(197,116) B(212,161) C(216,144) D(223,147) V(238,153) Z(242,161) N(264,144)`
+(x, y in mm from the top-left of the front view).
+
+The tester's default image increments A forever, so the A column at x ≈ 145 mm
+should count in binary — the quickest visual proof the CPU is alive.
+
 ## Clock speed — start slow
 
 The firmware default is a **50 µs half-period (10 kHz)**, not the 50 kHz the
