@@ -57,8 +57,9 @@ The Pico is a 3.3 V device; the CPU core is designed for 5 V. This is the one
   **simulation-cleared**: `sim/passpair_33v.sp` (2026-07-25) shows the dynamic
   latches still work at 3.3 V and even 3.0 V — the clock-edge bootstrap keeps
   the stored '1' at or above the rail. Expect the register LEDs to be dim
-  (0.67 mA vs 1.42 mA at 5 V — `sim/led_tap.sp`) — cosmetic, not a fault. Move to 5 V +
-  external clk pull-up + open-drain clock afterwards for full margin.
+  (0.67 mA vs 1.42 mA at 5 V — `sim/led_tap.sp`) — cosmetic, not a fault. Then
+  move to 5 V for full margin, brighter LEDs and a faster usable clock,
+  keeping the same push-pull 3.3 V clock drive.
 
 ## Powering
 
