@@ -105,13 +105,15 @@
       <li>Order number: pay ~$1.5 to remove, or JLC prints theirs on the die face</li>
       <li><b>Min via hole size: the default <span class="val">0.3mm/(0.4/0.45mm)</span> is correct — do NOT pay for the 0.2mm class.</b> The board was re-worked for it (2026-07-26): all 14,454 vias now drill 0.30&nbsp;mm, and their pads were grown so the annular ring stays healthy — 13,028 at 0.125&nbsp;mm, 534 at 0.11&nbsp;mm, 892 at 0.075&nbsp;mm (JLC pair a 0.30&nbsp;mm hole with a 0.40&nbsp;mm via, i.e. 0.05&nbsp;mm, so all three are within capability). Saves ≈ €25.</li>
       <li><b>Via Covering: keep <span class="val">Epoxy Filled &amp; Capped</span></b> — not an upsell here: 3,817 vias sit on SMD pad copper (the router terminates stubs inside their own pad), and unfilled via-in-pad wicks solder away from the joint during reflow.</li>
-      <li>JLCPCB adds two 5&nbsp;mm edge rails for assembly, so the quote reads <b>300.7 × 322&nbsp;mm</b> — expected, not an error (290.7 + 2×5). Plane copper stops 0.50&nbsp;mm from the outline, fine for scoring or routing. Decide whether to pay for depaneling rather than snapping a 290&nbsp;mm 6-layer board by hand.</li>
+      <li>JLCPCB adds two 5&nbsp;mm edge rails for assembly, so the quote reads <b>300.7 × 322&nbsp;mm</b> — expected, not an error (290.7 + 2×5). Plane copper stops 0.50&nbsp;mm from the outline, fine for scoring or routing. <b>Decide on depaneling:</b> the rails ship attached unless you set <span class="val">Depanel boards &amp; edge rail before delivery = Yes</span> — it sits in <i>PCB Assembly → Advanced Options</i> (defaults to No), not in this PCB section. Breaking 5&nbsp;mm of 1.6&nbsp;mm 6-layer FR-4 off a 322&nbsp;mm edge by hand risks flexing a board carrying 5,328 joints; paying JLC to mill it is the cheap insurance.</li>
     </ul></div>
   </div>
 
   <div class="step" data-id="s3">
     <label class="step-head"><input type="checkbox"><span class="num">3</span><h2>Enable assembly</h2></label>
-    <div class="body">Toggle <i>PCB Assembly</i>: type <b>Standard</b> · sides <b>Both</b> · assembly qty <span class="val">5</span>. Dropping to 2 saves less than proportionally — setup and stencil are one-time.</div>
+    <div class="body">Toggle <i>PCB Assembly</i>: type <b>Standard</b> · sides <b>Both</b> · assembly qty <span class="val">5</span>. Dropping to 2 saves less than proportionally — setup and stencil are one-time.
+      <div class="warn"><b>Standard is not optional</b> (verified in the quote UI, 2026-07-26): <i>Economic</i> PCBA does not offer <i>Both Sides</i>, and this board has 4,106 top + 1,222 bottom placements. Economic looks cheaper per joint — it is simply not a choice here, so do not spend time re-pricing it. Also set <b>Parts Selection = By Customer</b>: the BOM pins the exact LCSC numbers.</div>
+    </div>
   </div>
 
   <div class="step" data-id="s4">
@@ -155,14 +157,17 @@
 
   <div class="step" data-id="s7">
     <label class="step-head"><input type="checkbox"><span class="num">7</span><h2>Sanity-check the quote</h2></label>
-    <div class="body">Real cart figures (2026-07-25, 5 boards, ENIG, both sides):
+    <div class="body">Verified against the rev A upload (2026-07-26, 5 boards, ENIG, both sides):
       <ul>
-        <li>PCB, 5 pcs, 6-layer ENIG — <b>€131.44</b></li>
-        <li>PCBA, both sides, parts + assembly + setup — <b>€716.38</b></li>
-        <li>Shipping, UPS Worldwide Express Saver to Sweden — <b>€64.54</b></li>
-        <li>Swedish import VAT 25%, billed later by the courier — <b>≈ €228</b></li>
+        <li>PCB, 5 pcs, 6-layer ENIG — <b>€131.44</b> <small>(engineering 28.99 · large size 22.84 · surface finish 24.24 · board 54.46 · confirm production file 0.91)</small></li>
+        <li>PCBA, both sides, parts + assembly + setup — <b>€715.83</b> <small>(components, 9 items 509.20 · SMT assembly 84.28 · large size 50.47 · setup 44.90 · stencil 14.42 · feeders 12.10 · packaging 0.46)</small></li>
+        <li>Shipping, UPS Worldwide Express Saver to Sweden (5.12&nbsp;kg) — <b>€64.54</b></li>
+        <li>Coupon — <b>−€8.78</b> → <b>cart subtotal €903.03</b></li>
+        <li>Depaneling the edge rails — <b>€2.88</b>, billed after engineering review</li>
+        <li>Swedish import VAT 25%, billed later by the courier — <b>≈ €226.48</b></li>
       </ul>
-      <b>≈ €1,140 landed ≈ €230 per assembled CPU.</b>
+      <b>≈ €1,132 landed ≈ €226 per assembled CPU.</b>
+      <div class="warn"><b>Two lines prove the settings are right:</b> <i>Via Covering</i> must read <b>€0.00</b> (Epoxy Filled &amp; Capped is free at 6 layers) and there must be <b>no via-hole-class line item at all</b> — that is what confirms the default 0.3&nbsp;mm class is not surcharged. If either differs, a setting was changed. Also expect <i>Components</i> to say <b>9 items</b>: fewer means a part failed to match. Free build times: PCB 5–6 days, assembly 3–4 days.</div>
       <div class="warn"><b>Two line items, one order.</b> The PCB and the PCBA appear as separate rows in the cart under a single <i>JLCPCB (1)</i> header — they are linked halves of the same order, <b>not</b> duplicates. Deleting one deletes the pairing and there is no undo; re-entry costs ~10 minutes.</div></div>
   </div>
 

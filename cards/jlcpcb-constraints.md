@@ -14,7 +14,7 @@ Assembly implications for this project:
 
 - ~4,000+ SMT placements per board: per-joint/per-part assembly fees dominate cost — prefer parts in the **economic** assembly class and minimize unique part numbers (extended parts add a per-reel fee).
 - Choose a transistor package that is cheap, in deep JLCPCB stock, and economic-class (e.g., SOT-23 or smaller like SOT-323/SOT-723; smaller packages shrink the board but check economic-class eligibility and stock depth before committing).
-- Double-sided assembly is offered but costs more; single-sided placement is preferable if the size target allows.
+- Double-sided assembly is offered but costs more; single-sided placement is preferable if the size target allows. **Confirmed at order time (2026-07-26): double-sided forces PCBA type _Standard_ — JLC's _Economic_ assembly service has no "Both Sides" option.** Note "economic" above means the *part* class (Basic vs Extended); that is a separate axis from the PCBA *service* tier, and our parts stay Basic-class either way.
 - Verify stock quantity before ordering: one board consumes thousands of the same MOSFET; multiply by board quantity.
 
 ## What this project actually ordered (2026-07-25)

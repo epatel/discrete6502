@@ -65,18 +65,32 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-18: M3 complete. KiCad chosen as EDA target (netlist-direct-to-pcbnew, scripted placement in M5; no hand schematic). `tools/gen_netlist.py` transforms visual6502 data → 5,179 components / 2,587 nets / 5 part numbers, all JLCPCB basic class, with LED taps included; invariant checks pass (`cards/netlist-pipeline.md`). Next: M4 — behavioral verification: export the transformed netlist to a simulator (perfect6502-style switch-level sim or SPICE subcircuits with vendor 2N7002 models), run real 6502 test programs, compare against visual6502 golden model; re-verify the bootstrap-dependent pass pairs with manufacturer models.
 - 2026-07-18: M2 complete. Dynamic latch with back-to-back pass-FET pair SPICE-validated for BSS138/2N7002/AO3400 (`sim/passpair_latch.sp`); clock-edge bootstrap over-charges stored '1' above VDD, eliminating threshold drop — but must be re-verified with manufacturer SPICE models and on more topologies (series pass chains, clock drivers) in M4. AO3400A rejected (1nF Ciss too slow with 10k pull-ups). Parts, voltages, and board target settled (see Decisions). Next: M3 — pick EDA tool (KiCad assumed) and build the scripted netlist→schematic/placement pipeline from `data/visual6502/transdefs.js` (dedup 271 parallel transistors, expand 783 pass FETs to pairs, emit pull-up resistors from segdefs '+' flags).
 
-## Cost (real quote, 2026-07-25)
+## Cost (real quote on the rev A upload, verified 2026-07-26)
 
-JLCPCB cart for **5 PCBs + 5 fully assembled** (6-layer, 290.7 × 322 mm ≈ 9.4 dm², ENIG,
-both-sides assembly, 5,328 placements each):
+JLCPCB quote for **5 PCBs + 5 fully assembled** (6-layer, 290.7 × 322 mm ≈ 9.4 dm², ENIG,
+Standard PCBA both sides — *Economic offers no double-sided* — 5,328 placements each):
 
 | Item | Cost |
 |---|---|
-| PCB fab, 5 pcs, 6-layer ENIG | €131.44 |
-| PCBA, both sides, 5 boards (parts + assembly + setup) | €716.38 |
-| Shipping (UPS Worldwide Express Saver to Sweden) | €64.54 |
-| Swedish import VAT (25%) | ≈ €228 |
-| **Landed total** | **≈ €1,140** (≈ **€230 per assembled CPU**) |
+| **PCB fab, 5 pcs, 6-layer ENIG** — engineering €28.99, large size €22.84, surface finish €24.24, board €54.46, confirm production file €0.91 | **€131.44** |
+| **PCBA, both sides, 5 boards** — components (9 items) €509.20, SMT assembly €84.28, large size €50.47, setup €44.90, stencil €14.42, feeders €12.10, packaging €0.46 | **€715.83** |
+| Shipping (UPS Worldwide Express Saver to Sweden; 5.12 kg for 5 boards) | €64.54 |
+| Coupon | −€8.78 |
+| **Cart subtotal** | **€903.03** |
+| Depaneling the two 5 mm edge rails (billed after engineering review) | €2.88 |
+| Swedish import VAT (25% of goods + freight) | ≈ €226.48 |
+| **Landed total** | **≈ €1,132** (≈ **€226 per assembled CPU**) |
+
+Verified line-by-line against the rev A upload: via covering **€0.00** (Epoxy Filled & Capped
+is free at 6 layers) and there is no via-hole-class line item at all, which confirms the
+default 0.3 mm class carries no surcharge — the ≈ €25 for the 0.2 mm class was an *avoided*
+cost, not a reduction. Parts are 71% of assembly (~€102 of transistors per board). Free build
+times selected: PCB 5–6 days, assembly 3–4 days (2–3 days would add €43.27). The design
+changes since the 2026-07-25 cart (BSS138K, silk re-place, 0.3 mm vias) moved the total by
+**€0.55**.
+
+Cart as built (upload `discrete6502_gerbers_Y6`, not yet paid): PCB `Y6-2923600A`,
+Standard PCBA `SMT026072660664-29…`, both line items checked, estimated ship **2026-08-04**.
 
 (The 2026-07-18 preliminary estimate of ~$180–210/CPU assumed a 200×250 mm 4-layer board;
 the die-mimicry directive and the 6-layer decision account for the difference.)

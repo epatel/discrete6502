@@ -45,6 +45,9 @@ git `c5c06f0`. The zip has been byte-compared against a fresh plot of that board
 - **Via covering: Epoxy Filled & Capped** — free on 6+ layers, and required
   here: 3,817 vias sit inside SMD pad copper and an open barrel in a pad wicks
   solder out of the joint at reflow.
+- **PCBA type: Standard, both sides** — forced, not a preference: JLC's
+  *Economic* assembly does not offer double-sided, and 1,222 of the 5,328
+  placements are on the back.
 - **Confirm Parts Placement: Yes**, and send the rotation note from
   `ordering.html` step 6 — LED and diode polarity is the one thing worth
   checking in their preview.
