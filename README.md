@@ -1,9 +1,14 @@
 # discrete6502
 
-A working **MOS 6502 CPU built from 4,051 discrete surface-mount transistors** (3,996 logic + 55 LED drivers), laid out as a
-291 × 322 mm six-layer PCB that visually reproduces the original 6502 die — every FET sits at
-its transistor's die-true position, 55 LEDs blink the register bits in place, and a ring of
-die-scaled bond pads around the edge takes crocodile clips.
+A complete, verified design for a **MOS 6502 CPU built from 4,051 discrete surface-mount
+transistors** (3,996 logic + 55 LED drivers), laid out as a 291 × 322 mm six-layer PCB that
+visually reproduces the original 6502 die — every FET sits at its transistor's die-true
+position, 55 LEDs blink the register bits in place, and a ring of die-scaled bond pads around
+the edge takes crocodile clips.
+
+The design is finished and every check passes, but **no board has been built yet** — nothing
+here has been proven in copper, only in simulation and geometry. See
+[Status](#status) for what that means.
 
 **→ [Illustrated project introduction](https://epatel.github.io/discrete6502/)** — start here if
 you want the story rather than the build.
@@ -52,10 +57,12 @@ and **0 unconnected**.
   — nets route through conflicts, shared cells get iteratively penalized, conflicted nets
   rip-up and retry — on a 0.13 mm grid over 4 routing layers, with warm-start checkpoints.
   8,421 signal connections routed; the C core does a full negotiation iteration in seconds.
-- **Bring-up harness built in**: an unpopulated Raspberry Pi Pico 2 W site on the back acts as
-  clock master and memory emulator (data bus, 14 address bits with 16 KB mirroring, reset,
-  R/W, SYNC via factory-fitted series resistors). Solder a Pico on, flash firmware, and the
-  CPU runs programs with full bus tracing — no other computer needed.
+- **Bring-up harness built in**: an unpopulated Raspberry Pi Pico 2 W site on the back is wired
+  to serve as clock master and memory emulator (data bus, 14 address bits with 16 KB mirroring,
+  reset, R/W, SYNC via factory-fitted series resistors), so the intended workflow is to solder a
+  Pico on, flash the firmware, and run programs with full bus tracing — no other computer needed.
+  The firmware in `pico-controller/` is written and builds, but is **untested against hardware
+  that does not exist yet**.
 
 ## Power budget
 
