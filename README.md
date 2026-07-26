@@ -5,6 +5,9 @@ A working **MOS 6502 CPU built from 4,051 discrete surface-mount transistors** (
 its transistor's die-true position, 55 LEDs blink the register bits in place, and a ring of
 die-scaled bond pads around the edge takes crocodile clips.
 
+**→ [Illustrated project introduction](https://epatel.github.io/discrete6502/)** — start here if
+you want the story rather than the build.
+
 Inspired by the [MOnSter 6502](https://monster6502.com/) (concept only — independently designed
 and simplified). Logic ground truth is the [visual6502](http://visual6502.org) reverse-engineered
 netlist, captured from photographs of a real decapped 6502.
