@@ -26,8 +26,9 @@ a missing one.
 
 - Any netlist change must keep the equivalence gate green: `python3 tools/switchsim.py`.
 - Any board change must re-pass all three: `tools/check_parity.py`, `tools/check_gaps.py`
-  (the only trusted connectivity metric), and `kicad-cli pcb drc` (expect exactly 2 benign
-  Pico-library-internal items, nothing else).
+  (the only trusted connectivity metric), and `kicad-cli pcb drc` — expect exactly **2 errors**
+  (benign Pico-library-internal items) and **199 hole_to_hole warnings** (same-net via pairs at
+  a 0.22 mm hole gap, above JLCPCB's 0.20 mm minimum), nothing else.
 - Board steps run under KiCad's bundled python
   (`/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3`).
   Its SWIG bindings are fragile: never mutate the board while iterating containers (collect

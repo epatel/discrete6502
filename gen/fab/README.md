@@ -34,9 +34,9 @@ Generated 2026-07-25 from `gen/discrete6502.kicad_pcb` (git 93360f0+).
    assembled CPU. The earlier $500-750 PCB estimate was pessimistic.
 6. PCB and PCBA show as two linked line items under one order header --
    they are not duplicates; deleting one un-pairs the order with no undo.
-7. Min via hole size: select 0.2mm/(0.3/0.35mm), ~+EUR 25. All 14,454 vias are
-   0.2 mm holes in 0.45 mm pads; the default 0.3 mm class enlarges them and
-   thins the annular ring to 0.075 mm. Checked: hole-to-hole survives either
-   way (closest pair on the board is 0.520 mm centre-to-centre).
+7. Min via hole size: keep the DEFAULT 0.3mm/(0.4/0.45mm) class -- it is free
+   on 6 layers. The board was re-worked for it on 2026-07-26 (tools/enlarge_vias.py):
+   every via drills 0.30 mm and pads were grown to keep the ring -- 13,028 at
+   0.125 mm, 534 at 0.11 mm, 892 at 0.075 mm. Do not pay for the 0.2 mm class.
 8. Via Covering: keep "Epoxy Filled & Capped" -- 3,817 vias sit inside SMD pad
    copper, and unfilled via-in-pad wicks solder out of the joint at reflow.
