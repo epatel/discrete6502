@@ -80,7 +80,11 @@ The Pico's VSYS (pin 39) is tied to board VCC; GNDs are shared.
 ## Build
 
 Requires the [pico-sdk](https://github.com/raspberrypi/pico-sdk) (2.x for RP2350)
-and the ARM GCC toolchain:
+and the ARM GCC toolchain. **Verified to build 2026-07-26** with pico-sdk 2.1.1
+and arm-none-eabi-gcc: `tester` 37 KB text / 32 KB bss, `general` similar — the
+16 KB memory image and the 1024-entry trace ring dominate bss and fit RP2350's
+520 KB with room to spare. Only the `lib/tinyusb` submodule is needed; the
+btstack / cyw43 / lwip warnings are expected, as neither firmware uses the radio.
 
 ```sh
 export PICO_SDK_PATH=/path/to/pico-sdk
