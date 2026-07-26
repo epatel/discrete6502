@@ -111,7 +111,7 @@
 
   <div class="step" data-id="s3">
     <label class="step-head"><input type="checkbox"><span class="num">3</span><h2>Enable assembly</h2></label>
-    <div class="body">Toggle <i>PCB Assembly</i>: type <b>Standard</b> · sides <b>Both</b> · assembly qty <span class="val">5</span>. Dropping to 2 saves less than proportionally — setup and stencil are one-time.
+    <div class="body">Toggle <i>PCB Assembly</i>: type <b>Standard</b> · sides <b>Both</b> · <b>PCB qty <span class="val">5</span>, assembly qty <span class="val">4</span></b> — the fifth board stays bare on purpose (the die artwork with no parts on it photographs far better than a populated one, and it is a free spare). Measured: 5 assembled = €715.83 (€143.17/board), 4 assembled = €597.44 (€149.36/board), so dropping one <b>saves €118.39 and costs €6.19 more per CPU</b> — setup €44.90 + stencil €14.42 + feeders €12.10 are one-time. Expect the bare board to ship with its edge rails attached (depaneling is a PCBA-side option); snapping them off a board with no joints on it is safe by hand.
       <div class="warn"><b>Standard is not optional</b> (verified in the quote UI, 2026-07-26): <i>Economic</i> PCBA does not offer <i>Both Sides</i>, and this board has 4,106 top + 1,222 bottom placements. Economic looks cheaper per joint — it is simply not a choice here, so do not spend time re-pricing it. Also set <b>Parts Selection = By Customer</b>: the BOM pins the exact LCSC numbers.</div>
     </div>
   </div>
@@ -160,13 +160,13 @@
     <div class="body">Verified against the rev A upload (2026-07-26, 5 boards, ENIG, both sides):
       <ul>
         <li>PCB, 5 pcs, 6-layer ENIG — <b>€131.44</b> <small>(engineering 28.99 · large size 22.84 · surface finish 24.24 · board 54.46 · confirm production file 0.91)</small></li>
-        <li>PCBA, both sides, parts + assembly + setup — <b>€715.83</b> <small>(components, 9 items 509.20 · SMT assembly 84.28 · large size 50.47 · setup 44.90 · stencil 14.42 · feeders 12.10 · packaging 0.46)</small></li>
-        <li>Shipping, UPS Worldwide Express Saver to Sweden (5.12&nbsp;kg) — <b>€64.54</b></li>
-        <li>Coupon — <b>−€8.78</b> → <b>cart subtotal €903.03</b></li>
+        <li>PCBA, both sides, <b>4 boards</b> — <b>€597.44</b> <small>(the 5-board quote broke down as: components, 9 items 509.20 · SMT assembly 84.28 · large size 50.47 · setup 44.90 · stencil 14.42 · feeders 12.10 · packaging 0.46 = €715.83)</small></li>
+        <li>Shipping, UPS Worldwide Express Saver to Sweden (4.84&nbsp;kg) — <b>€59.37</b></li>
+        <li>Coupon — <b>−€8.78</b> → <b>cart subtotal €779.47</b></li>
         <li>Depaneling the edge rails — <b>€2.88</b>, billed after engineering review</li>
-        <li>Swedish import VAT 25%, billed later by the courier — <b>≈ €226.48</b></li>
+        <li>Swedish import VAT 25%, billed later by the courier — <b>≈ €195.59</b></li>
       </ul>
-      <b>≈ €1,132 landed ≈ €226 per assembled CPU.</b>
+      <b>≈ €978 landed ≈ €245 per assembled CPU</b> (plus the bare spare).
       <div class="warn"><b>Two lines prove the settings are right:</b> <i>Via Covering</i> must read <b>€0.00</b> (Epoxy Filled &amp; Capped is free at 6 layers) and there must be <b>no via-hole-class line item at all</b> — that is what confirms the default 0.3&nbsp;mm class is not surcharged. If either differs, a setting was changed. Also expect <i>Components</i> to say <b>9 items</b>: fewer means a part failed to match. Free build times: PCB 5–6 days, assembly 3–4 days.</div>
       <div class="warn"><b>Two line items, one order.</b> The PCB and the PCBA appear as separate rows in the cart under a single <i>JLCPCB (1)</i> header — they are linked halves of the same order, <b>not</b> duplicates. Deleting one deletes the pairing and there is no undo; re-entry costs ~10 minutes.</div></div>
   </div>

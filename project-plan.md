@@ -67,24 +67,36 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Cost (real quote on the rev A upload, verified 2026-07-26)
 
-JLCPCB quote for **5 PCBs + 5 fully assembled** (6-layer, 290.7 × 322 mm ≈ 9.4 dm², ENIG,
-Standard PCBA both sides — *Economic offers no double-sided* — 5,328 placements each):
+JLCPCB quote for **5 PCBs, 4 of them assembled** (6-layer, 290.7 × 322 mm ≈ 9.4 dm², ENIG,
+Standard PCBA both sides — *Economic offers no double-sided* — 5,328 placements each).
+**[user decision 2026-07-26]** the fifth board stays bare: the die artwork with no parts on
+it photographs far better than a populated board, and it is a free spare.
 
 | Item | Cost |
 |---|---|
 | **PCB fab, 5 pcs, 6-layer ENIG** — engineering €28.99, large size €22.84, surface finish €24.24, board €54.46, confirm production file €0.91 | **€131.44** |
-| **PCBA, both sides, 5 boards** — components (9 items) €509.20, SMT assembly €84.28, large size €50.47, setup €44.90, stencil €14.42, feeders €12.10, packaging €0.46 | **€715.83** |
-| Shipping (UPS Worldwide Express Saver to Sweden; 5.12 kg for 5 boards) | €64.54 |
+| **PCBA, both sides, 4 boards** | **€597.44** |
+| Shipping (UPS Worldwide Express Saver to Sweden; 4.84 kg) | €59.37 |
 | Coupon | −€8.78 |
-| **Cart subtotal** | **€903.03** |
+| **Cart subtotal** | **€779.47** |
 | Depaneling the two 5 mm edge rails (billed after engineering review) | €2.88 |
-| Swedish import VAT (25% of goods + freight) | ≈ €226.48 |
-| **Landed total** | **≈ €1,132** (≈ **€226 per assembled CPU**) |
+| Swedish import VAT (25% of goods + freight) | ≈ €195.59 |
+| **Landed total** | **≈ €978** (≈ **€245 per assembled CPU**) |
+
+Assembly does not scale linearly — setup €44.90 + stencil €14.42 + feeders €12.10 are
+one-time. At 5 assembled the PCBA line was €715.83 (€143.17/board; components 9 items
+€509.20, SMT assembly €84.28, large size €50.47, packaging €0.46); at 4 it is €597.44
+(€149.36/board). So dropping the fifth **saves €118.39 and costs €6.19 more per CPU** —
+worth it when that board's job is to be looked at. Note the bare board will probably arrive
+with its edge rails still attached, since depaneling is a PCBA-side option; snapping them off
+a board with no solder joints on it is safe by hand.
 
 Verified line-by-line against the rev A upload: via covering **€0.00** (Epoxy Filled & Capped
 is free at 6 layers) and there is no via-hole-class line item at all, which confirms the
 default 0.3 mm class carries no surcharge — the ≈ €25 for the 0.2 mm class was an *avoided*
-cost, not a reduction. Parts are 71% of assembly (~€102 of transistors per board). Free build
+cost, not a reduction. Parts dominate assembly — €509.20 of the 5-board quote's €715.83 was
+components, i.e. **€101.84 of parts per assembled board** (the 4-board line item is not broken
+down in the cart, but the per-board parts cost does not change). Free build
 times selected: PCB 5–6 days, assembly 3–4 days (2–3 days would add €43.27). The design
 changes since the 2026-07-25 cart (BSS138K, silk re-place, 0.3 mm vias) moved the total by
 **€0.55**.
