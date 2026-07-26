@@ -100,6 +100,53 @@
     font-size:.86rem; color:var(--faint); margin-top:11px;
     text-align:center; font-family:var(--mono);
   }
+
+  /* ---- board / die reveal ----
+     Move across the image and the real 6502 die is wiped in underneath.
+     The two layers are the same pixel size and the die render is registered
+     to the board's own die-coordinate transform, so features line up. */
+  .reveal{
+    position:relative; --x:34%;
+    aspect-ratio:1474/1600; max-height:76vh;
+    width:auto; max-width:100%; margin:0 auto;
+    border:1px solid var(--line); border-radius:9px; overflow:hidden;
+    background:#0a120e; cursor:ew-resize;
+    /* pan-y, not none: a horizontal drag is ours, but the page must still
+       scroll vertically when a finger starts on this near-full-height image */
+    touch-action:pan-y;
+  }
+  .reveal img{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:contain; display:block; border:0; border-radius:0;
+    max-height:none; user-select:none; -webkit-user-drag:none;
+  }
+  .reveal .top{clip-path:inset(0 calc(100% - var(--x)) 0 0)}
+  .reveal .line{
+    position:absolute; top:0; bottom:0; left:var(--x); width:2px;
+    margin-left:-1px; pointer-events:none;
+    background:linear-gradient(180deg,transparent,var(--gold) 12%,var(--gold) 88%,transparent);
+    box-shadow:0 0 14px rgba(232,185,59,.55);
+  }
+  .reveal .tag{
+    position:absolute; bottom:10px; pointer-events:none;
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.14em;
+    text-transform:uppercase; color:#fff; padding:5px 9px; border-radius:5px;
+    background:rgba(8,14,11,.72); backdrop-filter:blur(3px);
+    transition:opacity .25s;
+  }
+  .reveal .tag.l{left:10px}
+  .reveal .tag.r{right:10px}
+  .reveal .hint{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    pointer-events:none; font-family:var(--mono); font-size:.78rem;
+    letter-spacing:.1em; color:#fff; padding:9px 15px; border-radius:7px;
+    background:rgba(8,14,11,.74); border:1px solid rgba(232,185,59,.4);
+    transition:opacity .3s;
+  }
+  .reveal.touched .hint{opacity:0}
+  /* no pointer (touch/keyboard): the wipe still works, but say so differently */
+  @media (hover:none){ .reveal{cursor:grab} }
+  .reveal:focus-visible{outline:2px solid var(--gold); outline-offset:3px}
   .duo{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:34px}
   .duo figure{margin:0}
 
@@ -197,8 +244,21 @@
     </p>
 
     <figure>
-      <img class="board" src="img/board-front.jpg" alt="The front of the discrete6502 board: thousands of tiny black transistor packages arranged in the pattern of the 6502 die, surrounded by gold bond pads labelled with the chip's pin names." loading="lazy">
-      <figcaption>The front face — 4,051 transistors at their die-true positions, ringed by the 6502's 40 pins as gold bond pads</figcaption>
+      <div class="reveal" id="reveal" tabindex="0" role="img"
+           aria-label="The discrete6502 board beside the original 6502 die layout it reproduces. Move across the image to wipe between them.">
+        <img src="img/board-front.jpg" alt="The front of the discrete6502 board: thousands of tiny black transistor packages arranged in the pattern of the 6502 die, surrounded by gold bond pads labelled with the chip's pin names.">
+        <img class="top" src="img/die-vec.webp" alt="The traced layout of a real MOS 6502 die, showing the same blocks in the same places." loading="lazy">
+        <span class="line"></span>
+        <span class="tag l">the die</span>
+        <span class="tag r">the board</span>
+        <span class="hint">← move across →</span>
+      </div>
+      <figcaption>
+        The same object twice: the traced silicon of a real 6502 (left) and this board (right).
+        Registered to the board's own die-coordinate transform — the blocks line up because the
+        parts were placed where the silicon put them.
+        Die layout from <a href="http://visual6502.org">visual6502</a>, CC BY-NC-SA.
+      </figcaption>
     </figure>
   </div>
 </section>
@@ -431,6 +491,60 @@
       identification only.</p>
   </div>
 </footer>
+
+<script>
+// Cursor-tracked wipe, in the spirit of memention.com/Julkort-08 — no handle
+// to grab, the split simply follows the pointer. Left/right here rather than
+// top/bottom, because the die and the board are both taller than they are wide.
+(function(){
+  var el = document.getElementById('reveal');
+  if(!el) return;
+  var REST = 34;              // where it sits before and after you touch it
+  var tracking = false;
+
+  function set(pct){
+    el.style.setProperty('--x', Math.max(0, Math.min(100, pct)).toFixed(2) + '%');
+  }
+  function fromEvent(e){
+    var r = el.getBoundingClientRect();
+    if(!r.width) return;
+    set((e.clientX - r.left) / r.width * 100);
+  }
+
+  el.addEventListener('pointermove', function(e){
+    if(e.pointerType !== 'mouse' && !tracking) return;   // touch: only while dragging
+    el.classList.add('touched');
+    fromEvent(e);
+  });
+  el.addEventListener('pointerdown', function(e){
+    tracking = true;
+    el.classList.add('touched');
+    fromEvent(e);                       // position first — capture may throw
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  });
+  el.addEventListener('pointerup', function(){ tracking = false; });
+  el.addEventListener('pointercancel', function(){ tracking = false; });
+  el.addEventListener('pointerleave', function(){
+    if(!tracking) set(REST);   // settle back to a composed poster state
+  });
+
+  // Keyboard: the wipe is the only way to see the second image, so it must
+  // not be mouse-only.
+  el.addEventListener('keydown', function(e){
+    var cur = parseFloat(el.style.getPropertyValue('--x')) || REST, step = e.shiftKey ? 10 : 3;
+    if(e.key === 'ArrowLeft'){ set(cur - step); }
+    else if(e.key === 'ArrowRight'){ set(cur + step); }
+    else if(e.key === 'Home'){ set(0); }
+    else if(e.key === 'End'){ set(100); }
+    else return;
+    el.classList.add('touched');
+    e.preventDefault();
+  });
+
+  set(REST);
+})();
+</script>
 
 </body>
 </html>
