@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>discrete6502 — a 6502 CPU built from 4,051 discrete transistors</title>
+<meta name="description" content="A MOS 6502 CPU rebuilt from 4,051 individual surface-mount transistors on a 291 x 322 mm six-layer board that reproduces the original die layout.">
+<meta property="og:title" content="discrete6502">
+<meta property="og:description" content="A MOS 6502 CPU rebuilt from 4,051 individual surface-mount transistors, laid out as the original die.">
+<meta property="og:image" content="img/board-front.jpg">
+<meta name="theme-color" content="#0d1411">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='14' fill='%23124a32'/><rect x='22' y='22' width='24' height='24' fill='%23e8b93b'/><rect x='54' y='22' width='24' height='24' fill='%23e8b93b'/><rect x='22' y='54' width='24' height='24' fill='%23e8b93b'/><rect x='54' y='54' width='24' height='24' fill='%23e8b93b'/></svg>">
+<style>
+  :root{
+    --bg:#0d1411; --bg2:#111c17; --card:#15211b; --line:#22352b;
+    --ink:#e6efe9; --dim:#9db3a7; --faint:#6f877b;
+    --gold:#e8b93b; --green:#3fbf7f; --pcb:#1c6b45;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); font-size:17px; line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px; margin:0 auto; padding:0 22px}
+  a{color:var(--gold); text-decoration:none; border-bottom:1px solid rgba(232,185,59,.32)}
+  a:hover{border-bottom-color:var(--gold)}
+  h1,h2,h3{line-height:1.2; letter-spacing:-.01em}
+  h2{font-size:1.55rem; margin:0 0 .2em}
+  h3{font-size:1.05rem; margin:0 0 .35em}
+  p{margin:0 0 1.05em}
+  code{font-family:var(--mono); font-size:.87em; background:#0a120e;
+       border:1px solid var(--line); border-radius:4px; padding:.12em .38em}
+
+  /* ---- hero ---- */
+  header{
+    border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(1100px 460px at 50% -180px, rgba(28,107,69,.36), transparent 70%),
+      linear-gradient(180deg,#0f1a14,var(--bg));
+  }
+  .hero{padding:74px 0 60px; text-align:center}
+  .eyebrow{
+    font-family:var(--mono); font-size:.73rem; letter-spacing:.20em;
+    text-transform:uppercase; color:var(--gold); margin:0 0 18px;
+  }
+  h1{font-size:clamp(2.5rem,7.5vw,4.3rem); margin:0 0 .28em; font-weight:700}
+  h1 .lo{color:var(--green)}
+  .tagline{
+    font-size:clamp(1.05rem,2.4vw,1.3rem); color:var(--dim);
+    max-width:660px; margin:0 auto 30px;
+  }
+  .tagline b{color:var(--ink); font-weight:600}
+  .cta{display:flex; gap:12px; justify-content:center; flex-wrap:wrap}
+  .btn{
+    display:inline-block; padding:11px 22px; border-radius:7px;
+    font-size:.94rem; font-weight:600; border:1px solid var(--line);
+    background:var(--card); color:var(--ink);
+  }
+  .btn:hover{border-color:var(--gold); background:#1b2a22}
+  .btn.primary{background:var(--gold); color:#20160a; border-color:var(--gold)}
+  .btn.primary:hover{background:#f5c957}
+
+  /* ---- stat strip ---- */
+  .stats{
+    display:grid; grid-template-columns:repeat(4,1fr);
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    background:var(--bg2);
+  }
+  .stat{padding:22px 14px; text-align:center; border-right:1px solid var(--line)}
+  .stat:last-child{border-right:0}
+  .stat .n{
+    font-family:var(--mono); font-size:1.6rem; font-weight:700;
+    color:var(--gold); display:block; line-height:1.1;
+  }
+  .stat .l{font-size:.76rem; color:var(--faint); text-transform:uppercase;
+           letter-spacing:.09em; margin-top:6px; display:block}
+
+  /* ---- sections ---- */
+  section{padding:62px 0; border-bottom:1px solid var(--line)}
+  .lede{font-size:1.12rem; color:var(--dim); max-width:70ch}
+  .kicker{
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--green); margin:0 0 10px;
+  }
+
+  figure{margin:34px 0 0}
+  figure img{
+    width:100%; height:auto; display:block; border-radius:9px;
+    border:1px solid var(--line); background:#0a120e;
+  }
+  /* full-board renders are nearly square; cap them so they don't swallow the page */
+  figure img.board{
+    max-height:76vh; width:auto; max-width:100%; margin:0 auto;
+  }
+  figcaption{
+    font-size:.86rem; color:var(--faint); margin-top:11px;
+    text-align:center; font-family:var(--mono);
+  }
+  .duo{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:34px}
+  .duo figure{margin:0}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:30px}
+  .card{
+    background:var(--card); border:1px solid var(--line);
+    border-radius:9px; padding:20px 21px;
+  }
+  .card h3{color:var(--gold); font-family:var(--mono); font-size:.94rem;
+           letter-spacing:.02em}
+  .card p{font-size:.95rem; color:var(--dim); margin:0}
+
+  table{width:100%; border-collapse:collapse; margin-top:26px; font-size:.94rem}
+  th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line)}
+  th{color:var(--faint); font-weight:600; font-size:.76rem;
+     text-transform:uppercase; letter-spacing:.09em}
+  td:first-child{color:var(--dim); width:42%}
+  td:last-child{font-family:var(--mono); font-size:.9rem}
+  .tw{overflow-x:auto}
+
+  ol.steps{counter-reset:s; list-style:none; padding:0; margin:28px 0 0}
+  ol.steps li{
+    counter-increment:s; position:relative; padding:0 0 16px 42px;
+    color:var(--dim); font-size:.96rem;
+  }
+  ol.steps li::before{
+    content:counter(s); position:absolute; left:0; top:1px;
+    width:26px; height:26px; border-radius:50%;
+    background:var(--card); border:1px solid var(--line);
+    color:var(--gold); font-family:var(--mono); font-size:.78rem;
+    display:grid; place-items:center;
+  }
+  ol.steps li b{color:var(--ink); font-weight:600}
+
+  .note{
+    border-left:3px solid var(--gold); background:#171f16;
+    padding:15px 18px; border-radius:0 7px 7px 0; margin-top:28px;
+    font-size:.95rem; color:var(--dim);
+  }
+  .note b{color:var(--ink)}
+
+  footer{padding:46px 0 60px; color:var(--faint); font-size:.9rem}
+  footer p{margin:0 0 .8em}
+
+  @media (max-width:760px){
+    body{font-size:16px}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .stat:nth-child(2){border-right:0}
+    .stat:nth-child(1),.stat:nth-child(2){border-bottom:1px solid var(--line)}
+    .grid,.duo{grid-template-columns:1fr}
+    section{padding:48px 0}
+    .hero{padding:56px 0 46px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hero">
+    <p class="eyebrow">Hardware · work in progress</p>
+    <h1>discrete<span class="lo">6502</span></h1>
+    <p class="tagline">
+      A MOS 6502 CPU rebuilt from <b>4,051 individual transistors</b> — no chips, no FPGA —
+      laid out so the board reproduces the original silicon die, transistor for transistor.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="#how">How it works</a>
+      <a class="btn" href="#status">Project status</a>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><span class="n">4,051</span><span class="l">transistors</span></div>
+    <div class="stat"><span class="n">5,421</span><span class="l">components</span></div>
+    <div class="stat"><span class="n">291×322</span><span class="l">millimetres</span></div>
+    <div class="stat"><span class="n">6</span><span class="l">copper layers</span></div>
+  </div>
+</header>
+
+<section id="what">
+  <div class="wrap">
+    <p class="kicker">What this is</p>
+    <h2>The 6502, taken apart</h2>
+    <p class="lede">
+      The MOS 6502 powered the Apple II, the Commodore 64, the NES and the BBC Micro.
+      Inside its package sit roughly 3,500 transistors on a fingernail of silicon.
+      This project takes that exact circuit and rebuilds it from parts you can see:
+      every transistor becomes a separate SOT-323 package soldered to a board the size
+      of a sheet of A4 paper.
+    </p>
+    <p class="lede">
+      It is not a simulation and not an emulation. The logic is the real thing —
+      the same dynamic NMOS circuit the original used, running the same instructions,
+      just a few thousand times larger and a few hundred times slower.
+    </p>
+
+    <figure>
+      <img class="board" src="img/board-front.jpg" alt="The front of the discrete6502 board: thousands of tiny black transistor packages arranged in the pattern of the 6502 die, surrounded by gold bond pads labelled with the chip's pin names." loading="lazy">
+      <figcaption>The front face — 4,051 transistors at their die-true positions, ringed by the 6502's 40 pins as gold bond pads</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="die">
+  <div class="wrap">
+    <p class="kicker">The layout</p>
+    <h2>The board <em>is</em> the die</h2>
+    <p class="lede">
+      Every transistor is placed at the coordinates of the transistor it replaces, scaled up
+      from photographs of a real decapped 6502. Nothing about the arrangement is decorative —
+      the stripes, the clusters and the empty channels are the chip's own floorplan,
+      reproduced because the parts were told to go where the silicon put them.
+    </p>
+    <p class="lede">
+      The front face carries only transistors and LEDs, so the texture reads cleanly.
+      Every resistor and capacitor lives on the back.
+    </p>
+
+    <figure>
+      <img src="img/detail-texture.jpg" alt="Close-up of the board showing individual surface-mount transistor packages in dense rows and scattered clusters, with fine copper traces between them." loading="lazy">
+      <figcaption>Detail: individual SOT-323 packages — the density variation is the die's, not a designer's</figcaption>
+    </figure>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Decode PLA</h3>
+        <p>The instruction decoder — the dense, regular stripes across the top third. Its
+        input lines each drive up to 71 separate transistor gates.</p>
+      </div>
+      <div class="card">
+        <h3>Datapath</h3>
+        <p>Registers and the ALU, in the ordered columns along the bottom. Bit lanes run
+        horizontally, exactly as they do on silicon.</p>
+      </div>
+      <div class="card">
+        <h3>Bond pads</h3>
+        <p>36 gold pads at the die's real bond-pad positions, 11.6 mm square and drilled
+        for a crocodile clip. Labelled with the classic DIP-40 pin names.</p>
+      </div>
+      <div class="card">
+        <h3>55 LEDs</h3>
+        <p>One per register bit — A, X, Y, stack pointer, both halves of the program
+        counter and 7 status flags — so the CPU's state is visible while it runs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="kicker">How it works</p>
+    <h2>Faithful, not modernised</h2>
+    <p class="lede">
+      The easy version of this project converts the 6502 to modern static logic and calls it
+      done. This one doesn't. It keeps the original <b>dynamic NMOS</b> design, where data is
+      stored as charge on a wire's own capacitance and has to be refreshed by the clock before
+      it leaks away.
+    </p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Pull-ups, not depletion loads</h3>
+        <p>The original's depletion-mode load transistors have no discrete equivalent, so
+        1,023 resistors of 10 kΩ take their place — which is also where nearly all the
+        power goes.</p>
+      </div>
+      <div class="card">
+        <h3>Pass gates, doubled</h3>
+        <p>778 of the transistors pass signals in both directions, impossible with a
+        3-terminal part. Each becomes a back-to-back pair — 1,556 transistors doing
+        778 transistors' work.</p>
+      </div>
+      <div class="card">
+        <h3>The bootstrap trick</h3>
+        <p>A pass gate should lose a threshold voltage. It doesn't: the clock edge couples
+        through the gate and pushes the stored '1' <em>above</em> the supply rail. Verified
+        in SPICE with the manufacturer's own model.</p>
+      </div>
+      <div class="card">
+        <h3>Honest about speed</h3>
+        <p>Roughly 10–20 kHz, against the real chip's 1 MHz. Driving 71 gates through one
+        10 kΩ resistor takes microseconds. Slow is the point — you can watch it think.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="built">
+  <div class="wrap">
+    <p class="kicker">Method</p>
+    <h2>Nothing was drawn by hand</h2>
+    <p class="lede">
+      At 5,421 components and 8,421 connections, hand-drawing a schematic is not slow —
+      it is impossible. Every stage is a script, so the whole board can be regenerated
+      from the source data with one command each.
+    </p>
+
+    <ol class="steps">
+      <li><b>Start from the real chip.</b> The visual6502 project photographed and traced an
+      actual 6502 die into a transistor-level netlist. That is the ground truth — not a
+      datasheet, not a reimplementation.</li>
+      <li><b>Transform it.</b> Merge redundant parallel transistors, expand bidirectional
+      pass gates into pairs, turn pull-up markers into resistors, add LED taps and
+      protection.</li>
+      <li><b>Place by die coordinate.</b> Each part is positioned where its transistor sits
+      on the silicon, then nudged only as far as collision requires — a median of 1.5 mm.</li>
+      <li><b>Route it.</b> Off-the-shelf autorouters gave up (one managed 700 of 8,500
+      connections in ten hours). A purpose-built negotiated-congestion router finished all
+      8,421 across four routing layers.</li>
+      <li><b>Prove it.</b> Four independent checks, from logic down to copper, before
+      anything is ordered.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="verify">
+  <div class="wrap">
+    <p class="kicker">Verification</p>
+    <h2>Four gates, all green</h2>
+    <p class="lede">
+      A board this size cannot be debugged by poking at it afterwards, so correctness is
+      established before fabrication and re-checked on every change.
+    </p>
+
+    <div class="tw"><table>
+      <tr><th>Check</th><th>Result</th></tr>
+      <tr><td>Switch-level simulation against the original netlist</td><td>identical traces</td></tr>
+      <tr><td>Board matches the generated netlist</td><td>0 errors</td></tr>
+      <tr><td>Independent copper connectivity trace</td><td>0 broken nets</td></tr>
+      <tr><td>Manufacturer design-rule check</td><td>0 electrical violations</td></tr>
+    </table></div>
+
+    <p class="note">
+      <b>The equivalence test runs real code.</b> A program using the stack, subroutine calls,
+      arithmetic and branches is executed on both the original visual6502 netlist and this
+      transformed one. Every signal, every cycle, must match — otherwise the change is rejected.
+    </p>
+  </div>
+</section>
+
+<section id="bringup">
+  <div class="wrap">
+    <p class="kicker">Bring-up</p>
+    <h2>It brings its own computer</h2>
+    <p class="lede">
+      A CPU alone does nothing — it needs a clock and memory. Both live on the back of the
+      board: an unpopulated footprint for a Raspberry Pi Pico 2 W, wired to the data bus,
+      14 address lines, reset, read/write and SYNC.
+    </p>
+    <p class="lede">
+      Solder on a Pico, flash the firmware, and it becomes the clock master and a memory
+      emulator — serving every instruction fetch, capturing every write, and tracing the
+      bus cycle by cycle. No other equipment required.
+    </p>
+
+    <figure>
+      <img class="board" src="img/board-back.jpg" alt="The back of the board: a rim of small passive components, a grid of resistors and capacitors, and the outline of the Pico module footprint." loading="lazy">
+      <figcaption>The back — 1,023 pull-up resistors, 96 decoupling capacitors, and the Pico site in the die's natural gap</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="specs">
+  <div class="wrap">
+    <p class="kicker">Specification</p>
+    <h2>By the numbers</h2>
+    <div class="tw"><table>
+      <tr><th>Item</th><th>Value</th></tr>
+      <tr><td>Transistors</td><td>4,051 (3,996 logic + 55 LED drivers)</td></tr>
+      <tr><td>Transistor type</td><td>BSS138K, SOT-323</td></tr>
+      <tr><td>Pull-up resistors</td><td>1,023 × 10 kΩ</td></tr>
+      <tr><td>Register LEDs</td><td>55</td></tr>
+      <tr><td>Total components</td><td>5,421 across 2,624 nets</td></tr>
+      <tr><td>Board</td><td>290.7 × 322.0 mm, 6 layers, ENIG</td></tr>
+      <tr><td>Routing</td><td>8,421 connections · 103 m of copper · 14,454 vias</td></tr>
+      <tr><td>Supply</td><td>5 V (3.3 V also validated)</td></tr>
+      <tr><td>Power</td><td>≈ 1.6 W typical, 3.2 W worst case</td></tr>
+      <tr><td>Clock</td><td>≈ 20 kHz at 5 V, ≈ 10 kHz at 3.3 V</td></tr>
+    </table></div>
+  </div>
+</section>
+
+<section id="status">
+  <div class="wrap">
+    <p class="kicker">Status</p>
+    <h2>Designed and verified — not yet built</h2>
+    <p class="lede">
+      The design is finished. Every check passes, the manufacturing package is released and
+      fingerprinted, and the boards are being ordered. <b>No physical board exists yet</b> —
+      nothing here has been proven in copper, only in simulation and geometry.
+    </p>
+    <div class="tw"><table>
+      <tr><th>Milestone</th><th>State</th></tr>
+      <tr><td>Research the original die and netlist</td><td>done</td></tr>
+      <tr><td>Circuit feasibility, validated in SPICE</td><td>done</td></tr>
+      <tr><td>Generation toolchain</td><td>done</td></tr>
+      <tr><td>Logic equivalence proof</td><td>done</td></tr>
+      <tr><td>Layout, routing, manufacturing package</td><td>done</td></tr>
+      <tr><td>Fabrication and bring-up</td><td>in progress</td></tr>
+    </table></div>
+    <p class="note">
+      <b>What could still go wrong:</b> the dynamic logic depends on charge held on long
+      board traces rather than microscopic silicon nodes, and on a bootstrap effect that has
+      been simulated but never soldered. The first power-up is the real test.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Logic data from the <a href="http://visual6502.org">visual6502</a> project, which traced
+      a real 6502 die photograph by photograph. Their netlist is licensed
+      <b>CC BY-NC-SA</b>, so this design is <b>non-commercial</b> and inherits the same terms.
+    </p>
+    <p>
+      Inspired by the <a href="https://monster6502.com/">MOnSter 6502</a> by Eric Schlaepfer and
+      Evil Mad Scientist Laboratories, which proved a discrete 6502 was possible. This is an
+      independent design and is not affiliated with that project.
+    </p>
+    <p style="color:#4e6357">6502, Apple II, Commodore 64 and NES are referenced for
+      identification only.</p>
+  </div>
+</footer>
+
+</body>
+</html>
