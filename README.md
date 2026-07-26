@@ -15,8 +15,15 @@ netlist, captured from photographs of a real decapped 6502.
 
 ## Status
 
-Design complete and verified; ready to order (fab package in `gen/fab/`, checklist in
-`gen/fab/ordering.html`). Bring-up (M6) starts when boards arrive.
+**Fab package rev A released 2026-07-26** — design complete, verified, ready to order.
+Release record with file fingerprints and full verification results:
+[`gen/fab/RELEASE.md`](gen/fab/RELEASE.md); step-by-step ordering checklist:
+`gen/fab/ordering.html`. Bring-up (M6) starts when boards arrive.
+
+Verified against the exact board in that package: switch-level equivalence **PASS**,
+board-vs-netlist parity **0 errors**, independent copper connectivity **0 broken**,
+DRC **0 electrical violations** (2 benign items inside the Pico library footprint)
+and **0 unconnected**.
 
 | Milestone | State |
 |---|---|
