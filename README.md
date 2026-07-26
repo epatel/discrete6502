@@ -1,3 +1,5 @@
+<a href="https://claude.ai"><img src="made-with-claude.png" height="32" alt="Made with Claude"></a>
+
 # discrete6502
 
 A complete, verified design for a **MOS 6502 CPU built from 4,051 discrete surface-mount
