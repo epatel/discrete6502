@@ -87,6 +87,27 @@ and arm-none-eabi-gcc: `tester` 37 KB text / 32 KB bss, `general` similar — th
 520 KB with room to spare. Only the `lib/tinyusb` submodule is needed; the
 btstack / cyw43 / lwip warnings are expected, as neither firmware uses the radio.
 
+There is a `Makefile` here that wraps the cmake invocations:
+
+```sh
+make                 # tester + general
+make wifi WIFI_SSID=yournet WIFI_PASSWORD=secret
+make all-wifi        # all three
+make size            # flash/RAM use of whatever is built
+make flash-tester    # hold BOOTSEL while plugging USB first
+make clean
+```
+
+Put the credentials in `pico-controller/wifi.local.mk` (git-ignored) to keep
+them out of your shell history:
+
+```make
+WIFI_SSID := yournet
+WIFI_PASSWORD := secret
+```
+
+Or drive cmake directly:
+
 ```sh
 export PICO_SDK_PATH=/path/to/pico-sdk
 cd pico-controller/tester        # or general/

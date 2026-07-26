@@ -1,5 +1,6 @@
 .DS_Store
 pico-controller/*/build/
+pico-controller/wifi.local.mk
 gen/route_nc
 gen/route_nc_in.bin
 gen/route_nc_out.bin
