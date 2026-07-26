@@ -93,6 +93,13 @@ cd pico-controller/tester        # or general/
 cmake -B build && cmake --build build -j
 ```
 
+On the development machine this is already set up: the SDK lives at
+**`~/Development/pico-sdk`** (2.1.1, with the `tinyusb`, `cyw43-driver` and
+`lwip` submodules fetched; `btstack` and `mbedtls` are not needed) and
+`PICO_SDK_PATH` is exported from `~/.zshrc`, so `cmake -B build` just works.
+Elsewhere, clone it and set the variable yourself — nothing in this repo
+depends on that path.
+
 Flash: hold BOOTSEL while plugging USB, then copy `build/tester.uf2` to the
 mass-storage device (or `picotool load -f build/tester.uf2`).
 
