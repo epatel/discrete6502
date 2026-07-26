@@ -37,6 +37,12 @@ typedef struct {
 // Return true if handled (on reads, *data must be filled in).
 typedef bool (*bus_io_fn)(uint16_t addr, bool is_write, uint8_t *data);
 
+// Per-cycle observer, called after every completed bus cycle. Return false
+// to make bus_run() / bus_step_instruction() stop early — that is how a
+// watcher (see functest.h) aborts a multi-hour run the moment it sees
+// something worth stopping for.
+typedef bool (*bus_watch_fn)(const bus_trace_t *t);
+
 // clk_open_drain: drive clk0 low actively but float it high (board pull-up
 // to VCC gives a full-swing clock; slower edges). Push-pull drives 3.3 V
 // highs — see README "Logic levels" before choosing.
@@ -44,6 +50,7 @@ void bus_init(bool clk_open_drain);
 
 void bus_set_half_period_us(uint32_t us);  // default 50 (=> 10 kHz, see bus6502.c)
 void bus_set_io(bus_io_fn fn);
+void bus_set_watch(bus_watch_fn fn);  // NULL to remove
 
 void bus_reset_assert(void);   // /res low
 void bus_reset_release(void);  // /res floats high
@@ -56,10 +63,12 @@ void bus_reset_sequence(void);
 // Serves memory/IO and appends to the trace ring.
 bus_trace_t bus_step_cycle(void);
 
-// Run n cycles; returns last trace entry.
+// Run n cycles; returns last trace entry. Stops early if the watcher says so.
 bus_trace_t bus_run(uint32_t n);
 // Run until the start of the next instruction (sync high), with a cycle cap.
 bus_trace_t bus_step_instruction(uint32_t max_cycles);
+// True if the last bus_run()/bus_step_instruction() was cut short by the watcher.
+bool bus_aborted(void);
 
 uint8_t *bus_mem(void);  // the 16 KB image
 extern uint32_t bus_cycle_count;

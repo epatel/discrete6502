@@ -16,6 +16,8 @@ static uint32_t trace_count;  // total entries ever written (min with LEN for av
 static uint32_t half_us = 50;
 static bool clk_od;
 static bus_io_fn io_fn;
+static bus_watch_fn watch_fn;
+static bool aborted;
 uint32_t bus_cycle_count;
 
 // ---- pin helpers -----------------------------------------------------------
@@ -89,6 +91,8 @@ void bus_init(bool clk_open_drain) {
 
 void bus_set_half_period_us(uint32_t us) { half_us = us ? us : 1; }
 void bus_set_io(bus_io_fn fn) { io_fn = fn; }
+void bus_set_watch(bus_watch_fn fn) { watch_fn = fn; }
+bool bus_aborted(void) { return aborted; }
 uint8_t *bus_mem(void) { return mem; }
 
 void bus_reset_assert(void) { gpio_set_dir(PIN_RES, GPIO_OUT); }
@@ -134,22 +138,25 @@ bus_trace_t bus_step_cycle(void) {
     trace[trace_head] = t;
     trace_head = (trace_head + 1) % BUS_TRACE_LEN;
     if (trace_count < BUS_TRACE_LEN) trace_count++;
+    if (watch_fn && !watch_fn(&t)) aborted = true;
     return t;
 }
 
 bus_trace_t bus_run(uint32_t n) {
     bus_trace_t t = {0};
-    while (n--) t = bus_step_cycle();
+    aborted = false;
+    while (n-- && !aborted) t = bus_step_cycle();
     return t;
 }
 
 bus_trace_t bus_step_instruction(uint32_t max_cycles) {
     bus_trace_t t = {0};
+    aborted = false;
     // leave the current sync cycle first, then run to the next one
     do {
         t = bus_step_cycle();
-    } while (t.sync && max_cycles--);
-    while (!t.sync && max_cycles--) t = bus_step_cycle();
+    } while (t.sync && max_cycles-- && !aborted);
+    while (!t.sync && max_cycles-- && !aborted) t = bus_step_cycle();
     return t;
 }
 

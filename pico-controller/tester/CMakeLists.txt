@@ -4,7 +4,9 @@ include(${CMAKE_CURRENT_LIST_DIR}/../common/pico_sdk_import.cmake)
 project(discrete6502_tester C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 pico_sdk_init()
-add_executable(tester main.c ${CMAKE_CURRENT_LIST_DIR}/../common/bus6502.c)
+add_executable(tester main.c
+    ${CMAKE_CURRENT_LIST_DIR}/../common/bus6502.c
+    ${CMAKE_CURRENT_LIST_DIR}/../common/functest.c)
 target_include_directories(tester PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../common)
 target_link_libraries(tester pico_stdlib)
 pico_enable_stdio_usb(tester 1)

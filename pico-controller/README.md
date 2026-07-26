@@ -10,8 +10,8 @@ programs with no other hardware attached.
 
 | Folder | Purpose |
 |---|---|
-| `common/` | Shared bus engine (`bus6502.c/h`): pin map, clocking, memory serving, trace ring, reset — plus the SDK import cmake |
-| `tester/` | **Bring-up harness.** USB serial CLI: reset, run/trace N cycles, single-step instructions, peek/poke memory, clock speed control. Default image: an A-register counter loop (watch the A LEDs count). |
+| `common/` | Shared bus engine (`bus6502.c/h`): pin map, clocking, memory serving, trace ring, reset — plus `functest.c/h` (functional-test watcher) and the SDK import cmake |
+| `tester/` | **Bring-up harness.** USB serial CLI: reset, run/trace N cycles, single-step instructions, peek/poke memory, clock speed control, Intel-hex image load, and the functional-test runner. Default image: an A-register counter loop (watch the A LEDs count). |
 | `general/` | **Free-runner.** Boots the CPU and lets it run; memory-mapped char-out port at `$3F00` prints to USB serial. Default image prints `HELLO 6502` forever. |
 
 Add new projects as sibling folders (`pico-controller/<name>/`) reusing `common/`.
@@ -101,12 +101,55 @@ t 32       # run 32 cycles, watch the bus: cycle addr data r/W SYNC
 s 5        # step 5 instructions
 x 300 10   # hexdump $0300.. — the counter byte lives here
 p 100      # slow the clock to 5 kHz (half-period 100 us)
+L          # load an Intel hex image pasted into the terminal
+k on       # arm the functional-test watcher (see below)
+g          # free-run with the watcher until a self-loop
 ```
 
 A healthy CPU after `R` shows the 7-cycle reset sequence, a vector fetch at
 `3FFC/3FFD`, then the program's fetch/execute rhythm with SYNC marking each
 opcode. The default image increments A forever — the A-register LEDs count in
 binary and `$0300` follows.
+
+## Running the 6502 functional test suite
+
+[Klaus Dormann's `6502_65C02_functional_tests`](https://github.com/Klaus2m5/6502_65C02_functional_tests)
+(GPLv3) is the standard acceptance test for 6502 *re-implementations* — which
+is what this board is, rather than an emulator. It fits our hardware: with the
+stock configuration (`zero_page = $0A`, `data_segment = $200`,
+`code_segment = $400`, 13.1 kB of code) the image ends around `$3800`, inside
+the 16 KB mirrored window, leaving the reset vector at `$3FFC` clear. Its own
+`ram_top` option even offers `$40 = 16k` as a preset for mirrored systems, so
+**the ab14/ab15 sacrifice does not block it.**
+
+Assemble it with `as65 -l -m -s2 -w -h0` (the `-s2` gives Intel hex), then:
+
+```
+p 50          # start at the conservative default clock
+L             # then paste the .hex file into the terminal
+m 3FFC 00 04  # start at $0400: the suite's own RES vector points at res_trap
+k on          # watcher on (test_case defaults to $0200)
+R             # reset
+g             # go — runs until a self-loop, printing progress
+```
+
+The suite has no I/O, so the watcher reads its two side channels off the bus:
+
+- **Progress** — every write to `test_case` is a "sub-test passed" marker,
+  printed as `[functest] test $NN at cycle N (+delta)`. `$F0` means all opcode
+  tests are done and the final RAM-integrity check has started.
+- **Verdict** — pass *and* fail are both branch-to-self loops, so the watcher
+  reports any address whose opcode fetch repeats 4 times and stops the run.
+  Match it against your assembly listing: the `success` address means **PASS**;
+  anything else is the trap for the opcode immediately above it.
+
+Budget the time. The full pass is order 10⁷–10⁸ cycles, so at 10–20 kHz it is
+an **hours-long, ideally overnight run** — the printed cycle counts will give
+the exact figure the first time. Run the much shorter `6502_decimal_test.a65`
+first: decimal mode comes free from the visual6502 netlist and is the thing
+emulators most often get wrong.
+
+`g` takes an optional cycle cap (`g 500000`) and any keypress interrupts it.
 
 ## Reading the LEDs
 
@@ -150,7 +193,8 @@ PLA input lines are the slowest nets on the board.
 ## Roadmap
 
 - PIO-based bus engine (cycle-accurate, faster than bit-banging, frees the CPU)
-- Binary image upload protocol + host-side loader script
+- Host-side loader script (the `L` command already takes Intel hex by paste;
+  a script would make overnight functional-test runs unattended)
 - Lock-step co-verification against `tools/switchsim.py` traces (golden-model
   compare during bring-up — strongest possible debug tool)
 - Address/data-bus LED support if the optional LEDs are ever added
