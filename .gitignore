@@ -17,3 +17,6 @@ gen/gaps*.json
 gen/drc*.json
 gen/preview_comments.jsonl
 gen/.history/
+
+# stale Freerouting/KiCad-local artifacts under the old working-title name
+gen/monster6502v2.*
