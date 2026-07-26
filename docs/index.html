@@ -106,7 +106,7 @@
      The two layers are the same pixel size and the die render is registered
      to the board's own die-coordinate transform, so features line up. */
   .reveal{
-    position:relative; --x:34%;
+    position:relative; --x:66%;
     aspect-ratio:1474/1600; max-height:76vh;
     width:auto; max-width:100%; margin:0 auto;
     border:1px solid var(--line); border-radius:9px; overflow:hidden;
@@ -120,7 +120,9 @@
     object-fit:contain; display:block; border:0; border-radius:0;
     max-height:none; user-select:none; -webkit-user-drag:none;
   }
-  .reveal .top{clip-path:inset(0 calc(100% - var(--x)) 0 0)}
+  /* die on the right: the overlay is clipped away to the LEFT of the split,
+     so the board (the base layer) is what you see on the left */
+  .reveal .top{clip-path:inset(0 0 0 var(--x))}
   .reveal .line{
     position:absolute; top:0; bottom:0; left:var(--x); width:2px;
     margin-left:-1px; pointer-events:none;
@@ -247,17 +249,20 @@
       <div class="reveal" id="reveal" tabindex="0" role="img"
            aria-label="The discrete6502 board beside the original 6502 die layout it reproduces. Move across the image to wipe between them.">
         <img src="img/board-front.jpg" alt="The front of the discrete6502 board: thousands of tiny black transistor packages arranged in the pattern of the 6502 die, surrounded by gold bond pads labelled with the chip's pin names.">
-        <img class="top" src="img/die-vec.webp" alt="The traced layout of a real MOS 6502 die, showing the same blocks in the same places." loading="lazy">
+        <!-- not lazy: it is half of this figure, and loading it late shows an
+             empty panel where the die should already be -->
+        <img class="top" src="img/die-vec.webp" alt="The traced layout of a real MOS 6502 die, showing the same blocks in the same places.">
         <span class="line"></span>
-        <span class="tag l">the die</span>
-        <span class="tag r">the board</span>
+        <span class="tag l">the board</span>
+        <span class="tag r">the die</span>
         <span class="hint">← move across →</span>
       </div>
       <figcaption>
-        The same object twice: the traced silicon of a real 6502 (left) and this board (right).
+        The same object twice: this board (left) and the traced silicon of a real 6502 (right).
         Registered to the board's own die-coordinate transform — the blocks line up because the
         parts were placed where the silicon put them.
-        Die layout from <a href="http://visual6502.org">visual6502</a>, CC BY-NC-SA.
+        Die layers from <a href="http://www.visual6502.org/images/6502/index.html">visual6502</a>,
+        photographed from a MOS 6502 revision D in 2009; the project's data is CC BY-NC-SA.
       </figcaption>
     </figure>
   </div>
@@ -499,7 +504,9 @@
 (function(){
   var el = document.getElementById('reveal');
   if(!el) return;
-  var REST = 34;              // where it sits before and after you touch it
+  // Where the split sits before and after you touch it: mostly board, with
+  // enough die showing on the right to be an obvious invitation.
+  var REST = 66;
   var tracking = false;
 
   function set(pct){
