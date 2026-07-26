@@ -1,0 +1,79 @@
+// The control page, served from flash as one static asset.
+// Kept deliberately small and dependency-free: no CDN, no framework, so it
+// works on a bench network with no internet and survives being opened from a
+// phone next to the board.
+#pragma once
+
+static const char PAGE_HTML[] =
+    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
+    "<!doctype html><meta charset=utf-8>"
+    "<meta name=viewport content='width=device-width,initial-scale=1'>"
+    "<title>discrete6502</title><style>"
+    "body{background:#111;color:#ddd;font:14px/1.5 ui-monospace,Menlo,monospace;"
+    "margin:0;padding:12px}h1{font-size:16px;margin:0 0 8px;color:#fff}"
+    "b{color:#fff}.g{color:#6c6}.r{color:#f66}.d{color:#888}"
+    "button,input{background:#222;color:#ddd;border:1px solid #444;border-radius:4px;"
+    "padding:5px 9px;font:inherit;margin:2px 1px}button:hover{background:#333}"
+    "input[type=number]{width:70px}table{border-collapse:collapse;width:100%;"
+    "max-width:560px}td,th{text-align:left;padding:1px 8px 1px 0;font-size:13px}"
+    "th{color:#888;font-weight:400}section{margin:14px 0;max-width:640px}"
+    "#log{white-space:pre-wrap;max-height:200px;overflow:auto;background:#181818;"
+    "border:1px solid #333;border-radius:4px;padding:8px;font-size:13px}"
+    "@media(max-width:520px){body{padding:8px}}</style>"
+
+    "<h1>discrete6502 <span class=d id=ip></span></h1>"
+
+    "<section id=st>connecting...</section>"
+
+    "<section>"
+    "<button onclick=cmd('reset')>reset</button>"
+    "<button onclick=cmd('run')>run</button>"
+    "<button onclick=cmd('stop')>stop</button>"
+    "<button onclick=cmd('step')>step instr</button>"
+    "<button onclick=cmd('vector')>vector&rarr;$0400</button><br>"
+    "half-period <input type=number id=hp value=50 min=1> &micro;s"
+    "<button onclick=\"cmd('clock',hp.value)\">set</button>"
+    "<button onclick=\"cmd('ft',1)\">watcher on</button>"
+    "<button onclick=\"cmd('ft',0)\">off</button>"
+    "</section>"
+
+    "<section>load Intel hex: <input type=file id=f>"
+    "<button onclick=up()>upload</button> <span id=ul class=d></span></section>"
+
+    "<section><table id=tr></table></section>"
+
+    "<section><div id=log></div></section>"
+
+    "<script>"
+    "let last=-1,lastTrap=0;"
+    "const L=(s,c)=>{const d=document.getElementById('log');"
+    "d.innerHTML+='<span class='+(c||'d')+'>'+s+'</span>\\n';d.scrollTop=1e9};"
+    "const cmd=(o,v)=>fetch('/cmd?op='+o+(v!==undefined?'&v='+v:''))"
+    ".then(r=>r.json()).then(()=>poll());"
+    "function up(){const f=document.getElementById('f').files[0];if(!f)return;"
+    "document.getElementById('ul').textContent='uploading '+f.name+'...';"
+    "f.text().then(t=>fetch('/load',{method:'POST',body:t}).then(r=>r.json())"
+    ".then(j=>{document.getElementById('ul').textContent=j.err?j.err:"
+    "(j.bytes+' bytes, '+j.rec+' records, '+j.bad+' bad, vector $'+"
+    "j.vec.toString(16).padStart(4,'0').toUpperCase());"
+    "if(!j.err)L('loaded '+j.bytes+' bytes','g')}))}"
+    "const hx=(n,w)=>n.toString(16).toUpperCase().padStart(w,'0');"
+    "function poll(){fetch('/status').then(r=>r.json()).then(j=>{"
+    "document.getElementById('ip').textContent=j.ip;"
+    "document.getElementById('st').innerHTML="
+    "'<b>'+(j.run?'<span class=g>RUNNING</span>':'stopped')+'</b>'+"
+    "' &middot; cycle <b>'+j.cyc+'</b> &middot; '+(1e6/(2*j.half)).toFixed(0)+' Hz'+"
+    "' (half '+j.half+'&micro;s)<br>bus $'+hx(j.a,4)+' '+hx(j.d,2)+' '+"
+    "((j.f&1)?'r':'W')+((j.f&2)?' SYNC':'')+"
+    "'<br>watcher '+(j.ft?'on':'off')+' &middot; test $'+hx(j.tc,2)+"
+    "(j.tr?' &middot; <span class=r>SELF-LOOP at $'+hx(j.ta,4)+'</span>':'');"
+    "if(j.ft&&j.tc!==last){if(last>=0)L('test $'+hx(j.tc,2)+' at cycle '+j.cyc,'g');last=j.tc}"
+    "if(j.tr&&!lastTrap){L('SELF-LOOP at $'+hx(j.ta,4)+' after '+j.cyc+' cycles.','r');"
+    "L('PASS if that is the success address in your listing, else it is the trap.','d')}"
+    "lastTrap=j.tr})}"
+    "function trace(){fetch('/trace?n=24').then(r=>r.json()).then(j=>{"
+    "document.getElementById('tr').innerHTML='<tr><th>cycle<th>addr<th>data<th>"
+    "<th>'+j.t.map(e=>'<tr><td>'+e[0]+'<td>$'+hx(e[1],4)+'<td>'+hx(e[2],2)+"
+    "'<td>'+((e[3]&1)?'r':'W')+'<td>'+((e[3]&2)?'SYNC':'')).join('')})}"
+    "setInterval(poll,500);setInterval(trace,1000);poll();trace();"
+    "</script>";

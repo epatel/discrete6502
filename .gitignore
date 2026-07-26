@@ -1,4 +1,5 @@
 .DS_Store
+pico-controller/*/build/
 gen/route_nc
 gen/route_nc_in.bin
 gen/route_nc_out.bin

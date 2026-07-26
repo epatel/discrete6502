@@ -48,6 +48,12 @@ typedef struct {
 
 void functest_enable(uint16_t case_addr);
 void functest_disable(void);
+// Suppress the printf narration. REQUIRED when the watcher runs on a
+// timing-critical core: pico stdio_usb blocks for up to 500 ms if a terminal
+// is attached but not draining, which would stretch a clock phase by ten
+// thousand times its length. The wifi firmware sets this and reports through
+// the shared snapshot instead.
+void functest_set_quiet(bool quiet);
 void functest_clear(void);  // forget progress and any trap, keep config
 const functest_state_t *functest_state(void);
 

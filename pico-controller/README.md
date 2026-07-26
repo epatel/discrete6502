@@ -10,9 +10,10 @@ programs with no other hardware attached.
 
 | Folder | Purpose |
 |---|---|
-| `common/` | Shared bus engine (`bus6502.c/h`): pin map, clocking, memory serving, trace ring, reset — plus `functest.c/h` (functional-test watcher) and the SDK import cmake |
+| `common/` | Shared bus engine (`bus6502.c/h`): pin map, clocking, memory serving, trace ring, reset — plus `functest.c/h` (functional-test watcher), `ihex.c/h` (streaming Intel hex loader) and the SDK import cmake |
 | `tester/` | **Bring-up harness.** USB serial CLI: reset, run/trace N cycles, single-step instructions, peek/poke memory, clock speed control, Intel-hex image load, and the functional-test runner. Default image: an A-register counter loop (watch the A LEDs count). |
 | `general/` | **Free-runner.** Boots the CPU and lets it run; memory-mapped char-out port at `$3F00` prints to USB serial. Default image prints `HELLO 6502` forever. |
+| `wifi/` | **Browser control panel.** Same bus engine, but on core 1, with WiFi + a small HTTP server on core 0: upload an Intel hex, run/stop/step/reset, set the clock, watch the bus and the functional-test progress live. Built for unattended overnight test runs. |
 
 Add new projects as sibling folders (`pico-controller/<name>/`) reusing `common/`.
 
@@ -95,6 +96,61 @@ cmake -B build && cmake --build build -j
 Flash: hold BOOTSEL while plugging USB, then copy `build/tester.uf2` to the
 mass-storage device (or `picotool load -f build/tester.uf2`).
 
+The `wifi/` build additionally needs the `lib/cyw43-driver` and `lib/lwip` SDK
+submodules, and credentials, which have no defaults so they cannot be
+committed by accident:
+
+```sh
+cd pico-controller/wifi
+cmake -B build -DWIFI_SSID=yournet -DWIFI_PASSWORD=secret && cmake --build build -j
+```
+
+Measured 2026-07-26: `wifi` is 342 KB flash / 92 KB RAM — 8% of the 4 MB flash
+and 18% of the 520 KB SRAM, with ~430 KB of RAM still free. Two thirds of the
+flash is the fixed `w43439A0` radio firmware blob, not code.
+
+## The wifi control panel
+
+Flash it, watch the USB serial for `[wifi] http://<address>/`, and open that in
+a browser. The page is served from flash with no external dependencies — no
+CDN, no framework — so it works on a bench network with no internet and on a
+phone standing next to the board. Controls: reset, run, stop, step-instruction,
+clock half-period, functional-test watcher on/off, `vector→$0400`, and an
+Intel hex upload. It shows the live bus cycle, the last 24 cycles, and builds a
+log of `test_case` progress and the final verdict.
+
+**Why this firmware is structured the way it is** — the bus engine runs on
+**core 1 and touches nothing else**; WiFi, lwIP and HTTP live on **core 0**.
+This is not tidiness. The board is dynamic logic, so a stretched clock phase is
+a correctness bug, and association plus DHCP block for milliseconds at a time —
+fatal inside the clock loop, invisible on another core. Two consequences worth
+knowing before editing it:
+
+- The watcher is put in **quiet mode** (`functest_set_quiet`) because pico
+  `stdio_usb` blocks for up to 500 ms when a terminal is attached but not
+  draining. A `printf` on core 1 would stretch a 50 µs clock phase by ten
+  thousand times its length. Progress reaches the browser through the shared
+  snapshot instead.
+- **Memory is shared**, so hex upload and the vector patch are refused with
+  `409` while the CPU is running. Stop it first — the page's buttons do this
+  in the obvious order.
+
+The per-cycle snapshot core 0 reads is deliberately lock-free: every field is
+word-sized and individually atomic on ARM, so the worst case is a display that
+mixes two adjacent cycles for one 500 ms refresh. Paying for a lock inside the
+clock loop to fix a cosmetic race would be the wrong trade.
+
+Two physical caveats:
+
+- **Range will be poor.** The module sits on the underside of a 291 × 322 mm
+  board between GND and VCC planes. The antenna strip has an all-layer keepout,
+  so it works, but it radiates at the edge of a large ground structure — expect
+  same-room performance, not whole-house.
+- **Power.** WiFi adds roughly 50 mA average with TX bursts of 200–300 mA. On
+  top of the board's ~0.35 A typical that is fine from a bench supply, but
+  USB-only demo mode gets close to ~0.9 A worst case — more than a legacy
+  500 mA port will give.
+
 ## Using the tester
 
 Connect a serial terminal to the Pico's USB port (any baud), then:
@@ -151,7 +207,9 @@ Budget the time. The full pass is order 10⁷–10⁸ cycles, so at 10–20 kHz 
 an **hours-long, ideally overnight run** — the printed cycle counts will give
 the exact figure the first time. Run the much shorter `6502_decimal_test.a65`
 first: decimal mode comes free from the visual6502 netlist and is the thing
-emulators most often get wrong.
+emulators most often get wrong. For a run that long the **`wifi/` firmware is
+the better harness** — same watcher, but the hex goes up over HTTP and the
+progress is readable from a browser instead of a tethered terminal.
 
 `g` takes an optional cycle cap (`g 500000`) and any keypress interrupts it.
 

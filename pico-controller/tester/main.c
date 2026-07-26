@@ -13,6 +13,7 @@
 // Intel hex) and 'k' + 'g' run it with live progress — see functest.h.
 #include "bus6502.h"
 #include "functest.h"
+#include "ihex.h"
 
 #include "pico/stdlib.h"
 #include <stdio.h>
@@ -49,54 +50,23 @@ static int read_line(char *buf, int cap) {
     return n;
 }
 
-static int hex2(const char *s) {
-    int v = 0;
-    for (int i = 0; i < 2; i++) {
-        char c = s[i];
-        int d = (c >= '0' && c <= '9')   ? c - '0'
-                : (c >= 'a' && c <= 'f') ? c - 'a' + 10
-                : (c >= 'A' && c <= 'F') ? c - 'A' + 10
-                                         : -1;
-        if (d < 0) return -1;
-        v = v * 16 + d;
-    }
-    return v;
-}
-
-// Load an Intel hex image pasted into the terminal (Klaus Dormann's suite
-// assembles directly to Intel hex with as65 -s2). Addresses are masked into
-// the 16 KB window, so the $FFFA-$FFFF vector block lands at $3FFA-$3FFF as
-// the CPU sees it. Stops on the EOF record (:00000001FF) or a blank line.
+// Load an Intel hex image pasted into the terminal. Parsing lives in
+// common/ihex.c (shared with the wifi firmware); this just feeds it lines
+// until the EOF record or a blank line.
 static void load_intel_hex(char *line, int cap) {
-    uint32_t bytes = 0, records = 0, bad = 0;
+    ihex_stats_t hx;
+    ihex_begin(&hx);
     printf("paste Intel hex; ends at the EOF record or a blank line\n");
     for (;;) {
-        int n = read_line(line, cap);
-        if (n == 0) { printf("(blank line)\n"); break; }
-        if (line[0] != ':' || n < 11) { bad++; continue; }
-        int len = hex2(line + 1), ah = hex2(line + 3), al = hex2(line + 5),
-            type = hex2(line + 7);
-        if (len < 0 || ah < 0 || al < 0 || type < 0 || n < 11 + 2 * len) { bad++; continue; }
-        uint32_t sum = (uint32_t)len + (uint32_t)ah + (uint32_t)al + (uint32_t)type;
-        uint16_t addr = (uint16_t)((ah << 8) | al);
-        for (int i = 0; i < len; i++) {
-            int b = hex2(line + 9 + 2 * i);
-            if (b < 0) { bad++; goto next; }
-            sum += (uint32_t)b;
-            if (type == 0) bus_mem()[(addr + i) & (BUS_MEM_SIZE - 1)] = (uint8_t)b;
+        if (read_line(line, cap) == 0) { printf("(blank line)\n"); break; }
+        if (!ihex_line(&hx, line, bus_mem(), BUS_MEM_SIZE - 1)) {
+            printf("(EOF record)\n");
+            break;
         }
-        {
-            int cs = hex2(line + 9 + 2 * len);
-            if (cs < 0 || (uint8_t)(sum + (uint32_t)cs) != 0) { bad++; goto next; }
-        }
-        records++;
-        if (type == 0) bytes += (uint32_t)len;
-        if (type == 1) { printf("(EOF record)\n"); break; }
-    next:;
     }
     uint16_t vec = (uint16_t)(bus_mem()[0x3FFC] | (bus_mem()[0x3FFD] << 8));
-    printf("loaded %lu bytes in %lu records (%lu bad)\n", (unsigned long)bytes,
-           (unsigned long)records, (unsigned long)bad);
+    printf("loaded %lu bytes in %lu records (%lu bad)\n", (unsigned long)hx.bytes,
+           (unsigned long)hx.records, (unsigned long)hx.bad);
     printf("reset vector at $3FFC -> $%04X\n", vec);
     if (vec != 0x0400)
         printf("note: the functional test wants to start at $0400 (its own RES vector\n"

@@ -5,6 +5,9 @@
 static functest_state_t st = {.case_addr = FUNCTEST_CASE_ADDR_DEFAULT};
 static uint16_t last_sync_addr;
 static bool have_sync;
+static bool quiet;
+
+void functest_set_quiet(bool q) { quiet = q; }
 
 void functest_enable(uint16_t case_addr) {
     st.case_addr = case_addr & (BUS_MEM_SIZE - 1);
@@ -39,7 +42,8 @@ bool functest_watch(const bus_trace_t *t) {
         st.test_case = t->data;
         st.case_cycle = t->cycle;
         st.have_case = true;
-        if (t->data == 0xF0)
+        if (quiet) { /* reported through the shared snapshot instead */ }
+        else if (t->data == 0xF0)
             printf("[functest] test $F0: opcode tests complete, RAM integrity check running"
                    " (cycle %lu)\n", (unsigned long)t->cycle);
         else
@@ -55,6 +59,7 @@ bool functest_watch(const bus_trace_t *t) {
                 st.trapped = true;
                 st.trap_addr = t->addr;
                 st.trap_cycle = t->cycle;
+                if (quiet) return false;
                 printf("\n[functest] SELF-LOOP at $%04X after %lu cycles"
                        " (last test $%02X).\n"
                        "[functest] PASS if that is the `success` address in your"
