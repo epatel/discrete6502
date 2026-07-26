@@ -106,6 +106,7 @@ python3 tools/switchsim.py           # equivalence gate: must stay green
 <kicad-python> tools/route_nc.py     # signal routing (hours; checkpointed)
 <kicad-python> tools/fix_same_net_vias.py
 <kicad-python> tools/fix_via_pairs.py
+<kicad-python> tools/enlarge_vias.py  # 0.30mm drills for JLC's free class
 <kicad-python> tools/add_silk.py
 <kicad-python> tools/check_parity.py && tools/check_gaps.py + kicad-cli drc
 ```
