@@ -1,4 +1,4 @@
-# pico-controller — firmware for the discrete6502 bring-up Pico
+# pico-controller: firmware for the discrete6502 bring-up Pico
 
 The board carries an unpopulated **Raspberry Pi Pico 2 W** site. Factory-fitted
 1k series resistors wire it to the CPU data bus, 14 address bits, clock, reset,
@@ -18,7 +18,7 @@ programs with no other hardware attached.
 Add a new project as a sibling folder (`pico-controller/<name>/`). Reuse
 `common/`.
 
-## Pin map (fixed by the board — do not change)
+## Pin map (fixed by the board, do not change)
 
 | Pico GPIO | Signal | Direction (Pico view) |
 |---|---|---|
@@ -33,7 +33,7 @@ The CPU sees only 14 address bits. Memory is a **16 KB image**, mirrored across
 the 64 KB space. The reset vector `$FFFC/D` is at offset `0x3FFC/D` in the
 image.
 
-## Logic levels — read before first power-up
+## Logic levels: read before first power-up
 
 The Pico is a 3.3 V device. The CPU core runs at 5 V. This is the one
 **unresolved hardware question** for bring-up. It does not affect the PCB.
@@ -198,7 +198,7 @@ Connect a serial terminal to the Pico USB port at any baud rate, then:
 R          # reset sequence
 t 32       # run 32 cycles, watch the bus: cycle addr data r/W SYNC
 s 5        # step 5 instructions
-x 300 10   # hexdump $0300.. — the counter byte lives here
+x 300 10   # hexdump $0300.. (the counter byte lives here)
 p 100      # slow the clock to 5 kHz (half-period 100 us)
 L          # load an Intel hex image pasted into the terminal
 k on       # arm the functional-test watcher (see below)
@@ -230,7 +230,7 @@ L             # then paste the .hex file into the terminal
 m 3FFC 00 04  # start at $0400: the suite's own RES vector points at res_trap
 k on          # watcher on (test_case defaults to $0200)
 R             # reset
-g             # go — runs until a self-loop, printing progress
+g             # go: run until a self-loop, print progress
 ```
 
 The suite has no I/O. The watcher therefore reads two side channels from the
@@ -255,7 +255,7 @@ and read the progress in a browser instead of a tethered terminal.
 `g` accepts an optional cycle cap, for example `g 500000`. Any keypress stops
 it.
 
-## Charge retention — measuring the clock's *lower* bound
+## Charge retention: measuring the clock's *lower* bound
 
 This CPU uses dynamic NMOS logic. A bit is charge on the capacitance of a wire,
 so the clock has a floor as well as a ceiling. If you stop the clock for too
@@ -271,7 +271,7 @@ the solver tolerances, and its leakage falls with temperature when it must
 rise. You must therefore measure the number on real copper:
 
 ```
-w 5        # freeze the clock for 5 ms — did the CPU survive?
+w 5        # freeze the clock for 5 ms. Did the CPU survive?
 W          # bisect for the boundary (default up to 4000 ms)
 W 20000    # if it survives 4 s, search further
 ```
@@ -337,7 +337,7 @@ The default tester image increments A forever. The A column at x ≈ 145 mm must
 therefore count in binary. This is the fastest visual proof that the CPU is
 alive.
 
-## Clock speed — start slow
+## Clock speed: start slow
 
 The firmware default is a **50 µs half-period**, which is 10 kHz. The project
 first targeted 50 kHz. `sim/fanout_speed.sp` found the real ceiling. The
