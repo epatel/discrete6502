@@ -19,13 +19,15 @@ Inspired by the [MOnSter 6502](https://monster6502.com/) (concept only — indep
 and simplified). Logic ground truth is the [visual6502](http://visual6502.org) reverse-engineered
 netlist, captured from photographs of a real decapped 6502.
 
-<!-- explicit widths: a markdown table sizes its columns to the header text, so
-     "Back (passives + Pico site)" would otherwise render ~7% larger than
-     "Front (the die)" even though both PNGs are exactly 2352x2552 -->
+<!-- The lighter docs/img JPEGs rather than the 5.5 MB gen/*.png pair: same
+     renders, indistinguishable at this size, a quarter of the bytes.
+     Explicit widths because a markdown table sizes its columns to the header
+     text, so "Back (passives + Pico site)" would otherwise render ~7% larger
+     than "Front (the die)" even though both images are exactly 1474x1600. -->
 
 | Front (the die) | Back (passives + Pico site) |
 |---|---|
-| <img src="gen/board_top.png" width="400" alt="Front of the board: 4,051 transistors at their die-true positions, ringed by gold bond pads"> | <img src="gen/board_bottom.png" width="400" alt="Back of the board: pull-up resistors, decoupling capacitors and the Pico site"> |
+| <img src="docs/img/board-front.jpg" width="400" alt="Front of the board: 4,051 transistors at their die-true positions, ringed by gold bond pads"> | <img src="docs/img/board-back.jpg" width="400" alt="Back of the board: pull-up resistors, decoupling capacitors and the unpopulated Pico site"> |
 
 ## Status
 
