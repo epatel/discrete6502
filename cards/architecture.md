@@ -15,7 +15,7 @@ board and JLCPCB pick-and-place assembly instead of the original's hand-designed
   (`tools/switchsim.py`).
 - **Dynamic NMOS logic, faithfully** — settled in M2, not converted to static. The original is
   enhancement-mode NMOS with depletion-load pull-ups and pass-transistor latches storing state
-  as charge; we keep all of that. 4,051 BSS138K FETs (3,996 CPU logic + 55 LED gate-taps),
+  as charge; we keep all of that. 4,051 BSS138W FETs (3,996 CPU logic + 55 LED gate-taps),
   1,018 depletion pull-ups replaced by 10 kΩ resistors (plus 5 on external inputs), and the
   778 bidirectional pass transistors implemented as back-to-back 3-terminal FET pairs — a
   3-terminal MOSFET alone would short one direction through its body diode. See

@@ -10,7 +10,7 @@ statically) and it drives at least one gate (otherwise nothing reads it). Its
 retention time is roughly
 
     t = C * dV / I_leak
-    C      ~ gates_driven * Ciss          (27 pF for BSS138K)
+    C      ~ gates_driven * Ciss          (27 pF for BSS138W)
     I_leak ~ channels_touching * I_DSS    (off pass/pull-down FETs)
              + gates_driven * I_GSS       (gate leakage)
 
@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-CISS = 27e-12       # BSS138K input capacitance, datasheet
+CISS = 27e-12       # BSS138W input capacitance, datasheet
 CTRACE = 5e-12      # rough allowance for the copper itself
 DV = 1.0            # volts of droop tolerated before the next stage mis-reads
 IGSS = 1e-10        # gate leakage, typical (spec max is +-100 nA)

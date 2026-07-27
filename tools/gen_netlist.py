@@ -26,6 +26,13 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "visual6502"
 GEN = ROOT / "gen"
 
+# The part is really JSCJ **BSS138W** (verified on LCSC: SOT-323, 50 V, 220 mA,
+# Ciss 27 pF, Vgs(th) 1.5 V -- the figures every sim here assumes). "BSS138K" is
+# a naming error made at order time; the prose docs are corrected, but this
+# string is DELIBERATELY left alone because it becomes the BOM's Comment field,
+# and changing it would alter gen/fab/discrete6502_bom.csv whose sha256 is
+# pinned in gen/fab/RELEASE.md and already uploaded to JLCPCB. JLC matches on
+# the LCSC code, so the comment text has no effect on what gets fitted.
 FET_VALUE, FET_LCSC = "BSS138K", "C504052"
 FET_FOOTPRINT = "Package_TO_SOT_SMD:SOT-323_SC-70"
 PULLUP_VALUE, PULLUP_LCSC = "10k", "C25744"

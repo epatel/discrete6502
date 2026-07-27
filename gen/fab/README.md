@@ -17,7 +17,7 @@ Generated 2026-07-25 from `gen/discrete6502.kicad_pcb` (git 93360f0+).
   (excluded from BOM/CPL); THT bond-pad ring is unassembled by design
 
 ## Order-time checklist
-1. **FET = LCSC `C504052`** (JSCJ BSS138K, SOT-323) — chosen 2026-07-25 for
+1. **FET = LCSC `C504052`** (JSCJ BSS138W, SOT-323) — chosen 2026-07-25 for
    stock; BSS138 was the project's pre-approved fallback FET and is fully
    SPICE-validated (Vth 0.8-1.5V even helps the 3.3V bring-up). 5 assembled
    boards need ~20,300 pcs (+attrition) — confirm quantity at order.

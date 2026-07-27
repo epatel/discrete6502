@@ -4,7 +4,7 @@
 * The M2 speed estimate (2.2 * 10k * 30pF = 0.3us) assumed a node driving ONE gate.
 * Extracting real fanout from gen/netlist.json tells a different story: the
 * instruction-register lines feeding the decode PLA drive 30-71 gates each, and
-* every one of those gates is a discrete BSS138K with Ciss ~ 27 pF:
+* every one of those gates is a discrete BSS138W with Ciss ~ 27 pF:
 *
 *   net       gates   C = gates * 27pF   pulled up by
 *   cclk        482      13.0 nF         FET (vcc_side source follower) -- fast

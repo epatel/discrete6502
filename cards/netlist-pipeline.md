@@ -24,7 +24,7 @@ Resulting totals (final, as ordered): **5,421 components / 2,624 nets**, of whic
 
 | Qty | Part | LCSC | Package |
 |---|---|---|---|
-| 4,051 | BSS138K (core FET) | C504052 | SOT-323 |
+| 4,051 | BSS138W (core FET) | C504052 | SOT-323 |
 | 1,023 | 10k pull-up | C25744 | 0402 |
 | 96 | 100nF decoupler | C1525 | 0402 |
 | 55 | red LED | C2286 | 0603 |
@@ -35,7 +35,7 @@ Resulting totals (final, as ordered): **5,421 components / 2,624 nets**, of whic
 | 4 | 10µF bulk | C15850 | 0805 |
 | 56 | 100pF ballast — **DNP**, bring-up insurance | — | 0402 |
 
-The core FET was 2N7002 (C8545, SOT-23) at M2, then 2N7002W (SOT-323) for the die-texture layout, and finally **BSS138K C504052** at order time (2026-07-25) because JLC had no 2N7002W stock — same package and pinout, lower Vth, SPICE-validated as the M2 fallback.
+The core FET was 2N7002 (C8545, SOT-23) at M2, then 2N7002W (SOT-323) for the die-texture layout, and finally **BSS138W C504052** at order time (2026-07-25) because JLC had no 2N7002W stock — same package and pinout, lower Vth, SPICE-validated as the M2 fallback.
 
 Invariants the script checks (fails loudly if broken): all 36 external 6502 interface nets exist (ab0–15, db0–7, clk0/1out/2out, res, rdy, irq, nmi, rw, sync, so, vss, vcc); all LED nodes resolve; the only singleton nets are res/irq/nmi (each lost only its on-die ESD clamp — the discrete board adds its own input protection — 100R series + dual 1N4148WS clamps on res/irq/nmi/rdy/so/clk0).
 

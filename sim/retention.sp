@@ -19,7 +19,7 @@
 *
 * Retention is t = C*dV/I_leak.  Section C measures C*dV/I directly and
 * confirms the relation exactly, so the physics is not in doubt.  The unknown
-* is I_leak, the off-state leakage of twelve BSS138K channels, which is tens
+* is I_leak, the off-state leakage of twelve BSS138W channels, which is tens
 * to hundreds of picoamps -- and ngspice with this BSIM3 model cannot resolve
 * it:
 *

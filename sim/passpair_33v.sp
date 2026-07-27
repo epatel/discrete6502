@@ -13,7 +13,7 @@
 * Three FET flavours in parallel, all with the real 10k pull-ups:
 *   _v = onsemi vendor BSIM3v3 2N7002 (F2N7002)   -- pessimistic: highest Vth of the three
 *   _b = BSS138 typical  (VDMOS Vto=1.1)          -- the part we ordered, typical unit
-*   _w = BSS138K worst   (VDMOS Vto=1.5)          -- the part we ordered, datasheet Vth max
+*   _w = BSS138W worst   (VDMOS Vto=1.5)          -- the part we ordered, datasheet Vth max
 *
 * Supplies swept by the control block: 5.0 (baseline), 3.3 (proposed), 3.0 (margin probe).
 * Run: cd sim && ngspice -b passpair_33v.sp
@@ -62,7 +62,7 @@ Mout_b OUT_b STO_b 0 MBSS
 Rpu2_b VDD OUT_b 10k
 COUT_b OUT_b 0 5p
 
-* ---------------- variant w: BSS138K worst case (Vto 1.5) ----------------
+* ---------------- variant w: BSS138W worst case (Vto 1.5) ----------------
 Mdrv_w A_w D 0 MB15
 Rpu1_w VDD A_w 10k
 M1_w A_w   PHI1 MID1_w MB15

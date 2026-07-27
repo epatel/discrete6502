@@ -7,7 +7,7 @@ Run with KiCad's bundled python:
 Board concept v4 (user directives: read as the 6502 die; ALL components on
 the top face; transistors at die-true positions):
   - 229.6 x 248.1 mm, the die's aspect ratio
-  - single-face architecture: SOT-323 FETs (BSS138K) on a 3.2 x 3.1 mm grid;
+  - single-face architecture: SOT-323 FETs (BSS138W) on a 3.2 x 3.1 mm grid;
     each row has a 1.1mm 'service channel' beneath it holding the resistors,
     inline LEDs, and all power vias, on a 1.8mm slot raster. The back face
     carries nothing but the unpopulated Pico 2 W site -> it is a free routing

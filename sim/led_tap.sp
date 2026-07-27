@@ -28,7 +28,7 @@ Vdd  VDD 0 {vsup}
 * tap gate driven to the stored '1' level the pass-pair deck measured at this rail
 Vg   G   0 {vsup}
 
-* ---- variant w: BSS138K worst case (Vto 1.5) as fitted on the board ----
+* ---- variant w: BSS138W worst case (Vto 1.5) as fitted on the board ----
 Rled_w VDD LA_w 2.2k
 Dled_w LA_w LK_w DLEDR
 Mtap_w LK_w G 0 MB15

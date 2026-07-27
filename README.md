@@ -48,7 +48,7 @@ and **0 unconnected**.
 
 - **Faithful dynamic NMOS logic** — not a static re-design: the visual6502 netlist's 3,239 unique
   transistors, with the 778 bidirectional pass transistors implemented as back-to-back FET pairs
-  (BSS138K; clock-edge bootstrap validated in SPICE with the manufacturer's model) and 1,023
+  (BSS138W; clock-edge bootstrap validated in SPICE with the manufacturer's model) and 1,023
   pull-up resistors standing in for the depletion loads. Realistic clock ~10–20 kHz — the decode-PLA
   input lines drive up to 71 discrete gates behind one 10k pull-up (`sim/fanout_speed.sp`).
 - **Machine-checked correctness**: a switch-level simulator proves the transformed netlist

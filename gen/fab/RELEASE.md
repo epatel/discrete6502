@@ -55,7 +55,7 @@ git `c5c06f0`. The zip has been byte-compared against a fresh plot of that board
 
 ## What changed since the first package (2026-07-25)
 
-1. **FET → BSS138K, LCSC C504052** (2N7002W had no JLC stock; BSS138 was the
+1. **FET → BSS138W, LCSC C504052** (2N7002W had no JLC stock; BSS138 was the
    M2-designated, SPICE-validated fallback).
 2. **Pico series resistors populated** in the factory assembly.
 3. **Silkscreen re-placed** so no text crosses pad copper — the fab subtracts pad
