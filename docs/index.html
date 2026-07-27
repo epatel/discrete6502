@@ -349,6 +349,18 @@
         needs microseconds to drive 71 gates. Slow is the point. You can watch it think.</p>
       </div>
     </div>
+
+    <p class="note">
+      <b>The clock is bounded at both ends.</b> A dynamic node stores a bit as charge, so the
+      clock must refresh that charge before it leaks away. That sets a floor as well as a
+      ceiling. The weakest node on the board holds 32 pF against twelve leaking transistors.
+      If each transistor leaks the typical 1 nA, the floor sits near 380 Hz, far below the
+      ceiling. At the worst leakage the datasheet permits, 500 nA, the floor would rise to
+      187 kHz and cross the ceiling. No clock speed would work at all. Real parts leak about
+      50 times less than that limit, but simulation cannot resolve currents that small. The
+      firmware therefore measures the true figure at bring-up. It stops the clock, restarts
+      it, and finds the point where the CPU forgets itself.
+    </p>
   </div>
 </section>
 
@@ -455,7 +467,8 @@
       <tr><td>Routing</td><td>8,421 connections · 103 m of copper · 14,454 vias</td></tr>
       <tr><td>Supply</td><td>5 V (3.3 V also validated)</td></tr>
       <tr><td>Power</td><td>≈ 1.6 W typical, 3.2 W worst case</td></tr>
-      <tr><td>Clock</td><td>≈ 20 kHz at 5 V, ≈ 10 kHz at 3.3 V</td></tr>
+      <tr><td>Clock ceiling</td><td>≈ 20 kHz at 5 V, ≈ 10 kHz at 3.3 V</td></tr>
+      <tr><td>Clock floor</td><td>≈ 380 Hz expected, measured at bring-up</td></tr>
     </table></div>
   </div>
 </section>
@@ -481,7 +494,9 @@
     <p class="note">
       <b>What could still go wrong:</b> the dynamic logic holds charge on long board traces
       instead of microscopic silicon nodes. It also depends on a bootstrap effect that we have
-      simulated but never soldered. The first power-up is the real test.
+      simulated but never soldered. If the transistors leak more than about 53 nA each, the
+      clock floor rises above the ceiling and nothing runs at any speed. The first power-up is
+      the real test.
     </p>
   </div>
 </section>
