@@ -55,6 +55,11 @@ and **0 unconnected**.
   produces bit-identical traces to the original visual6502 netlist while running real 6502
   code; board-vs-netlist parity and independent copper-connectivity checks close the chain.
   Final DRC: zero electrical violations.
+- **Reverse validation** (`tools/extract_netlist.py`): the netlist is also read back *out of
+  the copper* — every net label discarded, conductors recovered geometrically from pads,
+  tracks, vias and zone fills — giving 0 opens and 0 shorts against the intended netlist, and
+  a netlist that runs the 6502 test program correctly. The copper, read as copper, executes
+  instructions. Verified to be able to fail: cutting one track reports exactly one open.
 - **Custom autorouter** (`tools/route_nc.c/.py`): a PathFinder-style negotiated-congestion router
   — nets route through conflicts, shared cells get iteratively penalized, conflicted nets
   rip-up and retry — on a 0.13 mm grid over 4 routing layers, with warm-start checkpoints.
@@ -121,6 +126,8 @@ python3 tools/switchsim.py           # equivalence gate: must stay green
 <kicad-python> tools/enlarge_vias.py  # 0.30mm drills for JLC's free class
 <kicad-python> tools/add_silk.py
 <kicad-python> tools/check_parity.py && tools/check_gaps.py + kicad-cli drc
+<kicad-python> tools/extract_netlist.py   # rebuild the netlist from copper (LVS)
+python3 tools/switchsim.py           # now also simulates the extracted netlist
 ```
 
 See `cards/layout.md` for the rules and hard-won caveats behind each step.

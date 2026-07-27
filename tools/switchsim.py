@@ -204,6 +204,17 @@ def load_transformed():
     return Sim(fets, pullups, names)
 
 
+def load_extracted():
+    """The netlist read back out of the copper by tools/extract_netlist.py.
+
+    Node ids here are conductor ids from the geometric union-find, not net
+    names -- nothing in this path came from KiCad's net bookkeeping except the
+    ~80 anchored pin names the harness has to drive and read.
+    """
+    d = json.loads((ROOT / "gen" / "extracted_netlist.json").read_text())
+    return Sim([tuple(f) for f in d["fets"]], set(d["pullups"]), d["names"])
+
+
 TEST_PROGRAM = {
     0x0000: [0xA2, 0xFF,        # LDX #$FF
              0x9A,              # TXS
@@ -240,6 +251,31 @@ def run(sim, halves):
     return trace, mem
 
 
+def compare(label, orig, cand, halves):
+    """Traces must agree once reset has flushed the arbitrary initial charge."""
+    mismatches = [i for i, (a, b) in enumerate(zip(orig, cand)) if a != b]
+    settle = 0
+    if mismatches:
+        settle = mismatches[-1] + 1
+        print("%s: post-init disagreement in half-cycles %d..%d (%d of them)"
+              % (label, mismatches[0], mismatches[-1], len(mismatches)))
+    if settle > 40:
+        i = mismatches[-1]
+        print("%s: MISMATCH persists past settling window (last at %d):" % (label, i))
+        print("  orig: %s\n  %s: %s" % (orig[i], label, cand[i]))
+        return False
+    print("%s: traces identical for half-cycles %d..%d" % (label, settle, halves - 1))
+    return True
+
+
+def program_ok(label, mem, tr):
+    clk, rw, ab, db, sync, a, x, pcl, pch = tr[-1]
+    print("%s: A=%02x X=%02x PC=%02x%02x mem[0201]=%02x mem[0202]=%02x"
+          % (label, a, x, pch, pcl, mem[0x0201], mem[0x0202]))
+    return (a == 0x20 and x == 0x00 and mem[0x0201] == 0x20
+            and mem[0x0202] == 0x00 and pch == 0x00 and pcl in (0x11, 0x12, 0x13))
+
+
 def main():
     halves = 220
     print("simulating original netlist ...")
@@ -247,28 +283,24 @@ def main():
     print("simulating transformed netlist ...")
     xform, mem_x = run(load_transformed(), halves)
 
-    mismatches = [i for i, (a, b) in enumerate(zip(orig, xform)) if a != b]
-    # arbitrary initial charge states may differ until reset flushes them;
-    # equivalence is required once traces first agree and thereafter
-    settle = 0
-    if mismatches:
-        settle = mismatches[-1] + 1
-        print("post-init disagreement in half-cycles %d..%d (%d of them)"
-              % (mismatches[0], mismatches[-1], len(mismatches)))
-    if settle > 40:
-        print("MISMATCH persists past settling window (last at %d):" % (settle - 1))
-        i = mismatches[-1]
-        print("  orig : %s\n  xform: %s" % (orig[i], xform[i]))
-        return 1
-    print("traces identical for half-cycles %d..%d" % (settle, halves - 1))
+    runs = [("original", orig, mem_o), ("transformed", xform, mem_x)]
+    ok = compare("transformed", orig, xform, halves)
 
-    ok = True
-    for label, mem, tr in (("original", mem_o, orig), ("transformed", mem_x, xform)):
-        clk, rw, ab, db, sync, a, x, pcl, pch = tr[-1]
-        print("%s: A=%02x X=%02x PC=%02x%02x mem[0201]=%02x mem[0202]=%02x"
-              % (label, a, x, pch, pcl, mem[0x0201], mem[0x0202]))
-        if not (a == 0x20 and x == 0x00 and mem[0x0201] == 0x20
-                and mem[0x0202] == 0x00 and pch == 0x00 and pcl in (0x11, 0x12, 0x13)):
+    # The reverse gate: the netlist read back out of the copper. Optional, so a
+    # plain equivalence run still works without having done an extraction.
+    if (ROOT / "gen" / "extracted_netlist.json").exists():
+        print("simulating netlist EXTRACTED FROM COPPER ...")
+        extr, mem_e = run(load_extracted(), halves)
+        runs.append(("extracted", extr, mem_e))
+        ok = compare("extracted", orig, extr, halves) and ok
+    else:
+        print("(no gen/extracted_netlist.json - run tools/extract_netlist.py"
+              " for the copper-level gate)")
+
+    if not ok:
+        return 1
+    for label, tr, mem in runs:
+        if not program_ok(label, mem, tr):
             ok = False
     print("PROGRAM CHECK:", "PASS" if ok else "FAIL")
     return 0 if ok else 1

@@ -384,7 +384,7 @@
 <section id="verify">
   <div class="wrap">
     <p class="kicker">Verification</p>
-    <h2>Four gates, all green</h2>
+    <h2>Five gates, all green</h2>
     <p class="lede">
       A board this size cannot be debugged by poking at it afterwards, so correctness is
       established before fabrication and re-checked on every change.
@@ -396,7 +396,19 @@
       <tr><td>Board matches the generated netlist</td><td>0 errors</td></tr>
       <tr><td>Independent copper connectivity trace</td><td>0 broken nets</td></tr>
       <tr><td>Manufacturer design-rule check</td><td>0 electrical violations</td></tr>
+      <tr><td>Netlist rebuilt from the copper, then simulated</td><td>0 opens, 0 shorts, runs correctly</td></tr>
     </table></div>
+
+    <p class="note">
+      <b>The last gate runs backwards.</b> Every other check reads the design forwards and
+      trusts the CAD tool's own record of what is connected to what. This one throws that
+      record away: it reads the finished board as raw copper — pads, tracks, vias and the
+      power planes — works out which pieces of metal physically touch, and rebuilds the
+      circuit from that alone. The result is then made to execute 6502 instructions. It is
+      the same thing visual6502 did to real silicon, applied to this board. To prove the
+      check can fail, one track was deliberately cut: it reported exactly one broken net,
+      by name.
+    </p>
 
     <p class="note">
       <b>The equivalence test runs real code.</b> A program using the stack, subroutine calls,

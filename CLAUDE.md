@@ -25,6 +25,9 @@ a missing one.
 ## Invariants (do not regress)
 
 - Any netlist change must keep the equivalence gate green: `python3 tools/switchsim.py`.
+- The reverse gate (`tools/extract_netlist.py`, KiCad python, ~85 s) rebuilds the netlist from
+  copper alone — ignoring every net label, including zone fills — and must report **0 opens,
+  0 shorts**; `switchsim.py` then simulates it as a third netlist. Re-run after any board change.
 - Any board change must re-pass all three: `tools/check_parity.py`, `tools/check_gaps.py`
   (the only trusted connectivity metric), and `kicad-cli pcb drc` — expect exactly **2 errors**
   (benign Pico-library-internal items) and **199 hole_to_hole warnings** (same-net via pairs at
