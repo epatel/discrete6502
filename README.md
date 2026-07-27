@@ -140,8 +140,22 @@ See `cards/layout.md` for the rules and hard-won caveats behind each step.
 
 ## License & attribution
 
-The design derives from the visual6502 project's netlist data (`segdefs.js` is
-**CC BY-NC-SA** — noncommercial). This project is a hobby build and inherits that spirit:
-**non-commercial use only**, attribution to [visual6502.org](http://visual6502.org).
-The MOnSter 6502 by Eric Schlaepfer & Evil Mad Scientist Laboratories proved a discrete
-6502 is possible and is gratefully acknowledged as inspiration.
+Copyright © 2026 Edward Patel.
+
+This project is licensed **[CC BY-NC-SA 4.0](LICENSE)** (Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International) — the full legal code is in
+[`LICENSE`](LICENSE). It covers **everything in the repository**: the board design and
+generated artifacts in `gen/`, the generation and verification tools in `tools/`, the SPICE
+testbenches in `sim/`, the Pico firmware in `pico-controller/`, and the documentation.
+
+In short: use it, modify it and share it, with **attribution**, for
+**non-commercial** purposes, and share derivatives under the **same terms**.
+
+The licence is inherited rather than chosen. The design's ground truth is the visual6502
+project's netlist data, whose `segdefs.js` is itself CC BY-NC-SA, so this work carries the
+same terms forward. Attribution is owed to [visual6502.org](http://visual6502.org), which
+traced a real 6502 die photograph by photograph and made the result public.
+
+The MOnSter 6502 by Eric Schlaepfer and Evil Mad Scientist Laboratories proved a discrete
+6502 is possible and is gratefully acknowledged as inspiration. This is an independent
+design and is not affiliated with that project.
