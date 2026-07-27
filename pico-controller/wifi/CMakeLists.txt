@@ -17,7 +17,8 @@ endif()
 add_executable(wifi main.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/bus6502.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/functest.c
-    ${CMAKE_CURRENT_LIST_DIR}/../common/ihex.c)
+    ${CMAKE_CURRENT_LIST_DIR}/../common/ihex.c
+    ${CMAKE_CURRENT_LIST_DIR}/../common/retention.c)
 target_include_directories(wifi PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../common
     ${CMAKE_CURRENT_LIST_DIR})

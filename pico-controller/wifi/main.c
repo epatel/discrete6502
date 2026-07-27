@@ -24,6 +24,7 @@
 #include "functest.h"
 #include "ihex.h"
 #include "page.h"
+#include "retention.h"
 
 #include "lwip/tcp.h"
 #include "pico/cyw43_arch.h"
@@ -54,12 +55,19 @@ static volatile bool s_running;
 static bus_trace_t mirror[MIRROR_LEN];
 static volatile uint32_t mirror_count;
 
+// retention test state: core 1 runs it, core 0 only reports it. s_ret_seq
+// increments once per completed trial so the page can log each result exactly
+// once without needing an event channel.
+static volatile uint8_t s_ret_busy, s_ret_verdict, s_ret_last_ok;
+static volatile uint32_t s_ret_seq, s_ret_last_ms, s_ret_good, s_ret_bad;
+
 static queue_t cmd_q;
 typedef struct {
     uint8_t op;
     uint32_t arg;
 } cmd_t;
-enum { CMD_RUN, CMD_STOP, CMD_RESET, CMD_STEP, CMD_CLOCK, CMD_FT };
+enum { CMD_RUN, CMD_STOP, CMD_RESET, CMD_STEP, CMD_CLOCK, CMD_FT,
+       CMD_RET, CMD_RETSCAN };
 
 // ---- core 1: the bus engine ----------------------------------------------
 
@@ -81,12 +89,51 @@ static bool __not_in_flash_func(publish)(const bus_trace_t *t) {
     return go;
 }
 
+// Published after every trial. Runs on core 1; core 0 reads the snapshot.
+static void ret_report(uint32_t ms, bool survived) {
+    s_ret_last_ms = ms;
+    s_ret_last_ok = survived ? 1u : 0u;
+    s_ret_seq++;
+}
+
+// A scan can take minutes, during which core 1 is not reading commands. Peek
+// at the queue between trials so the page's stop button still works.
+static bool ret_abort(void) {
+    cmd_t c;
+    if (queue_try_peek(&cmd_q, &c) && c.op == CMD_STOP) {
+        queue_try_remove(&cmd_q, &c);
+        return true;
+    }
+    return false;
+}
+
 static void __not_in_flash_func(core1_main)(void) {
     bool run = false;
     for (;;) {
         cmd_t c;
         while (queue_try_remove(&cmd_q, &c)) {
             switch (c.op) {
+            case CMD_RET:
+                s_ret_busy = 1; s_ret_verdict = 0; s_ret_seq = 0;
+                run = false; s_running = false;
+                retention_load_image();
+                ret_report(c.arg, retention_trial(c.arg));
+                s_ret_good = s_ret_last_ok ? c.arg : 0;
+                s_ret_bad = s_ret_last_ok ? 0 : c.arg;
+                s_ret_verdict = (uint8_t)(RET_SCAN_BOUNDED + 1);
+                s_ret_busy = 0;
+                break;
+            case CMD_RETSCAN: {
+                s_ret_busy = 1; s_ret_verdict = 0; s_ret_seq = 0;
+                run = false; s_running = false;
+                uint32_t g = 0, b = 0;
+                retention_scan_t r = retention_scan(c.arg ? c.arg : 4000,
+                                                    ret_report, ret_abort, &g, &b);
+                s_ret_good = g; s_ret_bad = b;
+                s_ret_verdict = (uint8_t)(r + 1);   // 0 stays "not run yet"
+                s_ret_busy = 0;
+                break;
+            }
             case CMD_RUN: functest_clear(); run = true; break;
             case CMD_STOP: run = false; break;
             case CMD_RESET: run = false; bus_reset_sequence(); break;
@@ -198,9 +245,14 @@ static const char *qparam(const char *path, const char *key, char *out, size_t c
 static void status_json(char *b, size_t cap) {
     snprintf(b, cap,
              "{\"run\":%u,\"cyc\":%lu,\"half\":%lu,\"a\":%u,\"d\":%u,\"f\":%u,"
-             "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,\"ip\":\"%s\"}",
+             "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,"
+             "\"rb\":%u,\"rv\":%u,\"rs\":%lu,\"rms\":%lu,\"rok\":%u,"
+             "\"rg\":%lu,\"rbad\":%lu,\"ip\":\"%s\"}",
              s_running ? 1u : 0u, (unsigned long)s_cycle, (unsigned long)s_half, s_addr,
              s_data, s_flags, s_ft_on, s_test_case, s_trapped, s_trap_addr,
+             s_ret_busy, s_ret_verdict, (unsigned long)s_ret_seq,
+             (unsigned long)s_ret_last_ms, s_ret_last_ok,
+             (unsigned long)s_ret_good, (unsigned long)s_ret_bad,
              ip4addr_ntoa(netif_ip4_addr(netif_default)));
 }
 
@@ -232,6 +284,14 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
     else if (!strcmp(op, "step")) push(CMD_STEP, 0);
     else if (!strcmp(op, "clock")) push(CMD_CLOCK, val ? val : 1);
     else if (!strcmp(op, "ft")) push(CMD_FT, val);
+    else if (!strcmp(op, "ret") || !strcmp(op, "retscan")) {
+        if (s_ret_busy) {
+            reply(pcb, c, "409 Conflict", "application/json",
+                  "{\"err\":\"a retention test is already running\"}");
+            return;
+        }
+        push(op[3] == 's' ? CMD_RETSCAN : CMD_RET, val);
+    }
     else if (!strcmp(op, "vector")) {
         // The functional test's own RES vector points at res_trap; it must be
         // repointed at code_segment ($0400) to start. Memory is shared, so
@@ -396,24 +456,13 @@ static err_t on_accept(void *arg, struct tcp_pcb *pcb, err_t err) {
 
 // ---- boot -----------------------------------------------------------------
 
-// The tester's counter loop, so the board does something visible before any
-// image is uploaded: A increments forever and the A-register LEDs count.
-static void load_default_image(void) {
-    static const uint8_t prog[] = {
-        0xA2, 0xFF, 0x9A, 0xA9, 0x00, 0x18, 0x69, 0x01, 0x8D, 0x00, 0x03, 0x4C, 0x06, 0x02,
-    };
-    memcpy(bus_mem() + 0x0200, prog, sizeof prog);
-    bus_mem()[0x3FFC] = 0x00;
-    bus_mem()[0x3FFD] = 0x02;
-}
-
 int main(void) {
     stdio_init_all();
 
     bus_init(false);  // push-pull clock: the board has no pull-up on clk0
     bus_set_watch(publish);
     functest_set_quiet(true);  // core 1 must never block on stdio
-    load_default_image();
+    retention_load_image();  // counter loop: something visible before any upload
     queue_init(&cmd_q, sizeof(cmd_t), 16);
     multicore_launch_core1(core1_main);
 

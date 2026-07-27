@@ -10,7 +10,7 @@ programs with no other hardware attached.
 
 | Folder | Purpose |
 |---|---|
-| `common/` | Shared bus engine (`bus6502.c/h`): pin map, clocking, memory serving, trace ring, reset — plus `functest.c/h` (functional-test watcher), `ihex.c/h` (streaming Intel hex loader) and the SDK import cmake |
+| `common/` | Shared bus engine (`bus6502.c/h`): pin map, clocking, memory serving, trace ring, reset — plus `functest.c/h` (functional-test watcher), `ihex.c/h` (streaming Intel hex loader), `retention.c/h` (charge-retention measurement) and the SDK import cmake |
 | `tester/` | **Bring-up harness.** USB serial CLI: reset, run/trace N cycles, single-step instructions, peek/poke memory, clock speed control, Intel-hex image load, and the functional-test runner. Default image: an A-register counter loop (watch the A LEDs count). |
 | `general/` | **Free-runner.** Boots the CPU and lets it run; memory-mapped char-out port at `$3F00` prints to USB serial. Default image prints `HELLO 6502` forever. |
 | `wifi/` | **Browser control panel.** Same bus engine, but on core 1, with WiFi + a small HTTP server on core 0: upload an Intel hex, run/stop/step/reset, set the clock, watch the bus and the functional-test progress live. Built for unattended overnight test runs. |
@@ -291,6 +291,13 @@ Two caveats worth knowing:
 The result also tells you something practical: it is the hard limit on how long
 a single-step pause may last before stepping corrupts the very state you are
 trying to observe.
+
+The **wifi firmware has the same test** in its own panel — *one shot* and *find
+the boundary*, with each trial logged live and a stop button. The measurement
+itself runs on core 1 with the bus engine, exactly like everything else that
+touches the clock; core 0 only triggers it and reports. A scan can take
+minutes, so core 1 checks for a stop command between trials. The shared
+implementation is `common/retention.c`.
 
 ## Reading the LEDs
 
