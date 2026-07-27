@@ -57,6 +57,25 @@ This is the documented, accepted limitation; the 6502 never relies on floating-t
 transfer, and the switch-level equivalence run is the logic-side evidence. The 56 DNP ballast
 caps exist as the hardware fallback if reality disagrees.
 
+## Clock floor — the other end of the window (2026-07-27)
+
+Dynamic logic is bounded on *both* sides: a stored bit is charge, so refresh it too late and it is gone. `tools/dynamic_nodes.py` finds the worst node from `gen/netlist.json` and `sim/retention.sp` tests the physics.
+
+- **456 dynamic storage nodes** (no pull-up, drives at least one gate). The worst are the internal special-bus bits **`sb1..sb7`**: one gate driven (32 pF including copper) against **twelve** FET channel terminals leaking it. Least charge per leakage path on the board. Counter-intuitively the *big* nets are the safe ones — `cclk` holds 13 nF against 2 channels and survives ~259 ms.
+- Retention is `t = C·ΔV/I`, **confirmed exactly** by `sim/retention.sp` section C (12 nA on 32 pF: predicted 4.625 V at 1 ms and 4.000 V at 2.67 ms; measured 4.62500 and 3.99875).
+- The unknown is the leakage, and it spans three orders:
+
+| per-FET I_DSS | worst-node retention | clock floor |
+|---|---|---|
+| 1 nA (typical part) | 2.6 ms | 378 Hz |
+| 10 nA | 266 µs | 3.8 kHz |
+| 100 nA | 26.7 µs | 37.5 kHz |
+| 500 nA (datasheet max) | 5.3 µs | **187 kHz** |
+
+- **The number that decides it:** at the measured 20 kHz ceiling the worst node must leak **< 53 nA per FET** (5 V), or < 27 nA at 3.3 V. Above that the floor rises through the ceiling and there is *no working clock at all*. Typical parts are ~1 nA, so expected margin is ~50×, i.e. about 57 °C of temperature rise before the window closes (leakage roughly doubles per 10 °C).
+- **SPICE could not pin the leakage down, and the deck says so.** ngspice with the onsemi BSIM3 model does not converge reliably at tens of picoamps: the answer moves 3.5 orders with solver tolerances (0.49 nA at defaults, 2.3 µA with `abstol`/`gmin` tightened, "source stepping failed"), and the temperature control comes out **non-monotonic — leakage *falling* as the part heats**, which is physically impossible and is the tell that it is solver artifact. ngspice's default `gmin` alone injects 5 pA per node at 5 V, the same order as the quantity. The deck keeps that control visible rather than quoting a number from it.
+- **Therefore: measure it at bring-up.** Two-line experiment with the existing firmware — run a program, stop the clock for N ms, restart, see whether the CPU carries on or has forgotten itself; bisect N. That is the real number on the real board, and it also directly bounds how long the tester's single-step pause may last.
+
 ## Clock ceiling is set by fanout, not by the pass pairs — `sim/fanout_speed.sp` (2026-07-25)
 
 The M2 speed rule (`rise ≈ 2.2·R·C` = 0.3 µs at 10k/30pF) silently assumed a node driving
