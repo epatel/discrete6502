@@ -37,6 +37,54 @@ static void load_default_image(void) {
     m[0x3FFD] = 0x02;
 }
 
+// ---- charge-retention test ------------------------------------------------
+//
+// This CPU is dynamic NMOS: a bit is charge on a wire's own capacitance, so
+// the clock has a LOWER bound as well as an upper one. Stop it for too long
+// and the machine forgets itself mid-instruction.
+//
+// The number matters and is NOT known from simulation. tools/dynamic_nodes.py
+// says the worst node (the special-bus bits, 32 pF against twelve leaking FET
+// channels) survives 2.6 ms if the parts leak the typical 1 nA, but only 5 us
+// at the 500 nA datasheet guardband -- and sim/retention.sp documents why
+// ngspice cannot resolve leakage at that level at all. So it has to be
+// measured here, on real copper.
+//
+// Method: run the counter program (which stores an incrementing A to $0300
+// every pass), note one stored value, freeze the clock for N ms, then let it
+// go and check that the very next store is exactly one more. If the CPU
+// forgot a register or its PC, the sequence breaks or the stores stop.
+//
+// The clock rests LOW between cycles, so this measures retention during phi1.
+#define RET_STORE_ADDR 0x0300u
+#define RET_CYCLE_CAP 4000u
+
+// Run until the program stores to $0300; false if it never does.
+static bool run_to_store(uint8_t *out) {
+    for (uint32_t i = 0; i < RET_CYCLE_CAP; i++) {
+        bus_trace_t t = bus_step_cycle();
+        if (!t.rw_read && t.addr == RET_STORE_ADDR) {
+            *out = t.data;
+            return true;
+        }
+    }
+    return false;
+}
+
+// One trial: reset, get the program running, freeze for ms, check it continued.
+static bool retention_trial(uint32_t ms) {
+    bus_reset_sequence();
+    uint8_t before, after;
+    if (!run_to_store(&before)) {
+        printf("  (program never reached $%04X even before the stall)\n",
+               RET_STORE_ADDR);
+        return false;
+    }
+    sleep_ms(ms);  // clock frozen low
+    if (!run_to_store(&after)) return false;
+    return after == (uint8_t)(before + 1);
+}
+
 // Blocking line reader. Returns the length; the buffer is NUL-terminated.
 static int read_line(char *buf, int cap) {
     int n = 0;
@@ -103,6 +151,9 @@ static void help(void) {
            "  k [on|off|ADDR]  functional-test watcher (test_case addr, hex)\n"
            "  g [N]      go: run N cycles (0/omitted = until a self-loop),\n"
            "             printing watcher progress; any key interrupts\n"
+           "  w MS       charge retention: freeze the clock MS ms, did it survive?\n"
+           "  W [MAXMS]  find the retention boundary by bisection (default 4000)\n"
+           "             both reload the counter image and need it to run\n"
            "  h          this help\n"
            "columns: cycle  addr(14-bit)  data  r/W  SYNC\n");
 }
@@ -202,6 +253,56 @@ int main(void) {
         case 'L':
             load_intel_hex(line, (int)sizeof line);
             break;
+        case 'w': {
+            char *a = strtok(NULL, " ");
+            uint32_t ms = a ? strtoul(a, NULL, 0) : 1;
+            printf("(reloading the counter image -- the retention test needs it)\n");
+            load_default_image();
+            bool ok = retention_trial(ms);
+            printf("stalled %lu ms: %s\n", (unsigned long)ms,
+                   ok ? "SURVIVED" : "STATE LOST");
+            break;
+        }
+        case 'W': {
+            char *a = strtok(NULL, " ");
+            uint32_t limit = a ? strtoul(a, NULL, 0) : 4000;
+            printf("(reloading the counter image -- the retention test needs it)\n");
+            load_default_image();
+            // sanity first: a stall of 0 must survive, or the test itself is
+            // broken and every later result would be meaningless
+            if (!retention_trial(0)) {
+                printf("control FAILED: the CPU does not run even with no stall.\n"
+                       "fix that before trusting any retention number.\n");
+                break;
+            }
+            printf("control passed (0 ms survives). searching...\n");
+            uint32_t good = 0, bad = 0;
+            for (uint32_t ms = 1; ms <= limit; ms *= 2) {
+                bool ok = retention_trial(ms);
+                printf("  %6lu ms -> %s\n", (unsigned long)ms,
+                       ok ? "survived" : "lost");
+                if (ok) good = ms;
+                else { bad = ms; break; }
+            }
+            if (!bad) {
+                printf("still alive after %lu ms -- raise the limit: W %lu\n",
+                       (unsigned long)good, (unsigned long)limit * 4);
+                break;
+            }
+            while (bad - good > 1) {  // narrow the boundary
+                uint32_t mid = good + (bad - good) / 2;
+                bool ok = retention_trial(mid);
+                printf("  %6lu ms -> %s\n", (unsigned long)mid,
+                       ok ? "survived" : "lost");
+                if (ok) good = mid; else bad = mid;
+            }
+            printf("\nretention boundary: survives %lu ms, fails at %lu ms\n",
+                   (unsigned long)good, (unsigned long)bad);
+            printf("=> clock floor is about %lu Hz; keep any single-step pause\n"
+                   "   well under %lu ms\n",
+                   (unsigned long)(good ? 1000 / good : 0), (unsigned long)good);
+            break;
+        }
         case 'k': {
             char *a = strtok(NULL, " ");
             if (!a) { print_functest_status(); break; }

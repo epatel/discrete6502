@@ -241,6 +241,57 @@ progress is readable from a browser instead of a tethered terminal.
 
 `g` takes an optional cycle cap (`g 500000`) and any keypress interrupts it.
 
+## Charge retention — measuring the clock's *lower* bound
+
+This CPU is dynamic NMOS: a bit is charge on a wire's own capacitance, so the
+clock has a floor as well as a ceiling. Stop it too long and the machine
+forgets itself mid-instruction.
+
+**This number is not known, and simulation cannot supply it.**
+`tools/dynamic_nodes.py` identifies the weakest node — the special-bus bits,
+32 pF against twelve leaking FET channels — and its retention spans three
+orders depending on part leakage: 2.6 ms at a typical 1 nA per FET, but 5.3 µs
+at the 500 nA datasheet guardband. `sim/retention.sp` documents why ngspice
+cannot resolve leakage at that level (its answer moves 3.5 orders with solver
+tolerances and its temperature control comes out backwards). So it must be
+measured on real copper:
+
+```
+w 5        # freeze the clock for 5 ms — did the CPU survive?
+W          # bisect for the boundary (default up to 4000 ms)
+W 20000    # if it survives 4 s, search further
+```
+
+`W` prints something like:
+
+```
+control passed (0 ms survives). searching...
+       1 ms -> survived
+       2 ms -> survived
+       ...
+     512 ms -> lost
+retention boundary: survives 256 ms, fails at 512 ms
+```
+
+How it works: the counter image stores an incrementing A to `$0300` every pass.
+The test notes one stored value, freezes the clock, then requires the very next
+store to be exactly one greater. A forgotten register breaks the sequence; a
+forgotten PC stops the stores altogether. `W` runs a **0 ms control first** — if
+the CPU cannot survive no stall at all, the harness itself is broken and every
+later number would be meaningless, so it stops and says so.
+
+Two caveats worth knowing:
+
+- **Both commands reload the counter image**, because they need a known program.
+  Re-upload your hex afterwards.
+- The clock rests **low** between cycles, so this measures retention during φ1.
+  Retention in the other phase could differ; testing it would need a half-step
+  stall, which is not implemented.
+
+The result also tells you something practical: it is the hard limit on how long
+a single-step pause may last before stepping corrupts the very state you are
+trying to observe.
+
 ## Reading the LEDs
 
 The 55 register LEDs sit at their die-true positions inside the transistor

@@ -128,8 +128,10 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   32 pF against 12 leaking FET channels) must leak **< 53 nA per FET at 5 V** or the floor
   rises above the 20 kHz ceiling and nothing runs. Typical parts are ~1 nA, so ~50x margin is
   expected — but SPICE cannot resolve leakage at this level (see `cards/pass-pair-validation.md`)
-  so it is unproven. **Measure at bring-up**: stop the clock mid-program for N ms, restart,
-  bisect N. Also bounds the safe single-step pause in the tester firmware.
+  so it is unproven. **Measure at bring-up** — the tester firmware now does it: `w MS` for a
+  single stall, `W [MAXMS]` to bisect the boundary automatically (runs a 0 ms control first,
+  so a broken harness cannot masquerade as a retention result). Also bounds the safe
+  single-step pause.
 - ~~**Bring-up rail**: SPICE the pass pair at VCC = 3.3 V~~ **Resolved 2026-07-25**:
   `sim/passpair_33v.sp` sweeps 5.0/3.3/3.0 V over three FET models; all four pass gates
   (bootstrapped '1' >= rail, next stage fully driven, source-driven '0' valid, pull-up
