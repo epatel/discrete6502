@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>discrete6502 — a 6502 CPU built from 4,051 discrete transistors</title>
+<title>discrete6502: a 6502 CPU built from 4,051 discrete transistors</title>
 <meta name="description" content="A MOS 6502 CPU rebuilt from 4,051 individual surface-mount transistors on a 291 x 322 mm six-layer board that reproduces the original die layout.">
 <meta property="og:title" content="discrete6502">
 <meta property="og:description" content="A MOS 6502 CPU rebuilt from 4,051 individual surface-mount transistors, laid out as the original die.">
@@ -102,9 +102,9 @@
   }
 
   /* ---- board / die reveal ----
-     Move across the image and the real 6502 die is wiped in underneath.
-     The two layers are the same pixel size and the die render is registered
-     to the board's own die-coordinate transform, so features line up. */
+     Move across the image to wipe in the real 6502 die underneath.
+     The two layers have the same pixel size. The die render uses the board's
+     own die-coordinate transform, so the features line up. */
   .reveal{
     position:relative; --x:66%;
     aspect-ratio:1474/1600; max-height:76vh;
@@ -211,8 +211,8 @@
     <p class="eyebrow">Hardware · work in progress</p>
     <h1>discrete<span class="lo">6502</span></h1>
     <p class="tagline">
-      A MOS 6502 CPU rebuilt from <b>4,051 individual transistors</b> — no chips, no FPGA —
-      laid out so the board reproduces the original silicon die, transistor for transistor.
+      A MOS 6502 CPU rebuilt from <b>4,051 individual transistors</b>. No chips and no FPGA.
+      The board reproduces the original silicon die, transistor for transistor.
     </p>
     <div class="cta">
       <a class="btn primary" href="#how">How it works</a>
@@ -223,7 +223,7 @@
   <div class="stats">
     <div class="stat"><span class="n">4,051</span><span class="l">transistors</span></div>
     <div class="stat"><span class="n">5,421</span><span class="l">components</span></div>
-    <div class="stat"><span class="n">291×322</span><span class="l">millimetres</span></div>
+    <div class="stat"><span class="n">291×322</span><span class="l">millimeters</span></div>
     <div class="stat"><span class="n">6</span><span class="l">copper layers</span></div>
   </div>
 </header>
@@ -234,21 +234,21 @@
     <h2>The 6502, taken apart</h2>
     <p class="lede">
       The MOS 6502 powered the Apple II, the Commodore 64, the NES and the BBC Micro.
-      Inside its package sit roughly 3,500 transistors on a fingernail of silicon.
-      This project takes that exact circuit and rebuilds it from parts you can see:
-      every transistor becomes a separate SOT-323 package soldered to a board the size
-      of a sheet of A4 paper.
+      Roughly 3,500 transistors sit inside its package, on a fingernail of silicon.
+      This project takes that exact circuit and rebuilds it from parts you can see.
+      Every transistor becomes a separate SOT-323 package. The board is the size of a
+      sheet of A4 paper.
     </p>
     <p class="lede">
-      It is not a simulation and not an emulation. The logic is the real thing —
-      the same dynamic NMOS circuit the original used, running the same instructions,
-      just a few thousand times larger and a few hundred times slower.
+      It is not a simulation and not an emulation. The logic is the real thing.
+      It is the same dynamic NMOS circuit that the original used, and it runs the same
+      instructions. It is a few thousand times larger and a few hundred times slower.
     </p>
 
     <figure>
       <div class="reveal" id="reveal" tabindex="0" role="img"
            aria-label="The discrete6502 board beside the original 6502 die layout it reproduces. Move across the image to wipe between them.">
-        <img src="img/board-front.jpg" alt="The front of the discrete6502 board: thousands of tiny black transistor packages arranged in the pattern of the 6502 die, surrounded by gold bond pads labelled with the chip's pin names.">
+        <img src="img/board-front.jpg" alt="The front of the discrete6502 board: thousands of tiny black transistor packages arranged in the pattern of the 6502 die, surrounded by gold bond pads labeled with the chip's pin names.">
         <!-- not lazy: it is half of this figure, and loading it late shows an
              empty panel where the die should already be -->
         <img class="top" src="img/die-vec.webp" alt="The traced layout of a real MOS 6502 die, showing the same blocks in the same places.">
@@ -258,11 +258,11 @@
         <span class="hint">← move across →</span>
       </div>
       <figcaption>
-        The same object twice: this board (left) and the traced silicon of a real 6502 (right).
-        Registered to the board's own die-coordinate transform — the blocks line up because the
-        parts were placed where the silicon put them.
-        Die layers from <a href="http://www.visual6502.org/images/6502/index.html">visual6502</a>,
-        photographed from a MOS 6502 revision D in 2009; the project's data is CC BY-NC-SA.
+        The same object twice: this board on the left, and the traced silicon of a real 6502
+        on the right. The die render uses the board's own die-coordinate transform. The blocks
+        line up because the parts sit where the silicon put them.
+        The die layers come from <a href="http://www.visual6502.org/images/6502/index.html">visual6502</a>,
+        photographed from a MOS 6502 revision D in 2009. The project data is CC BY-NC-SA.
       </figcaption>
     </figure>
   </div>
@@ -273,10 +273,10 @@
     <p class="kicker">The layout</p>
     <h2>The board <em>is</em> the die</h2>
     <p class="lede">
-      Every transistor is placed at the coordinates of the transistor it replaces, scaled up
-      from photographs of a real decapped 6502. Nothing about the arrangement is decorative —
-      the stripes, the clusters and the empty channels are the chip's own floorplan,
-      reproduced because the parts were told to go where the silicon put them.
+      Each part sits at the coordinates of the transistor it replaces, scaled up from
+      photographs of a real decapped 6502. Nothing about the arrangement is decorative.
+      The stripes, the clusters and the empty channels are the floorplan of the chip itself.
+      They appear because the parts go where the silicon put them.
     </p>
     <p class="lede">
       The front face carries only transistors and LEDs, so the texture reads cleanly.
@@ -285,14 +285,14 @@
 
     <figure>
       <img src="img/detail-texture.jpg" alt="Close-up of the board showing individual surface-mount transistor packages in dense rows and scattered clusters, with fine copper traces between them." loading="lazy">
-      <figcaption>Detail: individual SOT-323 packages — the density variation is the die's, not a designer's</figcaption>
+      <figcaption>Detail: individual SOT-323 packages. The density variation belongs to the die, not to a designer.</figcaption>
     </figure>
 
     <div class="grid">
       <div class="card">
         <h3>Decode PLA</h3>
-        <p>The instruction decoder — the dense, regular stripes across the top third. Its
-        input lines each drive up to 71 separate transistor gates.</p>
+        <p>The instruction decoder. It is the dense, regular stripes across the top third.
+        Each input line drives up to 71 separate transistor gates.</p>
       </div>
       <div class="card">
         <h3>Datapath</h3>
@@ -301,13 +301,14 @@
       </div>
       <div class="card">
         <h3>Bond pads</h3>
-        <p>36 gold pads at the die's real bond-pad positions, 11.6 mm square and drilled
-        for a crocodile clip. Labelled with the classic DIP-40 pin names.</p>
+        <p>36 gold pads sit at the real bond-pad positions of the die. Each one is 11.6 mm
+        square and drilled for a crocodile clip. The silkscreen labels them with the classic
+        DIP-40 pin names.</p>
       </div>
       <div class="card">
         <h3>55 LEDs</h3>
-        <p>One per register bit — A, X, Y, stack pointer, both halves of the program
-        counter and 7 status flags — so the CPU's state is visible while it runs.</p>
+        <p>One LED per register bit: A, X, Y, the stack pointer, both halves of the program
+        counter, and 7 status flags. The LEDs show the CPU state while it runs.</p>
       </div>
     </div>
   </div>
@@ -316,37 +317,36 @@
 <section id="how">
   <div class="wrap">
     <p class="kicker">How it works</p>
-    <h2>Faithful, not modernised</h2>
+    <h2>Faithful, not modernized</h2>
     <p class="lede">
       The easy version of this project converts the 6502 to modern static logic and calls it
-      done. This one doesn't. It keeps the original <b>dynamic NMOS</b> design, where data is
-      stored as charge on a wire's own capacitance and has to be refreshed by the clock before
-      it leaks away.
+      done. This one does not. It keeps the original <b>dynamic NMOS</b> design. In that design
+      a wire stores data as charge on its own capacitance. The clock must refresh that charge
+      before it leaks away.
     </p>
 
     <div class="grid">
       <div class="card">
         <h3>Pull-ups, not depletion loads</h3>
-        <p>The original's depletion-mode load transistors have no discrete equivalent, so
-        1,023 resistors of 10 kΩ take their place — which is also where nearly all the
-        power goes.</p>
+        <p>The depletion-mode load transistors of the original have no discrete equivalent.
+        1,023 resistors of 10 kΩ take their place. They also consume nearly all the power.</p>
       </div>
       <div class="card">
         <h3>Pass gates, doubled</h3>
-        <p>778 of the transistors pass signals in both directions, impossible with a
-        3-terminal part. Each becomes a back-to-back pair — 1,556 transistors doing
-        778 transistors' work.</p>
+        <p>778 of the transistors pass signals in both directions. A 3-terminal part cannot
+        do this. Each one becomes a back-to-back pair, so 1,556 transistors do the work of
+        778.</p>
       </div>
       <div class="card">
         <h3>The bootstrap trick</h3>
-        <p>A pass gate should lose a threshold voltage. It doesn't: the clock edge couples
-        through the gate and pushes the stored '1' <em>above</em> the supply rail. Verified
-        in SPICE with the manufacturer's own model.</p>
+        <p>A pass gate should lose a threshold voltage. It does not. The clock edge couples
+        through the gate and pushes the stored '1' <em>above</em> the supply rail. SPICE
+        confirms this with the manufacturer's own model.</p>
       </div>
       <div class="card">
         <h3>Honest about speed</h3>
-        <p>Roughly 10–20 kHz, against the real chip's 1 MHz. Driving 71 gates through one
-        10 kΩ resistor takes microseconds. Slow is the point — you can watch it think.</p>
+        <p>Roughly 10 kHz to 20 kHz, against 1 MHz for the real chip. One 10 kΩ resistor
+        needs microseconds to drive 71 gates. Slow is the point. You can watch it think.</p>
       </div>
     </div>
   </div>
@@ -357,26 +357,26 @@
     <p class="kicker">Method</p>
     <h2>Nothing was drawn by hand</h2>
     <p class="lede">
-      At 5,421 components and 8,421 connections, hand-drawing a schematic is not slow —
-      it is impossible. Every stage is
-      <a href="https://github.com/epatel/discrete6502/tree/main/tools">a script</a>, so the whole
-      board can be regenerated from the source data with one command each.
+      At 5,421 components and 8,421 connections, hand-drawing a schematic is not slow.
+      It is impossible. Every stage is
+      <a href="https://github.com/epatel/discrete6502/tree/main/tools">a script</a>. One command
+      per stage regenerates the whole board from the source data.
     </p>
 
     <ol class="steps">
       <li><b>Start from the real chip.</b> The visual6502 project photographed and traced an
-      actual 6502 die into a transistor-level netlist. That is the ground truth — not a
-      datasheet, not a reimplementation.</li>
+      actual 6502 die into a transistor-level netlist. That is the ground truth. It is not a
+      datasheet and not a reimplementation.</li>
       <li><b>Transform it.</b> Merge redundant parallel transistors, expand bidirectional
       pass gates into pairs, turn pull-up markers into resistors, add LED taps and
       protection.</li>
-      <li><b>Place by die coordinate.</b> Each part is positioned where its transistor sits
-      on the silicon, then nudged only as far as collision requires — a median of 1.5 mm.</li>
-      <li><b>Route it.</b> Off-the-shelf autorouters gave up (one managed 700 of 8,500
-      connections in ten hours). A purpose-built negotiated-congestion router finished all
+      <li><b>Place by die coordinate.</b> Each part goes where its transistor sits on the
+      silicon. A part moves only as far as a collision requires, a median of 1.5 mm.</li>
+      <li><b>Route it.</b> Off-the-shelf autorouters failed. One managed 700 of 8,500
+      connections in ten hours. A purpose-built negotiated-congestion router finished all
       8,421 across four routing layers.</li>
-      <li><b>Prove it.</b> Four independent checks, from logic down to copper, before
-      anything is ordered.</li>
+      <li><b>Prove it.</b> Five independent checks run from logic down to copper, before
+      anyone orders a board.</li>
     </ol>
   </div>
 </section>
@@ -386,8 +386,8 @@
     <p class="kicker">Verification</p>
     <h2>Five gates, all green</h2>
     <p class="lede">
-      A board this size cannot be debugged by poking at it afterwards, so correctness is
-      established before fabrication and re-checked on every change.
+      You cannot debug a board this size by probing it afterwards. Every check therefore
+      runs before fabrication, and again on every change.
     </p>
 
     <div class="tw"><table>
@@ -400,20 +400,20 @@
     </table></div>
 
     <p class="note">
-      <b>The last gate runs backwards.</b> Every other check reads the design forwards and
-      trusts the CAD tool's own record of what is connected to what. This one throws that
-      record away: it reads the finished board as raw copper — pads, tracks, vias and the
-      power planes — works out which pieces of metal physically touch, and rebuilds the
-      circuit from that alone. The result is then made to execute 6502 instructions. It is
-      the same thing visual6502 did to real silicon, applied to this board. To prove the
-      check can fail, one track was deliberately cut: it reported exactly one broken net,
-      by name.
+      <b>The last gate runs backwards.</b> Every other check reads the design forwards.
+      Each one trusts the record that the CAD tool keeps of what connects to what. This gate
+      throws that record away. It reads the finished board as raw copper: pads, tracks, vias
+      and the power planes. It finds which pieces of metal touch, and it rebuilds the circuit
+      from that alone. The rebuilt circuit then executes 6502 instructions. visual6502 did the
+      same thing to real silicon. To prove that the gate can fail, we cut one track. The gate
+      reported exactly one broken net, by name.
     </p>
 
     <p class="note">
-      <b>The equivalence test runs real code.</b> A program using the stack, subroutine calls,
-      arithmetic and branches is executed on both the original visual6502 netlist and this
-      transformed one. Every signal, every cycle, must match — otherwise the change is rejected.
+      <b>The equivalence test runs real code.</b> One program uses the stack, subroutine
+      calls, arithmetic and branches. It runs on the original visual6502 netlist and on this
+      transformed one. Every signal must match on every cycle. If it does not match, the
+      change fails.
     </p>
   </div>
 </section>
@@ -423,19 +423,19 @@
     <p class="kicker">Bring-up</p>
     <h2>It brings its own computer</h2>
     <p class="lede">
-      A CPU alone does nothing — it needs a clock and memory. Both live on the back of the
-      board: an unpopulated footprint for a Raspberry Pi Pico 2 W, wired to the data bus,
-      14 address lines, reset, read/write and SYNC.
+      A CPU alone does nothing. It needs a clock and memory. Both live on the back of the
+      board, as an unpopulated footprint for a Raspberry Pi Pico 2 W. The footprint wires to
+      the data bus, 14 address lines, reset, read/write and SYNC.
     </p>
     <p class="lede">
-      Solder on a Pico, flash the firmware, and it becomes the clock master and a memory
-      emulator — serving every instruction fetch, capturing every write, and tracing the
-      bus cycle by cycle. No other equipment required.
+      Solder a Pico on and flash the firmware. The Pico then becomes the clock master and a
+      memory emulator. It serves every instruction fetch, captures every write, and traces the
+      bus cycle by cycle. You need no other equipment.
     </p>
 
     <figure>
       <img class="board" src="img/board-back.jpg" alt="The back of the board: a rim of small passive components, a grid of resistors and capacitors, and the outline of the Pico module footprint." loading="lazy">
-      <figcaption>The back — 1,023 pull-up resistors, 96 decoupling capacitors, and the Pico site in the die's natural gap</figcaption>
+      <figcaption>The back: 1,023 pull-up resistors, 96 decoupling capacitors, and the Pico site in the natural gap of the die</figcaption>
     </figure>
   </div>
 </section>
@@ -463,11 +463,11 @@
 <section id="status">
   <div class="wrap">
     <p class="kicker">Status</p>
-    <h2>Designed and verified — not yet built</h2>
+    <h2>Designed and verified, not yet built</h2>
     <p class="lede">
-      The design is finished. Every check passes, the manufacturing package is released and
-      fingerprinted, and the boards are being ordered. <b>No physical board exists yet</b> —
-      nothing here has been proven in copper, only in simulation and geometry.
+      The design is finished. Every check passes. The manufacturing package is released and
+      fingerprinted, and the order is in progress. <b>No physical board exists yet.</b>
+      Nothing here is proven in copper, only in simulation and geometry.
     </p>
     <div class="tw"><table>
       <tr><th>Milestone</th><th>State</th></tr>
@@ -479,9 +479,9 @@
       <tr><td>Fabrication and bring-up</td><td>in progress</td></tr>
     </table></div>
     <p class="note">
-      <b>What could still go wrong:</b> the dynamic logic depends on charge held on long
-      board traces rather than microscopic silicon nodes, and on a bootstrap effect that has
-      been simulated but never soldered. The first power-up is the real test.
+      <b>What could still go wrong:</b> the dynamic logic holds charge on long board traces
+      instead of microscopic silicon nodes. It also depends on a bootstrap effect that we have
+      simulated but never soldered. The first power-up is the real test.
     </p>
   </div>
 </section>
@@ -490,19 +490,20 @@
   <div class="wrap">
     <p>
       <b>Everything is on GitHub:</b>
-      <a href="https://github.com/epatel/discrete6502">github.com/epatel/discrete6502</a> —
-      the generation pipeline, the SPICE testbenches, the KiCad board, the manufacturing
+      <a href="https://github.com/epatel/discrete6502">github.com/epatel/discrete6502</a>
+      holds the generation pipeline, the SPICE testbenches, the KiCad board, the manufacturing
       package and the design notes.
     </p>
     <p>
-      Logic data from the <a href="http://visual6502.org">visual6502</a> project, which traced
-      a real 6502 die photograph by photograph. Their netlist is licensed
-      <b>CC BY-NC-SA</b>, so this design is <b>non-commercial</b> and inherits the same terms.
+      The logic data comes from the <a href="http://visual6502.org">visual6502</a> project,
+      which traced a real 6502 die photograph by photograph. Their netlist carries the
+      <b>CC BY-NC-SA</b> license. This design is therefore <b>non-commercial</b> and inherits
+      the same terms.
     </p>
     <p>
-      Inspired by the <a href="https://monster6502.com/">MOnSter 6502</a> by Eric Schlaepfer and
-      Evil Mad Scientist Laboratories, which proved a discrete 6502 was possible. This is an
-      independent design and is not affiliated with that project.
+      The <a href="https://monster6502.com/">MOnSter 6502</a> by Eric Schlaepfer and Evil Mad
+      Scientist Laboratories inspired this project. It proved that a discrete 6502 is possible.
+      This is an independent design, and it has no affiliation with that project.
     </p>
     <p style="color:#4e6357">6502, Apple II, Commodore 64 and NES are referenced for
       identification only.</p>
@@ -510,9 +511,9 @@
 </footer>
 
 <script>
-// Cursor-tracked wipe, in the spirit of memention.com/Julkort-08 — no handle
-// to grab, the split simply follows the pointer. Left/right here rather than
-// top/bottom, because the die and the board are both taller than they are wide.
+// Cursor-tracked wipe, in the spirit of memention.com/Julkort-08. There is no
+// handle to grab. The split simply follows the pointer. It moves left and right
+// rather than up and down, because both images are taller than they are wide.
 (function(){
   var el = document.getElementById('reveal');
   if(!el) return;
@@ -538,7 +539,7 @@
   el.addEventListener('pointerdown', function(e){
     tracking = true;
     el.classList.add('touched');
-    fromEvent(e);                       // position first — capture may throw
+    fromEvent(e);                       // position first: capture may throw
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
     e.preventDefault();
   });
