@@ -144,6 +144,10 @@ _(append-only; timestamp and mark locked decisions)_
 | Depaneling the two 5 mm edge rails (billed after engineering review) | €2.60 | |
 | Swedish import VAT (25% of €775.88 goods + freight, billed by UPS) | ≈ €194 | |
 | UPS customs clearance / disbursement fee | a few hundred SEK | |
+
+**Personal purchase, no VAT number** [user, 2026-07-28] — the blank `VAT No:` on the invoice
+is correct and intentional. The import VAT is a final cost, not reclaimable; do not raise this
+again when the UPS clearance bill arrives.
 | **Landed total** | **≈ €973** (≈ **€243 per assembled CPU**) | |
 
 Shipping is **UPS Worldwide Express Saver** and the incoterm is **CPT** (carriage paid by JLC, import VAT borne by us) — both read off the commercial invoice, which is the authority; the cart panel's carrier label is clipped and easy to misread. JLCPCB's order page shows merchandise net of the coupon ($826.10 - $10.00 = $816.10, plus
