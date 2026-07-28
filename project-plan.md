@@ -134,16 +134,19 @@ _(append-only; timestamp and mark locked decisions)_
 | Line | | |
 |---|---|---|
 | PCB, 5 pcs, 6-layer ENIG, build 5–6 days | €131.38 | $149.64 |
+| — invoiced as 1 bare board @ €26.28 + 4 boards that go on to assembly | | |
 | PCBA, 4 pcs, Standard, both sides, build 3–4 days +1 | €593.93 | $676.46 |
+| — invoiced as 4 populated boards @ **€174.76** each (€699.04) | | |
 | **Merchandise** | **€725.32** | **$826.10** |
-| Shipping, DHL Express, 4.84 kg | €59.34 | $67.58 |
+| Shipping, UPS Worldwide Express Saver, 4.84 kg | €59.34 | $67.59 |
 | Coupon | −€8.78 | −$10.00 |
 | **Paid at checkout** (2026-07-28 18:39:59, status Paid) | **€775.88** | **$883.69** |
 | Depaneling the two 5 mm edge rails (billed after engineering review) | €2.60 | |
-| Swedish import VAT (25% of goods + freight, billed by DHL) | ≈ €195 | |
+| Swedish import VAT (25% of €775.88 goods + freight, billed by UPS) | ≈ €194 | |
+| UPS customs clearance / disbursement fee | a few hundred SEK | |
 | **Landed total** | **≈ €973** (≈ **€243 per assembled CPU**) | |
 
-JLCPCB's order page shows merchandise net of the coupon ($826.10 - $10.00 = $816.10, plus
+Shipping is **UPS Worldwide Express Saver** and the incoterm is **CPT** (carriage paid by JLC, import VAT borne by us) — both read off the commercial invoice, which is the authority; the cart panel's carrier label is clipped and easy to misread. JLCPCB's order page shows merchandise net of the coupon ($826.10 - $10.00 = $816.10, plus
 $67.59 shipping = $883.69). JLCPCB's native currency is USD; the coupon is a flat $10 shown as €8.78, and both line items
 convert at exactly 1.1390. Against the 2026-07-26 quote the order came in **€3.59 cheaper**
 (merchandise €725.32 vs €728.88). Component cost is €404.20 for 9 items = **€101.05 of parts
@@ -279,4 +282,4 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   would need clarifying before any commercial use of derived design files.
 - ~~**Order status**~~ **RESOLVED 2026-07-28 — ordered and paid.**
   €775.88 at checkout, ≈ €973 landed (≈ €243 per assembled CPU). Full breakdown in the
-  "Cost — AS ORDERED" table. Est. ship 2026-08-06; DHL bills the Swedish import VAT separately.
+  "Cost — AS ORDERED" table. Est. ship 2026-08-06; UPS bills the Swedish import VAT separately.
