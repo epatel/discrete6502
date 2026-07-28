@@ -33,16 +33,65 @@ The CPU sees only 14 address bits. Memory is a **16 KB image**, mirrored across
 the 64 KB space. The reset vector `$FFFC/D` is at offset `0x3FFC/D` in the
 image.
 
-## Logic levels: read before first power-up
+## Bring-up sequence: read before first power-up
+
+Do the steps in this order. The order is deliberate: **the boards arrive with
+no Pico on them** (U1 is DNP), thus the first two steps have no 3.3 V part
+attached, and no logic-level question exists at any rail voltage. Use a bench
+supply with the current limit set to about 0.5 A for every step. The current
+limit, not a lower rail voltage, is what protects a mis-assembled board.
+
+### Step 1: bare board, no power
+
+Measure the resistance from a VCC bond pad to a VSS bond pad. It must read
+high. The pull-up resistors reach floating nodes through FETs that are off,
+thus no low-resistance path to VSS exists. A low reading is a solder bridge.
+Find it before you apply power.
+
+### Step 2: board alone at 5 V
+
+Croc-clip the current-limited supply to the VCC and VSS bond pads. Set 5 V.
+**Compare the current against the 0.35 A prediction.** This one number is the
+most informative test in the whole sequence. It finds a bridged rail, a reel
+loaded backwards and missing pull-ups. The worst case is 0.65 A, with every
+pull-up low and every LED lit.
+
+Optionally, croc-clip a function generator to the Φ0 bond pad and drive clk0
+push-pull at some kHz. The data bus floats, because no memory is connected,
+thus the CPU executes garbage. The register LEDs must still move. Movement
+proves that the clock phases regenerate on-board and that the dynamic logic
+holds charge.
+
+### Step 3: mount the Pico
+
+Solder the Pico 2 W module on the underside site. **Solder pin 39.** See
+Powering for why pin 39 must be a soldered joint and not a decision.
+
+Pin 38 is `vss` and pin 39 is `vcc`, side by side on 2.54 mm pitch. A solder
+bridge between them is a dead short across the board supply. Repeat the Step 1
+resistance measurement after you solder the module.
+
+### Step 4: 5 V logic bring-up
+
+Power the board at 5 V from the bench supply and flash the `tester` firmware.
+USB may stay connected for serial. Run the default A-register counter image and
+watch the A LEDs count. Then walk the clock up with `p` to find the real
+ceiling, and measure the retention floor with `W`.
+
+3.3 V is **not** a step in this sequence. It is a diagnostic fallback. See
+"3.3 V operation" below.
+
+## Logic levels
 
 The Pico is a 3.3 V device. The CPU core runs at 5 V. This is the one
 **unresolved hardware question** for bring-up. It does not affect the PCB.
 
 - **Inputs to the Pico** (db on writes, ab, rw and sync at 5 V). The 1k series
-  resistors limit the clamp current to about 1.4 mA per pin. This is the common
-  practical arrangement, but it is formally outside the RP2350 specification.
-  It is acceptable for bring-up. Do not leave the CPU powered at 5 V while the
-  Pico has no power.
+  resistors limit the clamp current to about 1.4 mA per pin, and to about
+  34 mA in total with all 24 input lines high. This is the common practical
+  arrangement, but it is formally outside the RP2350 specification. It is
+  acceptable for bring-up. Do not leave the CPU powered at 5 V while the Pico
+  has no power. A soldered pin 39 makes that state impossible.
 - **Clock drive.** The board has no pull-up on clk0. clk0 is a pure input: two
   FET gates, a 100R series resistor and the clamp diodes. Nothing holds a
   level. The clock source must therefore drive clk0 push-pull. An open-drain
@@ -56,31 +105,101 @@ The Pico is a 3.3 V device. The CPU core runs at 5 V. This is the one
   gates) at full VCC swing. In simulation, a 3.3 V clk0 into a 5 V core gives
   an input-inverter low of 1.7 mV and 17 ns of delay. A 5 V clock gives 1.4 mV
   and 7 ns. There is no functional difference.
-- **Recommended first bring-up.** Run the whole CPU at **VCC = 3.3 V** with the
-  default push-pull clock. This gives one supply domain and no level questions.
-  Simulation clears it: `sim/passpair_33v.sp` (2026-07-25) shows that the
-  dynamic latches still work at 3.3 V and at 3.0 V. The clock-edge bootstrap
-  keeps the stored '1' at or above the rail. Expect dim register LEDs, 0.67 mA
-  against 1.42 mA at 5 V (`sim/led_tap.sp`). The dim LEDs are cosmetic, not a
-  fault. Then move to 5 V for full margin, brighter LEDs and a faster usable
-  clock. Keep the same push-pull 3.3 V clock drive.
 
 ## Powering
 
-Board VCC feeds the Pico VSYS pin (pin 39). The two grounds are common.
+Board VCC feeds the Pico VSYS pin (pin 39). The two grounds are common. VSYS
+accepts 1.8 V to 5.5 V, thus 3.3 V and 5 V are both in specification. Pin 39 is
+the only supply pin. The Pico 3V3OUT pin (pin 36) is not connected, thus the
+Pico regulator cannot feed the board.
 
-- **Bench supply.** Croc clips on the VCC and VSS bond pads power both the
-  board and the Pico. You can connect USB at the same time for serial.
-- **USB-only demo mode.** With pin 39 soldered, Pico USB power runs the whole
-  board. This draws about 0.35 A at about 4.8 V typical, and up to 0.65 A worst
-  case with every pull-up low and every LED lit. A USB-3 port or a charger
-  supplies this. A legacy 500 mA port may not.
-- **For the 3.3 V bring-up, leave the pin-39 castellation UNSOLDERED at
-  first.** If pin 39 is soldered and USB is plugged in, VSYS pulls board VCC to
-  about 4.8 V. A 3.3 V bench setting cannot win against it. Leave pin 39
-  unsoldered. USB then powers the Pico, the bench supply powers the board at
-  any voltage, and the grounds stay common. Solder pin 39 when you move to 5 V
-  operation.
+### Pin 39 must be soldered
+
+Solder pin 39 when you solder the module. Board VCC and Pico VSYS then become
+the same node, and two problems disappear together.
+
+- **No power-up sequence to remember.** The hazard is a 5 V core that drives 26
+  clamp diodes into a dead 3V3 rail. One supply for both parts makes that
+  condition unreachable.
+- **No intermittent joint.** The `RaspberryPi_Pico_W_SMD` footprint has 3.2 x
+  1.6 mm pads that extend inward, under the module. An unsoldered pin 39 is two
+  flat copper faces that rest against each other, held apart only by the
+  standoff that the adjacent solder joints happen to give. That gap is
+  uncontrolled, and board flex or a croc clip can close it. An unsoldered pin 39
+  is an intermittent contact, not an open circuit. A rail that makes and breaks
+  corrupts every dynamic node at once, and the result looks like a random CPU
+  fault.
+
+The two rails do not rise together. Board VCC rises immediately. The Pico 3V3
+rail follows some milliseconds later, through the buck-boost soft start. The
+GPIO clamps do conduct during this interval, but from the same supply and
+through the 1k series resistors. This is the usual arrangement on a Pico
+carrier board. Board bulk capacitance is only about 50 uF (96 x 100 nF plus
+4 x 10 uF), thus there is no inrush that can hold the ramp down.
+
+At 5 V you can keep USB connected for serial at the same time. The module
+Schottky diode drops USB VBUS to about 4.7 V to 4.8 V at VSYS, thus a 5.0 V
+bench supply wins the node, and the diode blocks all back-feed into the host.
+
+### USB-only demo mode
+
+With no bench supply, Pico USB power runs the whole board through VBUS, the
+module Schottky diode and VSYS. Three limits apply.
+
+- **The rail is not 5.0 V.** It is VBUS minus the diode drop: about 4.7 V to
+  4.8 V at the 0.35 A typical draw, and lower at the 0.65 A worst case. Cable
+  resistance subtracts more. The board operates correctly, but you do not get
+  the full 5 V margin.
+- **Current.** 0.35 A typical, 0.65 A worst case with every pull-up low and
+  every LED lit. The `wifi` firmware adds about 50 mA average, with 200 mA
+  transmit bursts, thus about 0.9 A worst case. A USB-3 port or a charger
+  supplies this. A legacy 500 mA port does not.
+- **Use a bench supply for test runs.** This is dynamic logic. A rail sag does
+  not degrade gracefully. It corrupts the dynamic nodes, and you read the
+  result as a logic fault in the CPU. Use a bench supply with margin for the
+  functional-test run, which is hours long. Keep USB-only mode for
+  demonstrations.
+
+All board current in this mode goes through one castellation and one via to
+the In4 VCC plane. That is sufficient at these currents, but it is a single
+feed.
+
+## 3.3 V operation: a fallback, not a first step
+
+The whole CPU can run at VCC = 3.3 V. Simulation clears it: `sim/passpair_33v.sp`
+(2026-07-25) shows that the dynamic latches still work at 3.3 V and at 3.0 V,
+and that the clock-edge bootstrap keeps the stored '1' at or above the rail.
+
+**Do not use it as the first power-up.** 3.3 V is the tighter operating point,
+not the safer one, and it squeezes the usable clock window from both ends.
+
+| | 5 V | 3.3 V |
+|---|---|---|
+| Clock ceiling (`sim/fanout_speed.sp`) | about 20 kHz | about 10 kHz |
+| Retention floor: worst-node leakage budget | under 53 nA per FET | under 27 nA per FET |
+| Usable clock window | about 50x | about 13x |
+| Register LED current (`sim/led_tap.sp`) | 1.42 mA | 0.67 mA |
+
+The dim LEDs are cosmetic, not a fault, but the LEDs are one of the few
+observation channels at bring-up. The important cost is the ambiguity: a board
+that misbehaves at 3.3 V does not tell you whether the cause is an assembly
+fault or the reduced margin, and you must go to 5 V to find out. A first test
+with an ambiguous failure mode is a bad first test.
+
+3.3 V is useful **after** Step 2 has given a good current reading, as a
+diagnostic lever: if the CPU behaves erratically at 5 V, a lower rail changes
+the timing and the LED currents, and the difference is informative.
+
+To run at 3.3 V, remove the competing supply, because a soldered pin 39 plus
+USB pulls board VCC to about 4.8 V and a 3.3 V bench setting cannot win against
+it. Two ways:
+
+- **No USB.** Flash over USB first. The board sits at about 4.8 V during
+  flashing with the clock idle, which does no harm. Then disconnect USB and
+  apply 3.3 V. Use the `wifi` firmware to keep full control with no cable.
+- **A data-only USB cable**, if you want serial at 3.3 V. **Unverified:** the
+  RP2350 may need VBUS present to enumerate when it is self-powered. Test this
+  on a spare Pico before you rely on it.
 
 ## Build
 

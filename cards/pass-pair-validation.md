@@ -30,8 +30,11 @@ The power estimate held: measured-by-calculation ≈ 1.4–1.5 W at 5 V (see REA
 
 ## 3.3 V validation (2026-07-25) — `sim/passpair_33v.sp`
 
-The recommended first power-up runs the whole board at 3.3 V (one supply domain with the Pico),
-so the bootstrap was re-checked at that rail. Same worst-path topology as the M4 vendor bench
+3.3 V operation was originally planned as the *first* power-up (one supply domain with the Pico),
+so the bootstrap was re-checked at that rail. **Superseded 2026-07-28** — bring-up now starts at
+5 V with no Pico fitted, and 3.3 V is a diagnostic fallback (rationale in
+`pico-controller/README.md`); the simulation results below are unchanged and still gate the
+fallback. Same worst-path topology as the M4 vendor bench
 (driver → pass pair → 20 pF bus → pass pair → 5 pF storage node + LED tap → output inverter),
 three FET flavours in parallel — onsemi vendor 2N7002 BSIM3v3 (pessimistic Vth), BSS138 typical
 (Vto 1.1), BSS138W worst case (Vto 1.5) — swept over 5.0 / 3.3 / 3.0 V by `alterparam`.

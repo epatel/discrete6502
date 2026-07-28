@@ -28,4 +28,4 @@ Results on the golden board: **2,639 conductors, 0 opens, 0 shorts, 0 unmapped p
 - **What this still assumes, because copper cannot show it:** pad number → device terminal (pad 1 of a SOT-323 is the gate) comes from the footprint library the generator also used; component *values* are invisible (10k and 100k are the same copper — switch-level does not need them, so this proves topology, not values); and the ~82 harness pin names are anchored from `gen/netlist.json` by `(ref, pad)` — the other ~2,600 nets are never consulted.
 - The extracted netlist carries 55 spurious pull-ups (the LED ballast resistors also hang off VCC). They sit on LED anode nodes that nothing reads, so they are harmless — visible only as a slightly longer settling window (28 half-cycles vs the transformed netlist's 20).
 
-**Open before power-up:** SPICE the pass pair at VCC = 3.3 V (the recommended first bring-up rail — see `cards/pass-pair-validation.md`).
+**Closed 2026-07-25:** the pass pair was SPICEd at VCC = 3.3 V — see `cards/pass-pair-validation.md`. 3.3 V is now a diagnostic fallback rather than the first bring-up rail (`pico-controller/README.md`).

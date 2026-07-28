@@ -93,7 +93,8 @@ Dominated by the NMOS pull-up current, not switching. Component counts are from
 **A 5 V / 1 A bench supply covers even the worst case.** Spread over the 900 cm²
 board the heat is imperceptible — compare the original MOnSter 6502 at ~10 W.
 
-At the recommended 3.3 V first bring-up (Pico on USB, off the board rail):
+At 3.3 V (the diagnostic fallback rail — bring-up starts at 5 V, see
+`pico-controller/README.md`):
 **≈ 0.19 A / 0.64 W typical, 0.38 A / 1.3 W worst case**. The LEDs there draw
 0.67 mA each instead of 1.42 mA, because the 2.2 kΩ ballast has 1.4 V less
 headroom above the LED's ~1.85 V forward drop — 47% of the current, but only

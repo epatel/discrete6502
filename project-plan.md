@@ -49,6 +49,29 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-07-28: **Bring-up sequence restructured, and the 3.3 V-first plan dropped** — documentation
+  only, no design or firmware files touched. Three findings, each checked rather than assumed.
+  (a) **The Pico site is DNP**, so the delivered boards have no 3.3 V part on them at all: the
+  first two bring-up steps (VCC-VSS resistance, then board-alone current draw at 5 V against the
+  0.35 A prediction) have no logic-level question at any rail, which is exactly what the 3.3 V
+  step was invented to provide. What protects a mis-assembled board is the bench supply's current
+  limit, not a lower rail. (b) **3.3 V is the tighter operating point, not the safer one**: the
+  clock ceiling halves (20 → 10 kHz) *and* the retention floor rises (leakage budget 53 → 27 nA
+  per FET), narrowing the usable window from ~50x to ~13x, so a failure at 3.3 V cannot be
+  attributed to assembly versus margin without going to 5 V anyway. (c) **"Leave pin 39
+  unsoldered" was not a safe instruction**: the `RaspberryPi_Pico_W_SMD` pads are 3.2 x 1.6 mm and
+  run *under* the module, so an unsoldered castellation is two flat copper faces held apart only
+  by the adjacent joints' uncontrolled standoff — an intermittent contact, and a rail that makes
+  and breaks corrupts every dynamic node at once. Pin 39 is now always soldered (which also
+  removes the 5 V power-up sequencing question, since VSYS and board VCC become one node), and
+  3.3 V is reached by removing the competing USB supply instead. Also documented: pins 38/39 are
+  `vss`/`vcc` adjacent at 2.54 mm pitch, so a bridge there is a dead short — re-measure after
+  soldering the module. `pico-controller/README.md` now carries a numbered 4-step sequence plus a
+  "3.3 V operation: a fallback, not a first step" section; `cards/pass-pair-validation.md`,
+  `cards/verification.md`, root `README.md` and the plan's bring-up-rail question updated to match.
+  One item left unverified and marked as such: whether the RP2350 enumerates over a data-only USB
+  cable when self-powered (test on a spare Pico before relying on it for 3.3 V serial).
+
 - 2026-07-27 (later): **The clock's LOWER bound quantified — dynamic logic has a floor as well as a ceiling.** `tools/dynamic_nodes.py` finds 456 dynamic storage nodes and identifies the worst: the special-bus bits `sb1..sb7`, one gate driven (32 pF) against **twelve** FET channels leaking them — the big nets like `cclk` (13 nF, 2 channels, 259 ms) are the safe ones. `sim/retention.sp` confirms `t = C·ΔV/I` exactly (predicted 4.625 V / 4.000 V, measured 4.62500 / 3.99875). **The decisive number: at the 20 kHz ceiling the worst node must leak < 53 nA per FET (< 27 nA at 3.3 V), or the floor rises above the ceiling and there is no working clock at all.** Typical parts are ~1 nA (≈ 378 Hz floor, ~50× margin, ~57 °C of headroom); at the 500 nA datasheet guardband the floor would be 187 kHz and the design would not run. **SPICE could not resolve the leakage and the deck says so honestly** — ngspice + BSIM3 does not converge at tens of pA (3.5 orders of movement with tolerances; the temperature control comes out non-monotonic, leakage *falling* with heat, which is impossible). So this must be **measured at bring-up**: stop the clock for N ms mid-program, restart, bisect N — which also bounds how long the tester's single-step pause may last. Added `tools/test_extract.py`, promoting the ad-hoc negative controls to a real gate-has-teeth test (clean 0/0, cut → OPEN, bridge → SHORT; all PASS); it taught two things — deleting an arbitrary track often changes nothing (neighbouring collinear segments still overlap, so the victim must be the longest), and each board edit needs its own process or the second `LoadBoard` returns a bare `SwigPyObject`.
 
 - 2026-07-27: **Fifth gate added — reverse validation from copper** (`tools/extract_netlist.py`). Motivation, established by reading the existing checkers rather than assuming: `check_parity` compares pad net *labels* to the netlist and `check_gaps` groups copper **by KiCad's net codes** before testing connectivity — and `check_gaps` never touches zones, so the GND/VCC planes were covered only by KiCad's own unconnected count. The new tool discards every net label and unions copper geometrically (pads, tracks, vias, **zone fills**, exact `SHAPE::Collide`), then reports LVS in both directions and emits `gen/extracted_netlist.json`, which `switchsim.py` simulates as a third netlist. Golden board: **2,639 conductors, 0 opens, 0 shorts, 0 unmapped pads**, 4,051 FETs recovered, VCC rail derived from copper alone (1,078 resistor pads) agreeing with the zone labels, and the extracted netlist matches the original visual6502 trace for half-cycles 28..219 with the test program passing. **Proven able to fail:** cutting one 2.6 mm track → exactly 1 OPEN naming `dpc2_XSB`; bridging two pads → 1 SHORT naming `cp1 + pipeT4out + vss`, a three-way short traced through a stitching via into the ground plane — the transitive path no forward gate can see. Three traps documented in `cards/verification.md`: KiCad copper layer IDs are not in stack order (via spans must be sliced from `CuStack()`, not a numeric range — cost 1,153 phantom opens), `board.Zones()` returns fresh wrappers so `id(z)` keys match only by address reuse (silently dropped a whole plane), and a non-golden board argument must not overwrite the canonical artifact. Limits stated in the card: pad→terminal mapping and component values remain unprovable from copper, so this proves topology, not values. No board or fab files changed.
@@ -138,6 +161,10 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   `sim/passpair_33v.sp` sweeps 5.0/3.3/3.0 V over three FET models; all four pass gates
   (bootstrapped '1' >= rail, next stage fully driven, source-driven '0' valid, pull-up
   recovery inside a 50 kHz half-cycle) pass at every rail. 3.3 V bring-up is cleared.
+  **Re-scoped 2026-07-28**: 3.3 V is a *fallback*, not the first step — bring-up now starts
+  at 5 V with no Pico fitted (U1 is DNP, so the level question does not exist yet), and 3.3 V
+  narrows the usable clock window from ~50x to ~13x (ceiling 10 kHz vs 20 kHz, leakage budget
+  27 nA vs 53 nA), which makes a failure there ambiguous.
   LED brightness quantified separately in `sim/led_tap.sp`: 0.67 mA vs 1.42 mA at 5 V — 47% of the current but only ~20% less perceived brightness. Details in `cards/pass-pair-validation.md`.
 - **Clock drive at 5 V**: the board has no pull-up on clk0, so open-drain full-swing clocking
   needs an external 10k croc-clipped from the Φ0 bond pad to VCC. Confirm at bring-up whether
