@@ -138,12 +138,13 @@ _(append-only; timestamp and mark locked decisions)_
 | **Merchandise** | **€725.32** | **$826.10** |
 | Shipping, DHL Express, 4.84 kg | €59.34 | $67.58 |
 | Coupon | −€8.78 | −$10.00 |
-| **Paid at checkout** | **€775.88** | **$883.68** |
+| **Paid at checkout** (2026-07-28 18:39:59, status Paid) | **€775.88** | **$883.69** |
 | Depaneling the two 5 mm edge rails (billed after engineering review) | €2.60 | |
 | Swedish import VAT (25% of goods + freight, billed by DHL) | ≈ €195 | |
 | **Landed total** | **≈ €973** (≈ **€243 per assembled CPU**) | |
 
-JLCPCB's native currency is USD; the coupon is a flat $10 shown as €8.78, and both line items
+JLCPCB's order page shows merchandise net of the coupon ($826.10 - $10.00 = $816.10, plus
+$67.59 shipping = $883.69). JLCPCB's native currency is USD; the coupon is a flat $10 shown as €8.78, and both line items
 convert at exactly 1.1390. Against the 2026-07-26 quote the order came in **€3.59 cheaper**
 (merchandise €725.32 vs €728.88). Component cost is €404.20 for 9 items = **€101.05 of parts
 per assembled board**.
