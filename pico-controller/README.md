@@ -180,6 +180,36 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### Optional modification: bridge VBUS to VSYS (demo boards only)
+
+Pin 40 is VBUS. On our board it is `nc40`, a net with one pad and nothing else
+on it, thus a solder bridge across the pin 39 and pin 40 castellations ties
+VBUS to VSYS and touches no other net. It bypasses the module Schottky diode.
+The modification is reversible.
+
+It improves USB-only mode:
+
+- The rail becomes VBUS, about 5.0 V minus the cable drop, instead of 4.7 V to
+  4.8 V. This is the full 5 V margin.
+- The supply is stiffer for the WiFi bursts, because the diode dynamic
+  resistance leaves the path.
+- The diode stops dissipating about 0.12 W at 0.35 A, and stops drooping more
+  at higher current.
+
+**It also removes the reverse blocking, thus a bridged board must never have a
+bench supply on its bond pads.** Board VCC becomes VBUS, thus a bench supply
+drives current back through the cable into the USB host port. This is outside
+the USB specification, and different hosts tolerate it differently. The
+"connect USB for serial while the bench supply runs the board" arrangement is
+no longer available on a bridged board. Two smaller effects: the USB connector
+VBUS contact sits at board voltage when no cable is connected, and the Pico W
+VBUS sense reads "USB present" whenever the board has power.
+
+Use this per board, not as a general change. One board of the four can become a
+USB-only demonstration unit: one cable, a true 5 V rail and the brightest LEDs.
+**Mark that board physically.** Leave the other boards unmodified, so they keep
+the bench-supply and serial workflow.
+
 ## 3.3 V operation: a fallback, not a first step
 
 The whole CPU can run at VCC = 3.3 V. Simulation clears it: `sim/passpair_33v.sp`
