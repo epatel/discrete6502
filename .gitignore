@@ -22,3 +22,6 @@ gen/.history/
 
 # stale Freerouting/KiCad-local artifacts under the old working-title name
 gen/monster6502v2.*
+
+# Order identifiers — kept out of git history on purpose (see gen/fab/ORDER.local.md)
+gen/fab/ORDER.local.md

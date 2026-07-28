@@ -17,7 +17,7 @@ Recreate the MOnSter 6502 — a working, discrete-transistor replica of the MOS 
 - [x] **M3 Toolchain** — Pick EDA tool (e.g., KiCad) and a netlist-to-schematic generation path (thousands of transistors ⇒ must be scripted, not hand-drawn). Status: **done 2026-07-18** — KiCad chosen; `tools/gen_netlist.py` generates `gen/netlist.json` + KiCad netlist; see `cards/netlist-pipeline.md`
 - [x] **M4 Schematic & verification** — Generate full schematic/netlist; simulate or logically verify against visual6502 behavior. Status: **done 2026-07-18** — switch-level equivalence proven (`tools/switchsim.py`); analog behavior re-validated with onsemi vendor model (`sim/passpair_vendor.sp`); see `cards/verification.md`
 - [x] **M5 Layout** — Place & route within JLCPCB constraints; DRC clean. Status: **routing done 2026-07-25** — 6-layer board, all 8,421 signal connections + 100% power stitching routed, **0 electrical DRC violations, 0 unconnected**, parity + independent connectivity green (`gen/board_routed_golden.kicad_pcb`). **Fab package generated 2026-07-25**: `gen/fab/` (gerbers zip, BOM 9 line items / 5,328 SMD placements, CPL, order README). FET resolved to 2N7002W-7-F LCSC C139444 (stock must be sourced at order — ~20k pcs needed; alt C5334591). Remaining: upload + real quote + order (M6)
-- [ ] **M6 Fab & bring-up** — Order assembled boards, power-up, run test programs. Owner: — Status: **fab package rev A released 2026-07-26** (`gen/fab/RELEASE.md`), order not yet placed. Bring-up acceptance target: pass **Klaus Dormann's 6502 functional test suite** (see Decisions 2026-07-26); firmware support is in place. Yield expectation recorded before the boards arrive: see "Expected fab yield" below — plan for **0.5–2 defects per board** and treat a perfect first power-up as a coin flip.
+- [ ] **M6 Fab & bring-up** — Order assembled boards, power-up, run test programs. Owner: — Status: **ORDER PLACED AND PAID 2026-07-28** (5 PCBs, 4 of them assembled; est. ship 2026-08-06). Order/job numbers are deliberately untracked — `gen/fab/ORDER.local.md`, gitignored. Fab package rev A (`gen/fab/RELEASE.md`) is what was uploaded. Bring-up acceptance target: pass **Klaus Dormann's 6502 functional test suite** (see Decisions 2026-07-26); firmware support is in place. Yield expectation recorded before the boards arrive: see "Expected fab yield" below — plan for **0.5–2 defects per board** and treat a perfect first power-up as a coin flip.
 
 ## Decisions
 
@@ -48,6 +48,35 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-25: **M6 prep started — Pico firmware scaffolded** in `pico-controller/` (`common/` shared bus engine — clock master, 16KB mirrored memory serving, trace ring, reset ceremony; `tester/` interactive bring-up CLI; `general/` free-runner with `$3F00` char-out port). Builds against pico-sdk 2.x (`PICO_BOARD=pico2_w`), untested until hardware exists. **Open question (resolve before power-up): 3.3V Pico vs 5V core levels** — inputs are practically safe through the 1k series resistors. **Verified: the board has NO pull-up on clk0** (only 100R protection + pico series R), so the clock must be driven push-pull; open-drain would leave clk0 floating unless an external 10k is croc-clipped Φ0→VCC. **Corrected 2026-07-25:** the earlier claim that a 3.3V clock under-drives the pass-pair bootstrap was wrong — clk0 gates only two pull-downs, and the internal phases (cclk/cp1) are regenerated on-board at full VCC swing; simulated, a 3.3V clk0 into a 5V core is functionally identical to a 5V one (1.7mV low, 17ns delay). The external pull-up is optional polish, not a requirement. Recommended first bring-up: whole CPU at VCC=3.3V (single domain, logic smoke test) — SPICE the pass-pair at 3.3V before boards arrive.
 
 ## Current state / handoff
+
+- 2026-07-28 (later): **THE ORDER IS PLACED AND PAID — M6 has officially started.** 5 PCBs
+  (6-layer ENIG, 5–6 days) + 4 of them assembled (Standard PCBA, both sides, 3–4 days +1 for
+  depaneling). €775.88 paid,
+  ≈ €973 landed, **est. ship 2026-08-06**. Full breakdown in "Cost — AS ORDERED".
+  The order entry was reviewed setting-by-setting before payment and two things were fixed:
+  **depaneling was off** (JLC's own banner was nudging for it) — measured against the golden
+  board, the nearest SMD joint to a rail break line is **8.55 mm and 130 pads sit within 10 mm**,
+  all of them MLCCs, the parts most prone to invisible flex cracking, so €2.60 and one build day
+  buys away the risk of hand-snapping four populated boards; and **the PCB Remark was empty**, now
+  carrying the stackup in words as a third guard on inner-layer order alongside the `.g1`–`.g4`
+  extensions and the `.gbrjob`. That guard matters because an In1/In4 swap produces a board that
+  looks entirely normal while every stitching via lands on the wrong plane — one of the two
+  faults (with SOT-323 rotation) that would take out all four boards at once. The JLCPCB
+  order and job numbers are kept OUT of this repo on purpose — git history is permanent and the
+  repo is pushed, so an identifier committed once cannot be redacted later; they live in the
+  gitignored `gen/fab/ORDER.local.md`. Verified before
+  payment: 6L/300.7 × 322 (290.7 + 2 × 5 mm rails), qty 5 PCB / 4 PCBA, Epoxy Filled & Capped at
+  €0.00, 0.3 mm via class, Standard PCBA + Both Sides, Parts Selection **By Customer** (so
+  C504052 cannot be substituted), Confirm Parts Placement Yes + the rotation note, Confirm
+  Production file Yes (€0.91), Remove Mark, antistatic packaging; BOM **22/22 rows confirmed**
+  (our 9 line items re-chunked) with every quantity reconciling to per-board × 4 plus attrition,
+  including **BSS138W C504052 at 16,234**. User checked the Gerber Viewer independently: layer
+  order OK. Two non-issues chased down and dismissed: the cart's missing PCBA thumbnail (a
+  missing asset — the quote page's assembly previews render and the price is computed from the
+  parsed BOM), and an apparent price jump at checkout (a EUR→USD display switch; both line items
+  convert at exactly 1.1390 and the €8.78 coupon is a flat $10). **Next: the production-file
+  confirmation** — check that inner layers 2 and 5 are the solid planes — then receiving, and
+  bring-up per the sequence in `pico-controller/README.md`.
 
 - 2026-07-28: **Bring-up sequence restructured, and the 3.3 V-first plan dropped** — documentation
   only, no design or firmware files touched. Three findings, each checked rather than assumed.
@@ -100,7 +129,34 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-18: M3 complete. KiCad chosen as EDA target (netlist-direct-to-pcbnew, scripted placement in M5; no hand schematic). `tools/gen_netlist.py` transforms visual6502 data → 5,179 components / 2,587 nets / 5 part numbers, all JLCPCB basic class, with LED taps included; invariant checks pass (`cards/netlist-pipeline.md`). Next: M4 — behavioral verification: export the transformed netlist to a simulator (perfect6502-style switch-level sim or SPICE subcircuits with vendor 2N7002 models), run real 6502 test programs, compare against visual6502 golden model; re-verify the bootstrap-dependent pass pairs with manufacturer models.
 - 2026-07-18: M2 complete. Dynamic latch with back-to-back pass-FET pair SPICE-validated for BSS138/2N7002/AO3400 (`sim/passpair_latch.sp`); clock-edge bootstrap over-charges stored '1' above VDD, eliminating threshold drop — but must be re-verified with manufacturer SPICE models and on more topologies (series pass chains, clock drivers) in M4. AO3400A rejected (1nF Ciss too slow with 10k pull-ups). Parts, voltages, and board target settled (see Decisions). Next: M3 — pick EDA tool (KiCad assumed) and build the scripted netlist→schematic/placement pipeline from `data/visual6502/transdefs.js` (dedup 271 parallel transistors, expand 783 pass FETs to pairs, emit pull-up resistors from segdefs '+' flags).
 
-## Cost (real quote on the rev A upload, verified 2026-07-26)
+## Cost — AS ORDERED (paid 2026-07-28)
+
+| Line | | |
+|---|---|---|
+| PCB, 5 pcs, 6-layer ENIG, build 5–6 days | €131.38 | $149.64 |
+| PCBA, 4 pcs, Standard, both sides, build 3–4 days +1 | €593.93 | $676.46 |
+| **Merchandise** | **€725.32** | **$826.10** |
+| Shipping, DHL Express, 4.84 kg | €59.34 | $67.58 |
+| Coupon | −€8.78 | −$10.00 |
+| **Paid at checkout** | **€775.88** | **$883.68** |
+| Depaneling the two 5 mm edge rails (billed after engineering review) | €2.60 | |
+| Swedish import VAT (25% of goods + freight, billed by DHL) | ≈ €195 | |
+| **Landed total** | **≈ €973** (≈ **€243 per assembled CPU**) | |
+
+JLCPCB's native currency is USD; the coupon is a flat $10 shown as €8.78, and both line items
+convert at exactly 1.1390. Against the 2026-07-26 quote the order came in **€3.59 cheaper**
+(merchandise €725.32 vs €728.88). Component cost is €404.20 for 9 items = **€101.05 of parts
+per assembled board**.
+
+Two settings changed between the quote and the order, both reviewed 2026-07-28:
+**depaneling switched ON** (€2.60, +1 build day — the golden board has 130 MLCC joints within
+10 mm of the break lines and ceramics are the parts most prone to flex cracking, so
+hand-snapping four populated boards was not worth €2.60), and the previously empty **PCB Remark
+now carries the stackup** (`6-layer stackup top to bottom: F_Cu, In1 GND plane, In2 sig, In3
+sig, In4 VCC plane, B_Cu. Gerber ext .g1-.g4 = inner 1-4. Inner layer order is critical, do NOT
+reorder.`, 169/200 chars).
+
+## Cost (quote on the rev A upload, verified 2026-07-26 — superseded by the table above)
 
 JLCPCB quote for **5 PCBs, 4 of them assembled** (6-layer, 290.7 × 322 mm ≈ 9.4 dm², ENIG,
 Standard PCBA both sides — *Economic offers no double-sided* — 5,328 placements each).
@@ -220,6 +276,6 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   revision — script-generated, cheap, but more parts and more routing.
 - **Licensing**: `segdefs.js` is CC BY-NC-SA (noncommercial). Fine for this hobby build;
   would need clarifying before any commercial use of derived design files.
-- **Order status**: JLCPCB cart priced (€131 PCB + €716 PCBA + €65 UPS Express Saver;
-  ≈ €1,150–1,200 landed with 25% Swedish VAT ≈ €230/CPU). Record the real total and order
-  number here when placed — that commit marks the official start of M6.
+- ~~**Order status**~~ **RESOLVED 2026-07-28 — ordered and paid.**
+  €775.88 at checkout, ≈ €973 landed (≈ €243 per assembled CPU). Full breakdown in the
+  "Cost — AS ORDERED" table. Est. ship 2026-08-06; DHL bills the Swedish import VAT separately.
