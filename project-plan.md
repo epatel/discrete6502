@@ -17,7 +17,7 @@ Recreate the MOnSter 6502 — a working, discrete-transistor replica of the MOS 
 - [x] **M3 Toolchain** — Pick EDA tool (e.g., KiCad) and a netlist-to-schematic generation path (thousands of transistors ⇒ must be scripted, not hand-drawn). Status: **done 2026-07-18** — KiCad chosen; `tools/gen_netlist.py` generates `gen/netlist.json` + KiCad netlist; see `cards/netlist-pipeline.md`
 - [x] **M4 Schematic & verification** — Generate full schematic/netlist; simulate or logically verify against visual6502 behavior. Status: **done 2026-07-18** — switch-level equivalence proven (`tools/switchsim.py`); analog behavior re-validated with onsemi vendor model (`sim/passpair_vendor.sp`); see `cards/verification.md`
 - [x] **M5 Layout** — Place & route within JLCPCB constraints; DRC clean. Status: **routing done 2026-07-25** — 6-layer board, all 8,421 signal connections + 100% power stitching routed, **0 electrical DRC violations, 0 unconnected**, parity + independent connectivity green (`gen/board_routed_golden.kicad_pcb`). **Fab package generated 2026-07-25**: `gen/fab/` (gerbers zip, BOM 9 line items / 5,328 SMD placements, CPL, order README). FET resolved to 2N7002W-7-F LCSC C139444 (stock must be sourced at order — ~20k pcs needed; alt C5334591). Remaining: upload + real quote + order (M6)
-- [ ] **M6 Fab & bring-up** — Order assembled boards, power-up, run test programs. Owner: — Status: **fab package rev A released 2026-07-26** (`gen/fab/RELEASE.md`), order not yet placed. Bring-up acceptance target: pass **Klaus Dormann's 6502 functional test suite** (see Decisions 2026-07-26); firmware support is in place.
+- [ ] **M6 Fab & bring-up** — Order assembled boards, power-up, run test programs. Owner: — Status: **fab package rev A released 2026-07-26** (`gen/fab/RELEASE.md`), order not yet placed. Bring-up acceptance target: pass **Klaus Dormann's 6502 functional test suite** (see Decisions 2026-07-26); firmware support is in place. Yield expectation recorded before the boards arrive: see "Expected fab yield" below — plan for **0.5–2 defects per board** and treat a perfect first power-up as a coin flip.
 
 ## Decisions
 
@@ -141,6 +141,49 @@ Standard PCBA `SMT026072660664-29…`, both line items checked, estimated ship *
 
 (The 2026-07-18 preliminary estimate of ~$180–210/CPU assumed a 200×250 mm 4-layer board;
 the die-mimicry directive and the 6-layer decision account for the difference.)
+
+## Expected fab yield (estimate recorded 2026-07-28, before the boards arrive)
+
+Not a JLCPCB-specific figure — published industry DPMO ranges applied to this board's real
+joint count. Per assembled board (`gen/netlist.json`): **5,328 placements, ~14,700 solder
+joints**, of which 12,153 are the 4,051 FETs × 3 pins. **The netlist has no redundancy** (the
+271 parallel visual6502 transistors were merged), so ~95% of those joints are fatal if
+defective; only the 55 LED taps and the decouplers are forgiving, and the decouplers only
+against opens — a shorted decoupler is a dead rail.
+
+P(perfect board) = e^(−joints × DPMO × 10⁻⁶):
+
+| Assembly DPMO | Expected defects/board | P(board perfect) | P(≥1 of 4 perfect) |
+|---|---|---|---|
+| 10 (excellent) | 0.15 | 86% | ~100% |
+| 25 (good) | 0.37 | 69% | ~99% |
+| 50 (typical) | 0.74 | 48% | 93% |
+| 100 (mediocre) | 1.5 | 23% | 65% |
+
+Component-level failures add 0.1–0.5 per board (5,328 parts at 20–100 ppm for economy-brand
+parts). **Central estimate: 0.5–2 defects per board.** Ordering four is what makes that
+acceptable, and every FET being on the top face makes SOT-323 rework by hand realistic.
+
+Random defects are the benign case, because they are independent across boards. The risks that
+matter are **systematic and hit all four identically**:
+
+1. **SOT-323 rotation** — 4,051 parts from one reel. Wrong rotation is four dead boards with no
+   worthwhile rework. This is why the order settings require Confirm Parts Placement plus the
+   rotation note; it is the highest-value review step in the project.
+2. **Via-in-pad** — 3,817 vias sit inside SMD pads, which is why Epoxy Filled & Capped is
+   mandatory, not optional. Imperfect capping wicks solder down the via, giving opens and voids
+   concentrated wherever the capping failed. The most design-specific risk we carry.
+3. **Wrong part or value on a reel** — only 9 line items, but it is an all-boards-at-once fault.
+
+Bare-board risk is comparatively low: 5-mil rules and 0.3 mm drills are standard capability, and
+JLC flying-probe tests every board before assembly.
+
+**Consequence for bring-up:** Step 2 of the sequence in `pico-controller/README.md` (board-alone
+current draw at 5 V against the 0.35 A prediction, before the Pico is fitted) is the
+systematic-fault detector — a rotation error, a shorted decoupler or a wrong reel moves that
+number grossly. Single-joint random defects will not move it; those surface as functional-test
+failures, which is why the acceptance suite's per-`test_case` progress reporting matters: it
+narrows 4,051 FETs to a functional block.
 
 ## Open questions
 
