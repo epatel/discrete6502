@@ -191,7 +191,11 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
 
 - **Achievable clock**: simulation says ~20 kHz at 5 V / ~10 kHz at 3.3 V (PLA-line fanout,
   `sim/fanout_speed.sp`), against the M2 target of >=50 kHz. Measure the real ceiling at
-  bring-up by walking the clock up with the tester's `p` command.
+  bring-up by walking the clock up with the tester's `p` command. For scale, the original
+  NMOS 6502's own window was **50 kHz to 1 MHz** (datasheet-verified 2026-07-28, three-way
+  comparison in `cards/monster6502-lessons.md`) — a discrete rebuild of this logic style runs
+  entirely below the band the real chip was specified for, and the MOnSter's ~50 kHz ceiling
+  sits on the original's *minimum*.
 - **Clock floor / charge retention** (opened 2026-07-27): the worst dynamic node (`sb1..sb7`,
   32 pF against 12 leaking FET channels) must leak **< 53 nA per FET at 5 V** or the floor
   rises above the 20 kHz ceiling and nothing runs. Typical parts are ~1 nA, so ~50x margin is
