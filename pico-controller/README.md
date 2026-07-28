@@ -113,6 +113,22 @@ accepts 1.8 V to 5.5 V, thus 3.3 V and 5 V are both in specification. Pin 39 is
 the only supply pin. The Pico 3V3OUT pin (pin 36) is not connected, thus the
 Pico regulator cannot feed the board.
 
+### Either end can supply the power
+
+A soldered pin 39 makes board VCC and Pico VSYS one node. Power therefore flows
+in whichever direction you supply it, and **the bond pads are not mandatory**.
+
+- **Bench supply on the bond pads.** The board runs, and the same rail feeds
+  VSYS. The Pico then needs no USB power. Connect USB for serial only.
+- **USB into the Pico.** VBUS goes through the module Schottky diode to VSYS
+  and on to board VCC. One cable runs the whole CPU, with no croc clips.
+
+Only Step 2 of the bring-up sequence needs the bond pads, and only because no
+Pico is fitted at that point.
+
+Use the bench supply for test runs, and USB-only mode to demonstrate the board.
+The next two sections give the reasons.
+
 ### Pin 39 must be soldered
 
 Solder pin 39 when you solder the module. Board VCC and Pico VSYS then become
