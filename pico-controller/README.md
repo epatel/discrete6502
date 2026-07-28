@@ -320,10 +320,24 @@ Two physical limits apply:
   board, between the GND and VCC planes. The antenna strip has an all-layer
   keepout, so the radio works. The antenna still radiates at the edge of a
   large ground structure. Expect same-room range, not whole-house range.
-- **Power.** WiFi adds about 50 mA average, with transmit bursts of 200 mA to
-  300 mA. Added to the typical board current of about 0.35 A, a bench supply
-  covers this. USB-only demo mode reaches about 0.9 A worst case. A legacy
-  500 mA port cannot supply that.
+- **Power. Use a bench supply with this firmware.** WiFi adds about 50 mA
+  average, with transmit bursts of 200 mA to 300 mA. The WL LED is also left on
+  permanently. Added to the typical board current of about 0.35 A, USB-only mode
+  reaches about 0.9 A worst case, which a legacy 500 mA port cannot supply.
+
+  The bursts matter more than the average. A 200 mA to 300 mA step lands on the
+  same rail that holds 456 dynamic storage nodes, and the board has only about
+  50 uF of bulk capacitance to absorb it. Short croc leads from a bench supply
+  make this a non-event. A USB cable and the module Schottky diode make it a
+  real dip, and a dip that corrupts the dynamic nodes reads back as a CPU logic
+  fault, not as a power problem. This firmware exists for the unattended
+  overnight functional-test run, which is the longest possible exposure to that
+  failure mode.
+
+  This firmware does not manage power in any way. There is no `cyw43_wifi_pm()`
+  call, no `set_sys_clock*` call, and no sleep or dormant mode. `cyw43_arch_init()`
+  takes the SDK default, and the core 1 bus loop never idles. The core split is
+  a timing decision, not a power decision.
 
 ## Using the tester
 
