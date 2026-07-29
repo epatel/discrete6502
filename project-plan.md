@@ -141,9 +141,16 @@ _(append-only; timestamp and mark locked decisions)_
 | Shipping, UPS Worldwide Express Saver, 4.84 kg | €59.34 | $67.59 |
 | Coupon | −€8.78 | −$10.00 |
 | **Paid at checkout** (2026-07-28 18:39:59, status Paid) | **€775.88** | **$883.69** |
-| Depaneling the two 5 mm edge rails (billed after engineering review) | €2.60 | |
-| Swedish import VAT (25% of €775.88 goods + freight, billed by UPS) | ≈ €194 | |
+| Depaneling the two 5 mm edge rails — priced at "advanced option review finished", **paid separately 2026-07-29** | €2.60 | $2.96 |
+| **Total paid to JLCPCB** | **€778.48** | **$886.65** |
+| Swedish import VAT (25% of €778.48 goods + freight, billed by UPS) | ≈ €195 | |
 | UPS customs clearance / disbursement fee | a few hundred SEK | |
+
+Advanced options are excluded from the checkout total by design and invoiced after JLC's review,
+so the order was paid in **two** transactions ($883.69 then $2.96) which sum exactly to the
+$886.65 order total — not a double charge. The coupon also moved from its own discount line onto
+the PCBA line item at that point, which is why the PCBA figure drops $10 without the order
+getting cheaper.
 
 **Personal purchase, no VAT number** [user, 2026-07-28] — the blank `VAT No:` on the invoice
 is correct and intentional. The import VAT is a final cost, not reclaimable; do not raise this
