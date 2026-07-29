@@ -335,6 +335,10 @@ them — the board itself stays unmarked.
 **Lesson worth keeping:** the PCB Remark did its job, but the *proof* came from geometry. Any
 future respin should re-run this vertex-density test rather than reading layer names.
 
+**Confirmed and released 2026-07-29 — the PCB is in production.** The bare boards are now
+committed; no further change to the fab data is possible. The assembly/DFM confirmation is the
+remaining gate, and SOT-323 rotation is the last all-four-boards risk still open.
+
 ## Open questions
 
 _(design questions from M1–M4 are settled and live in Decisions; only live items remain here)_
