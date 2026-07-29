@@ -238,6 +238,9 @@ acceptable, and every FET being on the top face makes SOT-323 rework by hand rea
 Random defects are the benign case, because they are independent across boards. The risks that
 matter are **systematic and hit all four identically**:
 
+0. ~~**Inner-layer order**~~ **CLOSED 2026-07-29 by measurement** — see "Stackup verified from
+   JLC's production files" below. Kept in this list because it was one of the two all-four-boards
+   failures, and because the method generalises to any future respin.
 1. **SOT-323 rotation** — 4,051 parts from one reel. Wrong rotation is four dead boards with no
    worthwhile rework. This is why the order settings require Confirm Parts Placement plus the
    rotation note; it is the highest-value review step in the project.
@@ -290,6 +293,47 @@ systematic-fault detector — a rotation error, a shorted decoupler or a wrong r
 number grossly. Single-joint random defects will not move it; those surface as functional-test
 failures, which is why the acceptance suite's per-`test_case` progress reporting matters: it
 narrows 4,051 FETs to a functional block.
+
+## Stackup verified from JLC's production files (2026-07-29)
+
+JLC sent the PCB production package (the €0.91 "Confirm Production file" option — assembly/DFM
+is a separate confirmation still pending). The check that mattered was inner-layer order, and it
+was settled **by measurement, not by trusting the label**.
+
+File sizes alone only prove that *planes* sit at L2/L5 (12.9 MB each vs 1.0 MB for L3/L4) — they
+cannot tell which plane is which, and a GND/VCC swap is exactly the catastrophic case. So their
+gerbers were aligned to `gen/board_routed_golden.kicad_pcb` (their CAM output is in inches, Y
+flipped, +4.5 mm X offset from the 5 mm rails) and polygon vertices were counted within 0.5 mm
+of the 2,501 known vss via positions and the 1,349 vcc ones. **A plane floods over vias of its
+own net and cuts an antipad around foreign ones**, so the asymmetry identifies each plane with
+no reference to any layer name:
+
+| JLC layer | vertices/via near VSS | near VCC | verdict |
+|---|---|---|---|
+| l2 | 2.1 | **26.4** | voids at VCC vias → **GND plane** (= our In1) |
+| l3 | 1.1 | 1.1 | no plane behaviour → signal (= In2) |
+| l4 | 1.3 | 1.4 | no plane behaviour → signal (= In3) |
+| l5 | **18.3** | 2.3 | voids at VSS vias → **VCC plane** (= our In4) |
+
+One board-wide alignment fits all four layers; a per-layer alignment search is the trap, since
+it finds spurious local optima (it put l5 at dy = −3.0 mm and halved the contrast). Alignment is
+a property of the board, not of the layer.
+
+Also confirmed in their metadata (`YG/4te.json`, GBK-encoded): `batCountRemark` records our
+L1–L6 filename mapping verbatim, and the auto-appended order remark contains a Chinese
+translation of our email **including the self-check** ("L2 and L5 are solid copper, L3 and L4
+sparse; if L2 or L5 shows sparse traces the layer order is reversed") and the 13,000-via
+rationale — the CAM engineer propagated the reasoning rather than just ticking a box. Board
+parameters all match: 6 layers, FR-4, 1.6 mm, inner 0.5 oz / outer 1 oz, 300.7 × 322 mm, 沉金
+(ENIG), green mask, white silk, `[不加客编]` (no customer code — the "Remove Mark" selection).
+
+Two incidental findings: a `vcut` file is present, so **the edge rails are V-scored** (that is
+what gets snapped at depaneling); and `qrCodeFlag` is true but the remark places the SMT QR and
+plain code **on the process edge, both sides**, so the code lives on the rails and leaves with
+them — the board itself stays unmarked.
+
+**Lesson worth keeping:** the PCB Remark did its job, but the *proof* came from geometry. Any
+future respin should re-run this vertex-density test rather than reading layer names.
 
 ## Open questions
 
