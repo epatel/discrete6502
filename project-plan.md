@@ -246,6 +246,41 @@ matter are **systematic and hit all four identically**:
    concentrated wherever the capping failed. The most design-specific risk we carry.
 3. **Wrong part or value on a reel** — only 9 line items, but it is an all-boards-at-once fault.
 
+**Density is NOT a risk factor — measured 2026-07-29, not assumed.** The intuition that 5,328
+parts packed close together must raise the per-joint defect rate does not survive measurement:
+across all 14,912 SMD pads, the **closest gap between pads of two different parts on different
+nets is 0.955 mm** (C99/C100, the tightest pair on the board). Routine SMT handles 0.2–0.3 mm
+gaps, so this board is ~4x more relaxed than ordinary work, and the parts are unremarkable
+(SOT-323 is 0.65 mm pitch, 0402 is a standard chip size — nothing is fine-pitch). This is a
+direct dividend of the die-mimicry directive: refusing to pack the transistors preserved the
+die's empty space, so the board is physically huge but locally sparse. **Closeness is not the
+risk; count is** — and count is what the DPMO model above already captures.
+
+**Three size-driven risks the DPMO model does NOT capture**, all consequences of building on a
+300 × 322 mm 6-layer board rather than of part density:
+
+1. **Thermal mass** — six layers with two solid copper planes. A uniform reflow profile across
+   that area is genuinely harder than on a small board: too little heat gives cold joints, too
+   much cooks the edges. The most plausible source of a defect *cluster* rather than scattered
+   singles.
+2. **Warpage** — 1.6 mm thickness over a 300 mm span is a floppy ratio at reflow temperature.
+   Bow can lift parts off their pads mid-profile and produce opens, typically toward the centre
+   or the corners.
+3. **Two reflow passes**, since assembly is double-sided — the bottom-side passives see the
+   profile twice.
+
+None of these move the 0.5–2 defects/board central estimate, but they widen the uncertainty
+upward and they make defects **more likely to be clustered by region than uniformly scattered**.
+That is useful at bring-up rather than merely bad news: if the functional test fails in a way
+that maps onto one area of the die, suspect the process, not a random joint.
+
+**The answer in one line: expect 2 of the 4 boards to work at first power-up** (plausibly 1–3),
+**~85% chance at least one works immediately**, and **3–4 working after rework** — a
+single-defect board is a repair job, not a loss, since every FET is on the top face and the
+functional test localises the failure. That assumes no systematic fault: rotation or stackup
+errors are all-or-nothing and give 0 of 4, which is why both were gated by explicit JLC
+confirmation before production.
+
 Bare-board risk is comparatively low: 5-mil rules and 0.3 mm drills are standard capability, and
 JLC flying-probe tests every board before assembly.
 
