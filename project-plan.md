@@ -241,7 +241,7 @@ matter are **systematic and hit all four identically**:
 0. ~~**Inner-layer order**~~ **CLOSED 2026-07-29 by measurement** — see "Stackup verified from
    JLC's production files" below. Kept in this list because it was one of the two all-four-boards
    failures, and because the method generalises to any future respin.
-1. **SOT-323 rotation** — 4,051 parts from one reel. Wrong rotation is four dead boards with no
+1. ~~**SOT-323 rotation**~~ **CLOSED 2026-07-30 on the DFM image** (see "Placement verified from JLC's DFM" below) — 4,051 parts from one reel. Wrong rotation is four dead boards with no
    worthwhile rework. This is why the order settings require Confirm Parts Placement plus the
    rotation note; it is the highest-value review step in the project.
 2. **Via-in-pad** — 3,817 vias sit inside SMD pads, which is why Epoxy Filled & Capped is
@@ -338,6 +338,47 @@ future respin should re-run this vertex-density test rather than reading layer n
 **Confirmed and released 2026-07-29 — the PCB is in production.** The bare boards are now
 committed; no further change to the fab data is possible. The assembly/DFM confirmation is the
 remaining gate, and SOT-323 rotation is the last all-four-boards risk still open.
+
+## Placement verified from JLC's DFM (2026-07-30)
+
+The assembly gate, separate from the PCB one. Ground truth pulled from
+`gen/board_routed_golden.kicad_pcb` first, because the useful check is whether the *pattern* of
+orientations matches rather than whether one part looks plausible:
+
+| Family | Count | Rotation | Side | Cathode = pad 1 |
+|---|---|---|---|---|
+| Q1–Q4051 (SOT-323) | 4,051 | **all 0°** | top | n/a (pad 1 = gate, at −0.89, −0.65 = upper-left) |
+| D1–D55 (LED 0603) | 55 | all 0° | top | **−x (left)** |
+| D56–D67 (SOD-323) | 12 | all 180° | **bottom** | **+x (right)** |
+
+- **FETs ✓** Every FET is at 0°, so the DFM's uniform appearance — pin-1 marker at upper-left on
+  all of them — is correct. A uniform 180° misread would have put the marker at lower-right.
+  **This closes the last all-four-boards risk.**
+- **LEDs ✓** Unambiguous in the top view: DFM draws the minus bar left and `+` right, matching
+  cathode on −x.
+- **SOD-323 ✓** Needed care, because the bottom view's mirroring was unknown and the answer flips
+  with it. Resolved three ways: (a) D66/D67 are the **rightmost** of the six pairs (x = 243.1 of
+  290.7) and render at the **left**, so screen-left = increasing board X, i.e. the view IS
+  mirrored, making the left-hand bar the +x pad = pad 1 = cathode; (b) the cursor readout
+  (X 252.36, Y 310.85) fits `Y_display = 322 − y_board` with D66/D67 at y = 9.90/12.00, so the
+  coordinate mapping is confirmed; (c) **our own silk asymmetry agrees** — the SOD-323 silk spans
+  −1.05..+1.61 mm, poking past the pad on the cathode side and stopping inside it on the anode
+  side, and on screen the outline pokes out on the same side as their bar. Since JLC derive
+  polarity from the silkscreen, (c) is their reading agreeing with our drawing.
+
+Also confirmed: part numbers C504052 / C2286 / C2128 match the BOM, sides match the board
+(FETs + LEDs top, clamp diodes bottom), and R1079 (the 100R clk0 protection resistor, y = 7.80)
+renders directly above D66 as it should.
+
+**Bounded-risk note kept for the record:** had the 12 clamp diodes been reversed, the cost was
+repairable, not fatal — they would forward-conduct from the rail and hold res/irq/nmi/rdy/so/clk0
+at a fixed level, obvious on first power-up and fixable by reworking or simply removing 12
+back-side SOD-323s, since they are protection only and not in the signal path. That asymmetry of
+consequence is why the FET rotation deserved the greater scrutiny.
+
+**Released to production 2026-07-30.** Both systematic risks are now closed by inspection, and
+what remains is the random-defect picture in "Expected fab yield": expect 2 of 4 working at first
+power-up, 3–4 after rework.
 
 ## Open questions
 
