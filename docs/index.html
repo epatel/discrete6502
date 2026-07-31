@@ -427,6 +427,16 @@
       transformed one. Every signal must match on every cycle. If it does not match, the
       change fails.
     </p>
+
+    <p class="note">
+      <b>And here is what all five of them miss.</b> Every check above asks whether the right
+      things are <em>connected</em>. None of them asks whether they are the right <em>strength</em>.
+      A simulator that decides a wire is low whenever anything pulls it low will happily approve a
+      circuit where the thing pulling down is no stronger than the thing pulling up &mdash; the
+      wire never actually gets there. That is not a hypothetical: it is exactly the flaw described
+      in the status section below, sitting in this design through five green gates. Verification
+      tells you what it was built to ask, and its silence is not agreement.
+    </p>
   </div>
 </section>
 
