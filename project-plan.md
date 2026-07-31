@@ -460,8 +460,11 @@ incapable of seeing a ratio error, which is why this survived five green gates. 
 ### Rework options
 
 **A — 10k in series with each of the 8 pull-up FETs. Recommended.**
-**Illustrated step-by-step: `docs/rework-dor-series-r.html`** (open in a browser — site diagram,
-coordinates, procedure, verification).
+**Illustrated step-by-step: [epatel.github.io/discrete6502/rework-dor-series-r.html](https://epatel.github.io/discrete6502/rework-dor-series-r.html)**
+(source `docs/rework-dor-series-r.html` — a scale before/after diagram, true-scale renders of all
+eight sites with their neighbouring designators, the coordinates, the procedure and its
+verification steps). Both are generated from `gen/board_routed_golden.kicad_pcb`, so they stay
+true to the board rather than to a drawing of it.
  Restores the ratio to exactly
 what the other 1,018 nodes already have: **0.5 mA instead of 262 mA**, Vout ~3 mV instead of
 1.86 V, and no speed cost because each of these nets drives exactly **one** gate (27 pF; a series
