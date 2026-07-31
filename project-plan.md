@@ -49,6 +49,26 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-07-31: **The clock floor's failure mode is probably worse than recorded — found by reading
+  the MOnSter's designer rather than our own notes.** Asked whether the MOnSter has a clock floor;
+  it does, and [TubeTime](https://tubetime.us/index.php/category/monster-6502/) describes the
+  mechanism as **shoot-through**, not the charge-retention *correctness* failure this plan had
+  assumed: *"if the clock slows down too much, the latch will change state, causing both pullup
+  and pulldown to be turned on"*. He added protective resistors between pullup and pulldown to
+  survive it, and those same resistors are what cap his ~60 kHz ceiling — the two limits are one
+  component. Re-derived our exposure from `gen/netlist.json` rather than assuming symmetry: all
+  **1,018 pull-ups are 10k resistors** (0.5 mA, inherently safe — structurally better than the
+  MOnSter), but **266 nets carry a FET-to-FET path** with no series resistance, only 105 of them
+  also having a pull-up, and the clock drivers are the worst (`cclk`: 33 VCC-side FETs against
+  31 pull-downs, ~0.18 Ω vs ~0.19 Ω). **Consequence for bring-up: the tester's `w`/`W` commands
+  deliberately create exactly this condition**, so they may damage rather than measure. It also
+  re-weights earlier advice — the bench supply matters mainly because its **current limit is the
+  protection**, not because of rail sag; a USB charger will push 3 A into a partially-conducting
+  clock driver. Safety block added to `pico-controller/README.md` above the retention section
+  (0.5 A limit, 3.3 V first, sub-ms stalls ramped, watch current). Stated honestly as a topology
+  result rather than proof the overlap occurs; boards are in production so protective resistors
+  are not an option and the mitigations are procedural. No board, fab or firmware code changed.
+
 - 2026-07-28 (later): **THE ORDER IS PLACED AND PAID — M6 has officially started.** 5 PCBs
   (6-layer ENIG, 5–6 days) + 4 of them assembled (Standard PCBA, both sides, 3–4 days +1 for
   depaneling). €775.88 paid,
@@ -391,14 +411,26 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   comparison in `cards/monster6502-lessons.md`) — a discrete rebuild of this logic style runs
   entirely below the band the real chip was specified for, and the MOnSter's ~50 kHz ceiling
   sits on the original's *minimum*.
-- **Clock floor / charge retention** (opened 2026-07-27): the worst dynamic node (`sb1..sb7`,
+- **Clock floor / charge retention** (opened 2026-07-27; **failure mode revised 2026-07-31 —
+  it may be damage, not just data loss**): the worst dynamic node (`sb1..sb7`,
   32 pF against 12 leaking FET channels) must leak **< 53 nA per FET at 5 V** or the floor
   rises above the 20 kHz ceiling and nothing runs. Typical parts are ~1 nA, so ~50x margin is
   expected — but SPICE cannot resolve leakage at this level (see `cards/pass-pair-validation.md`)
   so it is unproven. **Measure at bring-up** — the tester firmware now does it: `w MS` for a
   single stall, `W [MAXMS]` to bisect the boundary automatically (runs a 0 ms control first,
   so a broken harness cannot masquerade as a retention result). Also bounds the safe
-  single-step pause.
+  single-step pause. **Revision 2026-07-31:** Eric Schlaepfer documents the MOnSter's low-clock
+  failure as shoot-through — *"if the clock slows down too much, the latch will change state,
+  causing both pullup and pulldown to be turned on"* — which he had to add protective resistors
+  to survive. Checked against `gen/netlist.json`: our 1,018 pull-ups are 10k **resistors**
+  (0.5 mA, safe), but **266 nets have a FET-to-FET path** with no series resistance and only 105
+  of those also carry a pull-up; worst is `cclk` at **33 VCC-side FETs against 31 pull-downs**
+  (~0.18 Ω vs ~0.19 Ω, so the FETs are not the limiting element — the supply and copper are).
+  The stall commands may therefore damage rather than measure. Mitigations are procedural and
+  documented in `pico-controller/README.md`: current-limited bench supply at ~0.5 A and never
+  USB, first scans at 3.3 V, sub-millisecond stalls ramped up, and watch supply current. This is
+  a topology result, not proof the overlap occurs — but the boards are built and protective
+  resistors are no longer an option.
 - ~~**Bring-up rail**: SPICE the pass pair at VCC = 3.3 V~~ **Resolved 2026-07-25**:
   `sim/passpair_33v.sp` sweeps 5.0/3.3/3.0 V over three FET models; all four pass gates
   (bootstrapped '1' >= rail, next stage fully driven, source-driven '0' valid, pull-up

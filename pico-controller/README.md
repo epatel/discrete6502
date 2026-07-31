@@ -440,6 +440,37 @@ This CPU uses dynamic NMOS logic. A bit is charge on the capacitance of a wire,
 so the clock has a floor as well as a ceiling. If you stop the clock for too
 long, the machine forgets its state mid-instruction.
 
+> **SAFETY — read before running `w` or `W`.** Stalling the clock is not a
+> read-only experiment. Eric Schlaepfer documents the MOnSter 6502's low-clock
+> failure as *"if the clock slows down too much, the latch will change state,
+> causing both pullup and pulldown to be turned on"* — **shoot-through, not just
+> lost data**. He added protective resistors between pullup and pulldown to
+> survive it, which is also what caps his clock speed.
+>
+> Our 1,018 pull-ups are 10k **resistors**, so those nodes are current-limited to
+> 0.5 mA and are safe. But **266 nets have a FET-to-FET path** (a VCC-side FET
+> sourcing against pull-down FETs, no series resistance), and only 105 of those
+> also carry a 10k pull-up. The worst is `cclk`: **33 VCC-side FETs against 31
+> pull-downs**, about 0.18 Ω against 0.19 Ω. If those ever conduct together the
+> FETs are not the limiting element — the supply and the copper are.
+>
+> Therefore, before any stall test:
+> 1. **Use a current-limited bench supply, set to about 0.5 A. Never USB.** A
+>    charger will deliver 3 A into a partially-conducting clock driver; a bench
+>    supply folds back. This is the real reason for the bench-supply rule, more
+>    than the rail-sag argument.
+> 2. **Run the first scans at VCC = 3.3 V**, where the shoot-through current is
+>    lower.
+> 3. **Start sub-millisecond and ramp**, rather than jumping to `W`'s 4000 ms
+>    default.
+> 4. **Watch the supply current, not just the pass/fail line.** A rising current
+>    during the stall is the signal to stop; the firmware cannot sense it.
+>
+> Caveat both ways: this is a topology result read out of `gen/netlist.json`, not
+> proof that the overlap actually occurs at a stalled clock. It may be harmless.
+> But the boards are built, protective resistors are not an option, and the
+> mitigations above cost nothing.
+
 **Nobody knows this number, and simulation cannot supply it.**
 `tools/dynamic_nodes.py` finds the weakest node: the special-bus bits, 32 pF
 against twelve leaking FET channels. Its retention spans three orders of
@@ -473,7 +504,7 @@ forgotten PC stops the stores. `W` runs a **0 ms control first**. If the CPU
 cannot survive a stall of zero, the harness is broken and every later number is
 meaningless. `W` then stops and reports the fault.
 
-Two limits apply:
+Two limits apply, besides the safety rules above:
 
 - **Both commands reload the counter image**, because they need a known
   program. Upload your own hex again afterwards.
