@@ -90,8 +90,8 @@ static bool __not_in_flash_func(publish)(const bus_trace_t *t) {
 }
 
 // Published after every trial. Runs on core 1; core 0 reads the snapshot.
-static void ret_report(uint32_t ms, bool survived) {
-    s_ret_last_ms = ms;
+static void ret_report(uint32_t us, bool survived) {
+    s_ret_last_ms = us;   // microseconds since 2026-07-31
     s_ret_last_ok = survived ? 1u : 0u;
     s_ret_seq++;
 }
@@ -127,7 +127,7 @@ static void __not_in_flash_func(core1_main)(void) {
                 s_ret_busy = 1; s_ret_verdict = 0; s_ret_seq = 0;
                 run = false; s_running = false;
                 uint32_t g = 0, b = 0;
-                retention_scan_t r = retention_scan(c.arg ? c.arg : 4000,
+                retention_scan_t r = retention_scan(c.arg ? c.arg : RET_SCAN_DEFAULT_LIMIT_US,
                                                     ret_report, ret_abort, &g, &b);
                 s_ret_good = g; s_ret_bad = b;
                 s_ret_verdict = (uint8_t)(r + 1);   // 0 stays "not run yet"

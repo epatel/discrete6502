@@ -32,36 +32,40 @@ static bool run_to_store(uint8_t *out) {
     return false;
 }
 
-bool retention_trial(uint32_t ms) {
+bool retention_trial(uint32_t us) {
     bus_reset_sequence();
     uint8_t before, after;
     if (!run_to_store(&before)) return false;
-    sleep_ms(ms);  // clock frozen low
+    sleep_us(us);  // clock frozen low
     if (!run_to_store(&after)) return false;
     return after == (uint8_t)(before + 1);
 }
 
-retention_scan_t retention_scan(uint32_t limit, retention_report_fn report,
+retention_scan_t retention_scan(uint32_t limit_us, retention_report_fn report,
                                 retention_abort_fn abort_fn,
                                 uint32_t *good, uint32_t *bad) {
     *good = *bad = 0;
+    if (!limit_us) limit_us = RET_SCAN_DEFAULT_LIMIT_US;
     retention_load_image();
 
     // Control first. Without this a broken harness -- a CPU that never runs,
-    // a missing image, a dead clock -- would report "fails at 1 ms" and look
+    // a missing image, a dead clock -- would report "fails at 64 us" and look
     // exactly like a real retention limit.
     if (!retention_trial(0)) return RET_SCAN_CONTROL_FAILED;
 
-    for (uint32_t ms = 1; ms <= limit; ms *= 2) {
-        bool ok = retention_trial(ms);
-        if (report) report(ms, ok);
-        if (!ok) { *bad = ms; break; }
-        *good = ms;
+    // Ramp from sub-millisecond. The stall itself is the hazardous state, so
+    // the scan must approach the boundary from below rather than open with a
+    // long freeze. See retention.h.
+    for (uint32_t us = RET_SCAN_START_US; us <= limit_us; us *= 2) {
+        bool ok = retention_trial(us);
+        if (report) report(us, ok);
+        if (!ok) { *bad = us; break; }
+        *good = us;
         if (abort_fn && abort_fn()) return RET_SCAN_ABORTED;
     }
     if (!*bad) return RET_SCAN_ABOVE_LIMIT;
 
-    while (*bad - *good > 1) {
+    while (*bad - *good > (*good >> RET_SCAN_PRECISION_SHIFT) + 1) {
         uint32_t mid = *good + (*bad - *good) / 2;
         bool ok = retention_trial(mid);
         if (report) report(mid, ok);

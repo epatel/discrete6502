@@ -67,8 +67,19 @@ static void print_functest_status(void) {
     printf("\n");
 }
 
-static void tester_report(uint32_t ms, bool survived) {
-    printf("  %6lu ms -> %s\n", (unsigned long)ms, survived ? "survived" : "lost");
+// Print a stall duration in whichever unit reads naturally.
+static void fmt_us(char *buf, size_t n, uint32_t us) {
+    if (us < 1000u) snprintf(buf, n, "%lu us", (unsigned long)us);
+    else if (us < 1000000u) snprintf(buf, n, "%lu.%03lu ms",
+                                     (unsigned long)(us / 1000u), (unsigned long)(us % 1000u));
+    else snprintf(buf, n, "%lu.%03lu s",
+                  (unsigned long)(us / 1000000u), (unsigned long)((us / 1000u) % 1000u));
+}
+
+static void tester_report(uint32_t us, bool survived) {
+    char b[24];
+    fmt_us(b, sizeof b, us);
+    printf("  %12s -> %s\n", b, survived ? "survived" : "lost");
 }
 
 // A scan can run for minutes; let a keypress cut it short between trials.
@@ -197,18 +208,21 @@ int main(void) {
             load_intel_hex(line, (int)sizeof line);
             break;
         case 'w': {
+            // MICROSECONDS. Was milliseconds before 2026-07-31; the change is
+            // in the safe direction (an old "w 5" now stalls 5 us, not 5 ms).
             char *a = strtok(NULL, " ");
-            uint32_t ms = a ? strtoul(a, NULL, 0) : 1;
+            uint32_t us = a ? strtoul(a, NULL, 0) : RET_SCAN_START_US;
+            char b[24];
+            fmt_us(b, sizeof b, us);
             printf("(reloading the counter image -- the retention test needs it)\n");
             retention_load_image();
-            bool ok = retention_trial(ms);
-            printf("stalled %lu ms: %s\n", (unsigned long)ms,
-                   ok ? "SURVIVED" : "STATE LOST");
+            bool ok = retention_trial(us);
+            printf("stalled %s: %s\n", b, ok ? "SURVIVED" : "STATE LOST");
             break;
         }
         case 'W': {
-            char *a = strtok(NULL, " ");
-            uint32_t limit = a ? strtoul(a, NULL, 0) : 4000;
+            char *a = strtok(NULL, " ");   // MICROSECONDS
+            uint32_t limit = a ? strtoul(a, NULL, 0) : RET_SCAN_DEFAULT_LIMIT_US;
             printf("(reloading the counter image -- the retention test needs it)\n");
             uint32_t good, bad;
             switch (retention_scan(limit, tester_report, tester_abort, &good, &bad)) {
@@ -216,20 +230,26 @@ int main(void) {
                 printf("control FAILED: the CPU does not run even with no stall.\n"
                        "fix that before trusting any retention number.\n");
                 break;
-            case RET_SCAN_ABOVE_LIMIT:
-                printf("still alive after %lu ms -- raise the limit: W %lu\n",
-                       (unsigned long)good, (unsigned long)limit * 4);
+            case RET_SCAN_ABOVE_LIMIT: {
+                char b[24]; fmt_us(b, sizeof b, good);
+                printf("still alive after %s -- raise the limit: W %lu\n",
+                       b, (unsigned long)limit * 4);
                 break;
-            case RET_SCAN_ABORTED:
-                printf("interrupted after %lu ms\n", (unsigned long)good);
+            }
+            case RET_SCAN_ABORTED: {
+                char b[24]; fmt_us(b, sizeof b, good);
+                printf("interrupted after %s\n", b);
                 break;
-            case RET_SCAN_BOUNDED:
-                printf("\nretention boundary: survives %lu ms, fails at %lu ms\n",
-                       (unsigned long)good, (unsigned long)bad);
+            }
+            case RET_SCAN_BOUNDED: {
+                char bg[24], bb[24];
+                fmt_us(bg, sizeof bg, good); fmt_us(bb, sizeof bb, bad);
+                printf("\nretention boundary: survives %s, fails at %s\n", bg, bb);
                 printf("=> clock floor is about %lu Hz; keep any single-step pause\n"
-                       "   well under %lu ms\n",
-                       (unsigned long)(good ? 1000 / good : 0), (unsigned long)good);
+                       "   well under %s\n",
+                       (unsigned long)(good ? 1000000ul / good : 0), bg);
                 break;
+            }
             }
             break;
         }
