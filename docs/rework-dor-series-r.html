@@ -176,6 +176,21 @@ Tools: fine-tip iron or hot air, fine tweezers, flux, magnification, a multimete
 </ol>
 
 <div class="ok">
+<strong>Re-measure charge retention after the rework, not before.</strong> The clock floor
+(<code>W</code> in the tester, or the wifi panel's <em>find the boundary</em>) should be measured on
+the board in its final electrical state. Two reasons. First, <strong>the stall test is safer after
+the fix</strong>: freezing the clock is exactly the condition that parks a pull-up and a pull-down
+on together, and on these eight nets the fix drops that from 262&nbsp;mA to 0.5&nbsp;mA. Second,
+<strong>a number taken before the fix would not be the number you carry forward</strong> — eight
+drivers dissipating ~0.8&nbsp;W each warm the board, and leakage roughly doubles every 10&nbsp;°C,
+so a pre-rework floor would read pessimistically and for a reason that no longer applies. If you do
+measure both, keep both: a floor that moves after the rework is telling you the eight sites were
+heating their neighbours, which is worth knowing. Either way the safety rules in
+<code>pico-controller/README.md</code> still apply — current-limited supply, 3.3&nbsp;V first,
+sub-millisecond stalls ramped up.
+</div>
+
+<div class="ok">
 <strong>Whole-board check when all eight are done.</strong> VCC to VSS at the bond pads should still
 read high (no bridge introduced). Then, at first clocked power-up, the supply current should stay
 near the pull-up budget of a few hundred mA instead of jumping to ~1.8–2.1 A. That current step

@@ -538,7 +538,12 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   so it is unproven. **Measure at bring-up** — the tester firmware now does it: `w MS` for a
   single stall, `W [MAXMS]` to bisect the boundary automatically (runs a 0 ms control first,
   so a broken harness cannot masquerade as a retention result). Also bounds the safe
-  single-step pause. **Revision 2026-07-31:** Eric Schlaepfer documents the MOnSter's low-clock
+  single-step pause. **Measure it AFTER the driver-contention rework, not before** (2026-08-01):
+  the stall test is the condition that parks a pull-up and pull-down on together, which the rework
+  drops from 262 mA to 0.5 mA on the eight worst nets, and a pre-rework figure would read
+  pessimistically anyway because eight FETs at ~0.8 W warm the board and leakage roughly doubles
+  per 10 C. If both are measured, a floor that moves is evidence the eight sites were heating their
+  neighbours. **Revision 2026-07-31:** Eric Schlaepfer documents the MOnSter's low-clock
   failure as shoot-through — *"if the clock slows down too much, the latch will change state,
   causing both pullup and pulldown to be turned on"* — which he had to add protective resistors
   to survive. Checked against `gen/netlist.json`: our 1,018 pull-ups are 10k **resistors**
