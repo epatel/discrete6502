@@ -99,8 +99,13 @@ Dominated by the NMOS pull-up current, not switching. Component counts are from
 > all along. **A 1 A supply is not enough; use 3 A.** Full analysis and the rework
 > that fixes it: "Driver contention" in `project-plan.md`.
 
-**A 5 V / 1 A bench supply covers even the worst case.** Spread over the 900 cm²
-board the heat is imperceptible — compare the original MOnSter 6502 at ~10 W.
+~~**A 5 V / 1 A bench supply covers even the worst case.**~~ **Use 3 A** — see the
+correction above. The old comparison line read "compare the original MOnSter 6502
+at ~10 W", which in hindsight was the clue: same logic, same style, and it should
+never have been six times cheaper. With contention counted, this board lands in
+the same place. The 8.8 W of contention is *not* spread over the 900 cm² board
+either — it is concentrated in eight SOT-323s in one column, which is the whole
+problem.
 
 At 3.3 V (the diagnostic fallback rail — bring-up starts at 5 V, see
 `pico-controller/README.md`):
