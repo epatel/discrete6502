@@ -495,7 +495,7 @@ failure of the eight pull-ups, and suspect data-out corruption before that. Not 
 
 **D — rev B netlist fix. IMPLEMENTED 2026-08-01, off by default.**
 `DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py` emits a series resistor for every VCC-side
-FET, not just these 8. The other 156 show only transient contention (adh1–7 at about 1.2% duty)
+FET **that has a pull-down to fight** — 142 of the 164 — not just these 8. The other 156 show only transient contention (adh1–7 at about 1.2% duty)
 so they are not thermally urgent, but they carry the same ratio error and the same invalid-low
 risk during their switching windows.
 
@@ -516,7 +516,23 @@ risk during their switching windows.
   with a floating channel (it silently removes one, t1322, in rev A too — 165 emitted, 164 kept).
   In rev B that left the matching series resistor dangling on its own mid node. The drop rule now
   cascades to `vcc_series` resistors, so the fixed point converges with 0 singleton nets.
-- Component count: 5,585 for rev B against 5,364 for rev A (+164 resistors, −1 for t1322's pair).
+- **Scope checked rather than assumed (2026-08-01).** The worry was that some of the 164 might be
+  deliberate push-pull *superbuffers*, where a strong pull-up is the point and a series resistor
+  would be sabotage. Measured: **none are.** Every one of the 164 nets has exactly **one** pull-up
+  FET against its pull-downs — the same 1:1 ratio error, uniformly — so the defect really is that
+  wide and the fix is not defensive over-fitting.
+- **But 22 of them can never contend**, having no pull-down at all, so rev B now **skips those**:
+  142 sites get a resistor, 23 are skipped (the extra one is t1322, whose FET the floating-channel
+  pass drops anyway). That saves 22 parts and, more usefully, 22 nets on a board that was hard to
+  route. Equivalence gate still green at 142 sites; rev A still byte-identical.
+- Why 142 rather than only the 8 that measurably contend: **duty cycle is program-dependent.** The
+  8 are where a counter loop happens to park. Different code exercises different drivers, and any
+  contended net is invalid-low for as long as it lasts. The 8 are urgent *thermally*; the 142 are
+  wrong *logically*.
+- **The green gate is weak evidence here.** `switchsim` resolves any contention as low — the very
+  blind spot that hid this bug. It confirms rev B did not break the topology; it cannot confirm
+  the levels are now right.
+- Component count: 5,563 for rev B against 5,364 for rev A (+142 resistors, −1 dropped FET pair).
   A rev B board would need the full pipeline re-run from `gen_pcb.py` onward, including placement
   and routing, so this is a real respin, not a patch.
 

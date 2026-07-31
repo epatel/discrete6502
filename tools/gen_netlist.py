@@ -49,6 +49,10 @@ PULLUP_VALUE, PULLUP_LCSC = "10k", "C25744"
 # per contended net at 5 V, and a "low" sitting at 1.0-1.9 V against a 1.1-1.5 V
 # receiver threshold. See "Driver contention" in project-plan.md.
 #
+# Applied only where a pull-down exists on the same net: 22 of the 164 VCC-side
+# nets have none, so contention there is impossible and a resistor would be dead
+# weight. 142 sites get one.
+#
 # OFF BY DEFAULT. Rev A is fabricated and gen/netlist.json is what the golden
 # board and the released fab package were built from; changing it silently
 # would break check_parity and the RELEASE.md fingerprints. Enable with
@@ -191,8 +195,12 @@ def main():
     # How many gates does each net drive? Needed to size the rev B series
     # resistors, and cheap to compute from the kept transistor list.
     gate_load = defaultdict(int)
+    has_pulldown = set()
     for tid, g, c1, c2, pos in kept:
         gate_load[net(g)] += 1
+        if vss in (c1, c2):
+            other = c2 if c1 == vss else c1
+            has_pulldown.add(net(other))
 
     for tid, g, c1, c2, pos in kept:
         gnet = net(g)
@@ -202,14 +210,19 @@ def main():
             stats["fet_pulldown"] += 1
         elif vcc in (c1, c2):
             other = c2 if c1 == vcc else c1
-            if REV_B:
+            if REV_B and net(other) in has_pulldown:
                 # VCC --[R]-- mid --(FET)-- other, restoring the load ratio.
+                # Only where a pull-down exists to fight: 22 of the 164 VCC-side
+                # nets have none, so they can never contend and a resistor there
+                # would be 22 pointless parts and 22 more nets to route.
                 mid = "%s_vs" % tid
                 value, lcsc = series_r_for(gate_load.get(net(other), 0))
                 add_r("vcc_series", tid, value, lcsc, net(vcc), mid, pos)
                 add_fet("vcc_side", tid, gnet, mid, net(other), pos)
                 stats["vcc_series_resistors"] += 1
             else:
+                if REV_B:
+                    stats["vcc_side_no_pulldown_skipped"] += 1
                 add_fet("vcc_side", tid, gnet, net(vcc), net(other), pos)
             stats["fet_vcc_side"] += 1
         else:

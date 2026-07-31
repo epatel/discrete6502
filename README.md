@@ -71,9 +71,10 @@ one column. **→ [Illustrated rework instructions](https://epatel.github.io/dis
 procedure and its verification steps. (Source: [`docs/rework-dor-series-r.html`](docs/rework-dor-series-r.html).)
 
 **Rev B fixes it in the generator.** `DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py` emits a
-series resistor for every one of the 164 VCC-side FETs, sized per net from its gate load (10k
-where the net drives one gate, down to 100R on the 13 nF clock nets, all values already in the
-BOM). The equivalence gate is green on rev B. **No rev B board has been made** — it needs the
+series resistor for each VCC-side FET that has a pull-down to fight — **142 of the 164**, the other
+22 being unable to contend at all — sized per net from its gate load (10k where the net drives one
+gate, down to 100R on the 13 nF clock nets, all values already in the BOM). None of the 164 turned
+out to be a deliberate push-pull driver, so the 1:1 ratio error really is that uniform. The equivalence gate is green on rev B. **No rev B board has been made** — it needs the
 full pipeline re-run from placement onward, so it is a respin rather than a patch. Rev A output
 is byte-identical with the flag off, so the fabricated design cannot drift.
 
