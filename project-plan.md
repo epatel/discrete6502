@@ -49,6 +49,37 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-01: **A real design defect found, measured, and fixed two ways — the boards in
+  production need a hand rework before they can run.** Following yesterday's shoot-through lead
+  into our own netlist turned up a genuine bug, not a scare: **the transform preserved topology
+  but not device ratios.** Ratioed NMOS needs a weak load against a strong pull-down; the 1,018
+  depletion loads correctly became 10k resistors, but the **164 enhancement-mode VCC-side FETs
+  kept the same BSS138W as their pull-down — a 1:1 ratio.** `sim/driver_contention.sp` (new deck,
+  models calibrated to the datasheet 6.0 Ω RDS(on), cross-checked against the onsemi vendor model)
+  measures **262 mA and 0.90 W per contended net at 5 V**, against 220 mA and ~0.3 W ratings. Worse
+  than the heat: the contended node sits at **1.0–1.9 V against a 1.1–1.5 V receiver threshold**,
+  so the stage can read HIGH when it should read LOW — the CPU may write wrong data.
+  `tools/switchsim.py` shows **8 nets contended 47–93% of the time** (mean 6.7 at once), all eight
+  **data-bus output drivers**: `RnWstretched` holds their pull-down on through every *read* while
+  the stale `dor` bit holds the pull-up on. That is **+1.76 A and +8.8 W**, taking the board to
+  **≈2.1 A / ≈10.4 W against a recorded 0.32 A / 1.6 W — the budget was wrong by 6×.** The
+  corroboration nobody had asked for: the MOnSter 6502 publishes 2 A / 10 W for the same logic,
+  and our figure being six times cheaper had sat unexamined for two weeks.
+  **What was done:** (a) the power budget corrected everywhere and every stale 0.32 A / 1.6 W /
+  0.35 A figure swept — 3 A supply, USB-only not viable at 5 V; (b) a hand rework specified for the
+  four boards in flight — **10k in series with eight FETs**, all on the front face in one column,
+  with illustrated instructions and true-scale renders generated from the board at
+  `docs/rework-dor-series-r.html`; (c) **rev B implemented in the generator**
+  (`DISCRETE6502_REV_B=1`), 142 sites, sized per net, off by default and rev A byte-identical;
+  (d) the **verification blind spot recorded** in `cards/verification.md` — `switchsim` resolves
+  any contention as low, so it proves topology and never levels, which is exactly how this passed
+  five green gates. **Two of my own errors were caught and corrected along the way** and are worth
+  knowing about: the "cclk is 33 VCC-side FETs against 31 pull-downs" claim came from counting
+  FETs *gated by* cclk rather than *on* it (really 1 and 1), and the intro page kept asserting the
+  old 1.6 W in a summary table beside the corrected prose. **Next: nothing is blocked** — the
+  boards are still in fab. When they arrive: bring-up Step 1, then the eight-site rework *before*
+  any retention measurement, since the stall test is the condition the rework makes safe.
+
 - 2026-07-31: **The clock floor's failure mode is probably worse than recorded — found by reading
   the MOnSter's designer rather than our own notes.** Asked whether the MOnSter has a clock floor;
   it does, and [TubeTime](https://tubetime.us/index.php/category/monster-6502/) describes the
