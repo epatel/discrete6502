@@ -58,7 +58,8 @@ state, and an unclocked board has none. Expect the current to jump to roughly
 `project-plan.md`, and size the supply for 3 A. This one number is the
 most informative test in the whole sequence. It finds a bridged rail, a reel
 loaded backwards and missing pull-ups. The worst case is 0.65 A, with every
-pull-up low and every LED lit.
+pull-up low and every LED lit — still an *unclocked* figure, which is what makes
+it the right yardstick for this step.
 
 Optionally, croc-clip a function generator to the Φ0 bond pad and drive clk0
 push-pull at some kHz. The data bus floats, because no memory is connected,
@@ -167,9 +168,10 @@ With no bench supply, Pico USB power runs the whole board through VBUS, the
 module Schottky diode and VSYS. Three limits apply.
 
 - **The rail is not 5.0 V.** It is VBUS minus the diode drop: about 4.7 V to
-  4.8 V at the 0.35 A typical draw, and lower at the 0.65 A worst case. Cable
-  resistance subtracts more. The board operates correctly, but you do not get
-  the full 5 V margin.
+  4.8 V at 0.35 A, and much lower once the CPU is clocked — driver contention
+  takes the board to about 2.1 A (see "Driver contention" in `project-plan.md`),
+  which through the Schottky and a USB cable is a collapse, not a droop. Cable
+  resistance subtracts more still.
 - **Current. SUPERSEDED 2026-08-01 — USB-only mode is NOT viable at 5 V.** The
   figures below omit driver contention: the eight data-bus output drivers draw
   262 mA each at 5 V for most of the time, adding about **1.76 A** and taking the
@@ -202,8 +204,9 @@ It improves USB-only mode:
   4.8 V. This is the full 5 V margin.
 - The supply is stiffer for the WiFi bursts, because the diode dynamic
   resistance leaves the path.
-- The diode stops dissipating about 0.12 W at 0.35 A, and stops drooping more
-  at higher current.
+- The diode stops dissipating about 0.12 W at 0.35 A — and far more than that
+  at the ~2.1 A the board actually draws when clocked, which is the real reason
+  this bridge cannot rescue USB-only operation at 5 V.
 
 **It also removes the reverse blocking, thus a bridged board must never have a
 bench supply on its bond pads.** Board VCC becomes VBUS, thus a bench supply
@@ -361,8 +364,10 @@ Two physical limits apply:
   large ground structure. Expect same-room range, not whole-house range.
 - **Power. Use a bench supply with this firmware.** WiFi adds about 50 mA
   average, with transmit bursts of 200 mA to 300 mA. The WL LED is also left on
-  permanently. Added to the typical board current of about 0.35 A, USB-only mode
-  reaches about 0.9 A worst case, which a legacy 500 mA port cannot supply.
+  permanently. Added to the real board current of about **2.1 A** when clocked
+  (driver contention — see `project-plan.md`), USB-only mode is **not viable at
+  all** at 5 V. The old figure here, 0.9 A worst case, assumed the superseded
+  0.35 A board current.
 
   The bursts matter more than the average. A 200 mA to 300 mA step lands on the
   same rail that holds 456 dynamic storage nodes, and the board has only about

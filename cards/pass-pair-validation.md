@@ -26,7 +26,11 @@ Board-size target derived from this: ~4,022 FETs + ~1,018 resistors, double-side
 the part is now **BSS138W, LCSC C504052, SOT-323** (the fallback above, chosen at order time —
 2N7002W was out of stock); the board is **290.7 × 322 mm, 6 layers**, deliberately larger than
 the packing minimum because the die-mimicry directive requires preserving the die's empty space.
-The power estimate held: measured-by-calculation ≈ 1.4–1.5 W at 5 V (see README).
+~~The power estimate held: measured-by-calculation ≈ 1.4–1.5 W at 5 V (see README).~~
+**Wrong, corrected 2026-08-01: ≈ 10 W as built.** That estimate counted pull-up resistors, LEDs
+and switching but not **driver contention** — eight data-bus output drivers burn 262 mA each
+because their VCC-side FET is the same BSS138W as the pull-down it fights. See "Driver
+contention" in `project-plan.md` and `sim/driver_contention.sp`. The rework restores ≈ 1.6 W.
 
 ## 3.3 V validation (2026-07-25) — `sim/passpair_33v.sp`
 

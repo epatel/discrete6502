@@ -114,7 +114,8 @@ Dominated by the NMOS pull-up current, not switching. Component counts are from
 | Register LEDs | 55 taps × 1.42 mA; ~half the monitored bits set (worst case: all lit) | 0.04 A / 0.20 W | 0.08 A / 0.39 W |
 | Dynamic switching | 109 nF total gate capacitance; 21 nF of it on clock-rate nets, rest at ~15% activity, at 10 kHz | ~9 mW | ~45 mW at 50 kHz |
 | Pico 2 W, if VSYS is soldered | ~30 mA at 3.3 V through its buck | 0.02 A / 0.12 W | 0.03 A / 0.15 W |
-| **Total @ 5 V** | | **≈ 0.32 A / 1.6 W** | **≈ 0.63 A / 3.2 W** |
+| **Total @ 5 V** — ⚠️ *incomplete, see below* | | **≈ 0.32 A / 1.6 W** | **≈ 0.63 A / 3.2 W** |
+| **Total @ 5 V, as actually built** | driver contention added | **≈ 2.1 A / ≈ 10.4 W** | |
 
 > **SUPERSEDED 2026-08-01 — this table is wrong by about 6x.** It counts pull-up
 > resistors, LEDs and switching only. It does not count **driver contention**: the
