@@ -20,6 +20,9 @@
   .cell figcaption { margin: 0 0 .3rem; font-size: .85rem; }
   svg.site { border-radius: 4px; display: block; width: 100%; height: auto; }
   .legend { font-size: .88rem; color: #666; }
+  .ba { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.2rem; }
+  .bah { font-size: .95rem; margin: 0 0 .4rem; }
+  svg.diag { width: 100%; height: auto; border-radius: 5px; }
   @media (prefers-color-scheme: dark) {
     body { background: #1c1c1e; color: #e8e8ea; }
     th { background: #2c2c2e; } td, th { border-color: #3a3a3c; }
@@ -71,55 +74,18 @@ at every site is 1.94&nbsp;mm away, so there is working room.</p>
 
 <h2>What the site looks like</h2>
 <figure>
-<svg viewBox="0 0 760 300" width="100%" role="img" aria-label="Detail of one rework site, before and after">
-  <defs>
-    <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-      <path d="M0,0 L7,3 L0,6 z" fill="#c0392b"/>
-    </marker>
-  </defs>
-  <!-- ============ BEFORE ============ scale 120 px/mm, origin at pad3 centre (150,110) -->
-  <text x="10" y="20" font-size="14" font-weight="bold" fill="currentColor">BEFORE — as built</text>
-  <!-- package body: 2.0 x 1.25 mm centred at (-0.89, 0) -->
-  <rect x="30" y="35" width="240" height="150" rx="4" fill="#3a3a3c" opacity=".55"/>
-  <text x="150" y="115" font-size="13" fill="#fff" text-anchor="middle">SOT-323</text>
-  <!-- pads: 0.93 x 0.45 mm -->
-  <rect x="-4"  y="32" width="112" height="54" fill="#c8a44a"/>
-  <text x="52" y="26" font-size="11" text-anchor="middle" fill="currentColor">1 gate (dor n)</text>
-  <rect x="-4"  y="188" width="112" height="54" fill="#c8a44a"/>
-  <text x="52" y="262" font-size="11" text-anchor="middle" fill="currentColor">2 source → node</text>
-  <rect x="94" y="110" width="112" height="54" fill="#c8a44a"/>
-  <text x="150" y="104" font-size="11" text-anchor="middle" fill="currentColor">3 drain</text>
-  <!-- 0.25 mm track from pad3 centre down 0.75 mm, then via -->
-  <rect x="135" y="137" width="30" height="90" fill="#c0392b"/>
-  <circle cx="169" cy="227" r="33" fill="#c8a44a"/><circle cx="169" cy="227" r="18" fill="#1c1c1e"/>
-  <text x="215" y="232" font-size="11" fill="currentColor">via → VCC plane</text>
-  <text x="215" y="248" font-size="10" fill="#888">0.55 mm pad, 0.30 drill, epoxy-filled</text>
-  <text x="60" y="160" font-size="11" fill="#c0392b">0.25 mm track,</text>
-  <text x="60" y="174" font-size="11" fill="#c0392b">only 0.25 mm bare</text>
-
-  <!-- ============ AFTER ============ -->
-  <text x="420" y="20" font-size="14" font-weight="bold" fill="currentColor">AFTER — pin 3 lifted, 10k bridges</text>
-  <rect x="440" y="35" width="240" height="150" rx="4" fill="#3a3a3c" opacity=".55"/>
-  <text x="560" y="115" font-size="13" fill="#fff" text-anchor="middle">SOT-323</text>
-  <rect x="406" y="32" width="112" height="54" fill="#c8a44a"/>
-  <rect x="406" y="188" width="112" height="54" fill="#c8a44a"/>
-  <rect x="504" y="110" width="112" height="54" fill="#c8a44a"/>
-  <text x="560" y="104" font-size="11" text-anchor="middle" fill="currentColor">3 pad (still VCC)</text>
-  <rect x="545" y="137" width="30" height="90" fill="#c8a44a"/>
-  <circle cx="579" cy="227" r="33" fill="#c8a44a"/><circle cx="579" cy="227" r="18" fill="#1c1c1e"/>
-  <!-- lifted leg -->
-  <path d="M616 137 C 660 120, 680 90, 672 60" stroke="#888" stroke-width="7" fill="none"/>
-  <text x="690" y="58" font-size="11" fill="currentColor">pin 3 lifted</text>
-  <!-- resistor standing between pad and lifted leg -->
-  <rect x="596" y="60" width="66" height="34" rx="3" fill="#2c3e50"/>
-  <text x="629" y="83" font-size="13" fill="#fff" text-anchor="middle">10k</text>
-  <path d="M600 108 L 585 132" stroke="#c0392b" stroke-width="4" marker-end="url(#ar)"/>
-  <text x="452" y="205" font-size="11" fill="#c0392b">solder one end to pad 3,</text>
-  <text x="452" y="219" font-size="11" fill="#c0392b">the other to the lifted leg</text>
-</svg>
-<figcaption>One site at ~120 px/mm, drawn from the real board geometry. Pads are 0.93 × 0.45 mm;
-pad 3 sits 1.78 mm to the right of pads 1 and 2, alone on its side of the package — which is what
-makes lifting it low-risk.</figcaption>
+<div class="ba">
+  <div><h3 class="bah">BEFORE — as built</h3><svg viewBox="0 0 361 251" width="361" height="251" class="diag" role="img"><rect width="361" height="251" fill="#0e3a1e"/><rect x="72" y="64" width="190" height="119" rx="5" fill="#26262a"/><text x="167" y="128" font-size="15" fill="#8a8a90" text-anchor="middle" font-family="monospace">SOT-323</text><line x1="252" y1="124" x2="323" y2="195" stroke="#d8b24a" stroke-width="24"/><circle cx="267" cy="195" r="26" fill="#c9a94e"/><circle cx="267" cy="195" r="14" fill="#5a4a20"/><rect x="38" y="40" width="88" height="43" rx="3" fill="#e8c65a"/><text x="83" y="67" font-size="15" fill="#3a2a00" text-anchor="middle" font-weight="bold">1</text><rect x="38" y="164" width="88" height="43" rx="3" fill="#e8c65a"/><text x="83" y="190" font-size="15" fill="#3a2a00" text-anchor="middle" font-weight="bold">2</text><rect x="208" y="102" width="88" height="43" rx="3" fill="#e8c65a"/><text x="252" y="128" font-size="15" fill="#3a2a00" text-anchor="middle" font-weight="bold">3</text><line x1="12" y1="237" x2="107" y2="237" stroke="#fff" stroke-width="2"/><text x="12" y="231" font-size="12" fill="#fff">1 mm</text></svg></div>
+  <div><h3 class="bah">AFTER — pin 3 lifted, 10k bridges</h3><svg viewBox="0 0 361 251" width="361" height="251" class="diag" role="img"><rect width="361" height="251" fill="#0e3a1e"/><rect x="72" y="64" width="190" height="119" rx="5" fill="#26262a"/><text x="167" y="128" font-size="15" fill="#8a8a90" text-anchor="middle" font-family="monospace">SOT-323</text><line x1="252" y1="124" x2="323" y2="195" stroke="#5a4a20" stroke-width="24"/><circle cx="267" cy="195" r="26" fill="#c9a94e"/><circle cx="267" cy="195" r="14" fill="#5a4a20"/><rect x="38" y="40" width="88" height="43" rx="3" fill="#e8c65a"/><text x="83" y="67" font-size="15" fill="#3a2a00" text-anchor="middle" font-weight="bold">1</text><rect x="38" y="164" width="88" height="43" rx="3" fill="#e8c65a"/><text x="83" y="190" font-size="15" fill="#3a2a00" text-anchor="middle" font-weight="bold">2</text><rect x="208" y="102" width="88" height="43" rx="3" fill="#8a7a3a"/><text x="252" y="128" font-size="15" fill="#3a2a00" text-anchor="middle" font-weight="bold">3</text><path d="M280 124 C 323 100, 332 57, 304 33" stroke="#b8b8c0" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="218" y="14" width="81" height="40" rx="4" fill="#1f2f45" stroke="#4a6fa5" stroke-width="2"/><text x="259" y="35" font-size="16" fill="#cfe0f5" text-anchor="middle" font-weight="bold">10k</text><line x1="233" y1="54" x2="240" y2="101" stroke="#ff6b6b" stroke-width="4"/><line x1="12" y1="237" x2="107" y2="237" stroke="#fff" stroke-width="2"/><text x="12" y="231" font-size="12" fill="#fff">1 mm</text></svg></div>
+</div>
+<figcaption>
+One site drawn to scale from the real board geometry (95 px/mm). <b>Pad 1</b> is the gate
+(<code>dor n</code>), <b>pad 2</b> the source feeding the node, <b>pad 3</b> the drain that reaches
+VCC through the short track and the via below it. Pad 3 sits 1.78 mm from the other two, alone on
+its side of the package &mdash; which is what makes lifting it low-risk. In the AFTER panel the leg
+is off its pad, so the track to the via is dead copper (dark), and the 10 k&ohm; stands on pad 3
+with the lifted leg soldered to its top.
+</figcaption>
 </figure>
 
 <div class="warn">
