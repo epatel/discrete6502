@@ -31,7 +31,9 @@ netlist, captured from photographs of a real decapped 6502.
 
 ## Status
 
-**Fab package rev A released 2026-07-26** — design complete, verified, ready to order.
+**Rev A ordered 2026-07-28 and in production** — 5 boards, 4 of them assembled.
+Both manufacturer confirmation gates passed (PCB stackup verified by measurement,
+SMT placement verified on the DFM image).
 Release record with file fingerprints and full verification results:
 [`gen/fab/RELEASE.md`](gen/fab/RELEASE.md); step-by-step ordering checklist:
 `gen/fab/ordering.html`. Bring-up (M6) starts when boards arrive.
@@ -49,6 +51,30 @@ and **0 unconnected**.
 | M4 Verification (switch-level equivalence, vendor-model SPICE) | ✅ |
 | M5 Layout (placement, routing, DRC-clean, fab outputs) | ✅ |
 | M6 Fab & bring-up | ⏳ |
+
+### Rev A vs rev B
+
+**Rev A is what is being built.** After the order was placed, a defect was found that the
+verification chain was structurally unable to see: the transform preserved the netlist's
+*topology* but not its device *ratios*. Ratioed NMOS needs a weak load against a strong
+pull-down; the 1,018 depletion loads correctly became 10 kΩ resistors, but the enhancement-mode
+VCC-side FETs kept the same BSS138W as their pull-down — a 1:1 ratio. On the eight data-bus
+output drivers that costs **262 mA and 0.90 W per FET** (against 220 mA and ~0.3 W ratings) and
+leaves the logic low at **1.0–1.9 V against a 1.1–1.5 V threshold**, so the stage can read high
+when it should read low. Measured in [`sim/driver_contention.sp`](sim/driver_contention.sp);
+the corroboration is that it puts the board at ~2 A / ~10 W, which is exactly where the MOnSter
+6502 has always been published.
+
+**Rev A boards are fixable by hand:** 10 kΩ in series with eight FETs, all on the front face in
+one column. Illustrated procedure with true-scale renders of every site:
+[`docs/rework-dor-series-r.html`](docs/rework-dor-series-r.html).
+
+**Rev B fixes it in the generator.** `DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py` emits a
+series resistor for every one of the 164 VCC-side FETs, sized per net from its gate load (10k
+where the net drives one gate, down to 100R on the 13 nF clock nets, all values already in the
+BOM). The equivalence gate is green on rev B. **No rev B board has been made** — it needs the
+full pipeline re-run from placement onward, so it is a respin rather than a patch. Rev A output
+is byte-identical with the flag off, so the fabricated design cannot drift.
 
 ## Highlights
 

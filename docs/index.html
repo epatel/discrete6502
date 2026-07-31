@@ -478,9 +478,9 @@
     <p class="kicker">Status</p>
     <h2>Designed and verified, not yet built</h2>
     <p class="lede">
-      The design is finished. Every check passes. The manufacturing package is released and
-      fingerprinted, and the order is in progress. <b>No physical board exists yet.</b>
-      Nothing here is proven in copper, only in simulation and geometry.
+      The boards are being manufactured. <b>No physical board exists yet.</b> Nothing here is
+      proven in copper, only in simulation and geometry &mdash; and one thing that simulation
+      missed only came to light <em>after</em> the order was placed. See below.
     </p>
     <div class="tw"><table>
       <tr><th>Milestone</th><th>State</th></tr>
@@ -491,6 +491,33 @@
       <tr><td>Layout, routing, manufacturing package</td><td>done</td></tr>
       <tr><td>Fabrication and bring-up</td><td>in progress</td></tr>
     </table></div>
+    <p class="note">
+      <b>Rev A is being built, and it has a known flaw.</b> The transform that turned the die's
+      netlist into a board preserved every <em>connection</em> faithfully, but not every device
+      <em>ratio</em>. This style of logic needs a deliberately weak pull-up fighting a strong
+      pull-down; the 1,018 obvious cases became 10 k&ohm; resistors, but eight transistors that
+      pull up the data bus kept the same part as the transistors pulling down &mdash; a fair
+      fight where the design needs a rigged one. The cost is 0.9 W burned in each of eight
+      parts rated for about 0.3 W, and a logic &ldquo;low&rdquo; that sits at 1&ndash;1.9 V
+      when the receiving gate switches at 1.1&ndash;1.5 V.
+    </p>
+    <p class="note">
+      It was found by asking a question with no obvious connection to it: <em>does the MOnSter
+      6502 have a minimum clock speed?</em> Its designer's answer described a failure we had not
+      considered, which prompted re-deriving our own numbers rather than assuming the two designs
+      behaved alike. The confirmation is almost embarrassing in hindsight &mdash; the corrected
+      figure puts this board at about 2 A and 10 W, which is exactly what the MOnSter 6502 has
+      always published for the same logic. Our own estimate had said 1.6 W, six times lower, and
+      nobody had asked why the same circuit should be six times cheaper.
+    </p>
+    <p class="note">
+      <b>Both fixes exist.</b> The eight boards-in-flight can be repaired by hand: one resistor
+      added to each of eight transistors, all on the front face in a single column. And the
+      generator can now emit the fix for all 164 affected transistors, verified equivalent, ready
+      for a future revision. The flaw is recorded rather than quietly patched, because the
+      interesting part is not the bug &mdash; it is that five green verification gates could not
+      see it. They all check <em>topology</em>. None of them checks <em>strength</em>.
+    </p>
     <p class="note">
       <b>What could still go wrong:</b> the dynamic logic holds charge on long board traces
       instead of microscopic silicon nodes. It also depends on a bootstrap effect that we have
