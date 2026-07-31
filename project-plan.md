@@ -459,7 +459,10 @@ incapable of seeing a ratio error, which is why this survived five green gates. 
 
 ### Rework options
 
-**A — 10k in series with each of the 8 pull-up FETs. Recommended.** Restores the ratio to exactly
+**A — 10k in series with each of the 8 pull-up FETs. Recommended.**
+**Illustrated step-by-step: `docs/rework-dor-series-r.html`** (open in a browser — site diagram,
+coordinates, procedure, verification).
+ Restores the ratio to exactly
 what the other 1,018 nodes already have: **0.5 mA instead of 262 mA**, Vout ~3 mV instead of
 1.86 V, and no speed cost because each of these nets drives exactly **one** gate (27 pF; a series
 resistor up to ~337 kohm would still meet a 20 us rise, and 10k gives 0.6 us against a 25 us
@@ -467,6 +470,16 @@ half-cycle). The part is **10k 0402, C25744 — already in the BOM**, so no new 
 lift the pull-up FET's drain pin (the VCC side) and bridge pad-to-pin with the 0402. Eight sites,
 top face, one column, well spaced. Function is preserved exactly: the FET still gates the load
 with `dor`, it just stops being a 6-ohm load.
+
+  **Method settled by measuring the copper, not by guessing.** The obvious move — cut the track
+  between pad 3 and its VCC via, bridge the gap — does not survive inspection: that track is
+  0.75 mm centre-to-centre but only **0.25 mm of it is bare** (the rest sits under the 0.93 x
+  0.45 mm pad and the 0.55 mm via pad), and the via is epoxy-filled with mask over it, so there is
+  no exposed copper on the far side to solder to. **Lift pin 3 instead** — it is the lone pin on
+  its side of the SOT-323, 1.78 mm from pins 1 and 2, so neither neighbour is at risk — then stand
+  the resistor on pad 3 and solder the lifted leg to its top. All eight sites are geometrically
+  identical (0.25 mm track, 0.75 mm run, 0.55 mm via, nearest other component 1.94 mm), so it is
+  the same operation eight times. 0603 is easier to handle than the board's 0402 and still fits.
 
 **B — run at 3.3 V.** Halves the current but does not fix it: 0.39 W still exceeds the package,
 and the low level is still invalid. A mitigation for first power-up, not a fix.

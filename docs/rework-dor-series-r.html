@@ -1,0 +1,167 @@
+<meta charset="utf-8">
+<title>discrete6502 — rev A rework: 10k series resistors on the eight data-out drivers</title>
+<style>
+  body { font: 15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif;
+         max-width: 62rem; margin: 2rem auto; padding: 0 1.2rem; color: #1c1c1e; }
+  h1 { font-size: 1.6rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
+  .sub { color: #666; margin-top: 0; }
+  table { border-collapse: collapse; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid #ddd; padding: .35rem .6rem; text-align: left; }
+  th { background: #f5f5f7; }
+  code { background: #f5f5f7; padding: .1rem .3rem; border-radius: 3px; font-size: .92em; }
+  .warn { background: #fff6e5; border-left: 4px solid #e8a33d; padding: .8rem 1rem; margin: 1rem 0; }
+  .ok   { background: #eef7ee; border-left: 4px solid #4a9d4a; padding: .8rem 1rem; margin: 1rem 0; }
+  figure { margin: 1.5rem 0; }
+  figcaption { color: #666; font-size: .9rem; margin-top: .4rem; }
+  ol li, ul li { margin: .35rem 0; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1c1c1e; color: #e8e8ea; }
+    th { background: #2c2c2e; } td, th { border-color: #3a3a3c; }
+    code { background: #2c2c2e; } .sub, figcaption { color: #9a9aa0; }
+    .warn { background: #3a2f1a; } .ok { background: #1e3320; }
+  }
+</style>
+
+<h1>Rev A rework: 10&nbsp;kΩ in series with the eight data-out driver pull-ups</h1>
+<p class="sub">discrete6502 — generated from <code>gen/board_routed_golden.kicad_pcb</code>.
+Background and measurements: “Driver contention” in <code>project-plan.md</code> and
+<code>sim/driver_contention.sp</code>.</p>
+
+<h2>Why</h2>
+<p>Ratioed NMOS needs the pull-down several times stronger than its load. The transform turned the
+1,018 depletion loads into 10&nbsp;kΩ resistors — correct — but left the eight data-bus output
+drivers with a <strong>BSS138W as the load against a BSS138W as the pull-down</strong>: a 1:1 ratio
+where the die had a deliberately weak load. Measured consequences at 5&nbsp;V:</p>
+<ul>
+  <li><strong>262&nbsp;mA and 0.90&nbsp;W</strong> in the pull-up FET, against 220&nbsp;mA and
+      ~0.3&nbsp;W for a SOT-323. These eight run hot enough to fail.</li>
+  <li><strong>The “low” is not low:</strong> 1.0–1.9&nbsp;V against a 1.1–1.5&nbsp;V receiver
+      threshold, so the stage can read HIGH when it should read LOW. The CPU may write wrong data.</li>
+  <li>They are contended 47–93% of the time, because <code>RnWstretched</code> holds the pull-down
+      on through every <em>read</em> while the stale <code>dor</code> bit holds the pull-up on.</li>
+</ul>
+<p>Adding 10&nbsp;kΩ in series with each pull-up restores exactly the ratio the other 1,018 nodes
+already have: <strong>0.5&nbsp;mA instead of 262&nbsp;mA</strong>, and a low of ~3&nbsp;mV. There is
+no speed cost — each of these nets drives exactly <em>one</em> gate (27&nbsp;pF), so 10&nbsp;kΩ gives
+a 0.6&nbsp;µs rise against a 25&nbsp;µs half-cycle.</p>
+
+<h2>Where — eight sites, all on the FRONT face, in one column</h2>
+<p>All eight are the same part (BSS138W, SOT-323) in the same orientation (0°), with identical
+copper around them. Board origin is top-left; x increases right, y increases down, matching KiCad.</p>
+
+<table>
+  <tr><th>Signal</th><th>FET</th><th>Pad 3 (VCC) centre</th><th>Its VCC via</th><th>Node</th></tr>
+  <tr><td>dor0</td><td>Q3047</td><td>220.24, 189.00</td><td>220.40, 189.75</td><td>n1325</td></tr>
+  <tr><td>dor1</td><td>Q401</td><td>220.24, 200.20</td><td>220.40, 200.95</td><td>n798</td></tr>
+  <tr><td>dor2</td><td>Q684</td><td>220.24, 214.20</td><td>220.40, 214.95</td><td>n520</td></tr>
+  <tr><td>dor3</td><td>Q1431</td><td>220.24, 225.40</td><td>220.40, 226.15</td><td>n42</td></tr>
+  <tr><td>dor4</td><td>Q242</td><td>220.24, 236.60</td><td>220.40, 237.35</td><td>n1076</td></tr>
+  <tr><td>dor5</td><td>Q205</td><td>220.24, 247.80</td><td>220.40, 248.55</td><td>n373</td></tr>
+  <tr><td>dor6</td><td>Q3238</td><td>216.54, 261.80</td><td>216.70, 262.55</td><td>n7</td></tr>
+  <tr><td>dor7</td><td>Q3580</td><td>216.54, 275.80</td><td>216.70, 276.55</td><td>n298</td></tr>
+</table>
+<p>Note dor6 and dor7 sit 3.70&nbsp;mm to the left of the other six. Nearest neighbouring component
+at every site is 1.94&nbsp;mm away, so there is working room.</p>
+
+<h2>What the site looks like</h2>
+<figure>
+<svg viewBox="0 0 760 300" width="100%" role="img" aria-label="Detail of one rework site, before and after">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 z" fill="#c0392b"/>
+    </marker>
+  </defs>
+  <!-- ============ BEFORE ============ scale 120 px/mm, origin at pad3 centre (150,110) -->
+  <text x="10" y="20" font-size="14" font-weight="bold" fill="currentColor">BEFORE — as built</text>
+  <!-- package body: 2.0 x 1.25 mm centred at (-0.89, 0) -->
+  <rect x="30" y="35" width="240" height="150" rx="4" fill="#3a3a3c" opacity=".55"/>
+  <text x="150" y="115" font-size="13" fill="#fff" text-anchor="middle">SOT-323</text>
+  <!-- pads: 0.93 x 0.45 mm -->
+  <rect x="-4"  y="32" width="112" height="54" fill="#c8a44a"/>
+  <text x="52" y="26" font-size="11" text-anchor="middle" fill="currentColor">1 gate (dor n)</text>
+  <rect x="-4"  y="188" width="112" height="54" fill="#c8a44a"/>
+  <text x="52" y="262" font-size="11" text-anchor="middle" fill="currentColor">2 source → node</text>
+  <rect x="94" y="110" width="112" height="54" fill="#c8a44a"/>
+  <text x="150" y="104" font-size="11" text-anchor="middle" fill="currentColor">3 drain</text>
+  <!-- 0.25 mm track from pad3 centre down 0.75 mm, then via -->
+  <rect x="135" y="137" width="30" height="90" fill="#c0392b"/>
+  <circle cx="169" cy="227" r="33" fill="#c8a44a"/><circle cx="169" cy="227" r="18" fill="#1c1c1e"/>
+  <text x="215" y="232" font-size="11" fill="currentColor">via → VCC plane</text>
+  <text x="215" y="248" font-size="10" fill="#888">0.55 mm pad, 0.30 drill, epoxy-filled</text>
+  <text x="60" y="160" font-size="11" fill="#c0392b">0.25 mm track,</text>
+  <text x="60" y="174" font-size="11" fill="#c0392b">only 0.25 mm bare</text>
+
+  <!-- ============ AFTER ============ -->
+  <text x="420" y="20" font-size="14" font-weight="bold" fill="currentColor">AFTER — pin 3 lifted, 10k bridges</text>
+  <rect x="440" y="35" width="240" height="150" rx="4" fill="#3a3a3c" opacity=".55"/>
+  <text x="560" y="115" font-size="13" fill="#fff" text-anchor="middle">SOT-323</text>
+  <rect x="406" y="32" width="112" height="54" fill="#c8a44a"/>
+  <rect x="406" y="188" width="112" height="54" fill="#c8a44a"/>
+  <rect x="504" y="110" width="112" height="54" fill="#c8a44a"/>
+  <text x="560" y="104" font-size="11" text-anchor="middle" fill="currentColor">3 pad (still VCC)</text>
+  <rect x="545" y="137" width="30" height="90" fill="#c8a44a"/>
+  <circle cx="579" cy="227" r="33" fill="#c8a44a"/><circle cx="579" cy="227" r="18" fill="#1c1c1e"/>
+  <!-- lifted leg -->
+  <path d="M616 137 C 660 120, 680 90, 672 60" stroke="#888" stroke-width="7" fill="none"/>
+  <text x="690" y="58" font-size="11" fill="currentColor">pin 3 lifted</text>
+  <!-- resistor standing between pad and lifted leg -->
+  <rect x="596" y="60" width="66" height="34" rx="3" fill="#2c3e50"/>
+  <text x="629" y="83" font-size="13" fill="#fff" text-anchor="middle">10k</text>
+  <path d="M600 108 L 585 132" stroke="#c0392b" stroke-width="4" marker-end="url(#ar)"/>
+  <text x="452" y="205" font-size="11" fill="#c0392b">solder one end to pad 3,</text>
+  <text x="452" y="219" font-size="11" fill="#c0392b">the other to the lifted leg</text>
+</svg>
+<figcaption>One site at ~120 px/mm, drawn from the real board geometry. Pads are 0.93 × 0.45 mm;
+pad 3 sits 1.78 mm to the right of pads 1 and 2, alone on its side of the package — which is what
+makes lifting it low-risk.</figcaption>
+</figure>
+
+<div class="warn">
+<strong>Why lift rather than cut.</strong> The obvious move is to cut the track between pad 3 and its
+via and bridge the gap. Measured, that track is 0.75 mm centre-to-centre but only
+<strong>0.25 mm of it is bare</strong> — the rest is under the pad and the via. Worse, the via is
+epoxy-filled and capped with solder mask over it, so there is no exposed copper to solder to on the
+far side. Lifting pin 3 avoids both problems.
+</div>
+
+<h2>Procedure, per site</h2>
+<p>Parts: eight 10&nbsp;kΩ resistors. 0402 is what the board uses (LCSC C25744) but
+<strong>0603 is easier to handle</strong> and there is room — nearest neighbour is 1.94 mm away.
+Tools: fine-tip iron or hot air, fine tweezers, flux, magnification, a multimeter.</p>
+<ol>
+  <li><strong>Locate the part.</strong> Front face, right-hand side of the die, in the column at
+      x ≈ 220 mm (dor6/dor7 at x ≈ 216.5 mm). Confirm against the table above before touching
+      anything — every neighbour is an identical SOT-323.</li>
+  <li><strong>Measure first.</strong> Pin 3 to a VCC bond pad should read ~0 Ω. Record it; this is
+      your “before”.</li>
+  <li><strong>Lift pin 3.</strong> Flux the joint. Heat pad 3 and lift the leg clear of the pad with
+      tweezers, bending it slightly upward. Pin 3 is the lone pin on the right-hand side, 1.78 mm
+      from the other two, so neither pin 1 nor pin 2 is at risk. Do not disturb the body.</li>
+  <li><strong>Verify the break.</strong> Pin 3 lead to VCC should now read open. If it still reads
+      ~0 Ω the leg is still touching — re-lift.</li>
+  <li><strong>Fit the resistor.</strong> Tin pad 3. Stand the 10 kΩ on end with its lower
+      termination on pad 3 and solder it. Then solder the lifted leg to the resistor's upper
+      termination. A short piece of fine wire between leg and resistor is fine if that is easier.</li>
+  <li><strong>Verify the fix.</strong> Pin 3 lead to a VCC bond pad should now read
+      <strong>10 kΩ ± tolerance</strong>. Pad 3 itself to VCC should still read ~0 Ω.</li>
+  <li><strong>Inspect.</strong> Check the resistor is not touching pin 1, pin 2, or any neighbouring
+      part, and that the lifted leg is not shorting to the pad it came from.</li>
+</ol>
+
+<div class="ok">
+<strong>Whole-board check when all eight are done.</strong> VCC to VSS at the bond pads should still
+read high (no bridge introduced). Then, at first clocked power-up, the supply current should stay
+near the pull-up budget of a few hundred mA instead of jumping to ~1.8–2.1 A. That current step
+<em>is</em> the measurement — if it still jumps, a site did not take.
+</div>
+
+<h2>If you would rather not rework</h2>
+<ul>
+  <li><strong>Run at 3.3 V.</strong> Halves the contention current (224 mA, 0.39 W) but does not fix
+      it: still over the package limit, and the low level is still invalid.</li>
+  <li><strong>Do nothing and monitor.</strong> 0.8 W in a SOT-323 is roughly a 200 °C rise. Expect
+      the eight pull-ups to fail, and suspect data-out corruption before they do.</li>
+  <li><strong>Rev B.</strong> <code>DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py</code> emits
+      the series resistor for all 164 VCC-side FETs, sized per net. That is a respin, not a patch.</li>
+</ul>
