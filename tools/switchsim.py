@@ -198,6 +198,13 @@ def load_transformed():
             fets.append((nid(c["pins"]["1"]), nid(c["pins"]["3"]), nid(c["pins"]["2"])))
         elif c["type"] == "resistor" and c["role"] == "pullup":
             pullups.add(nid(c["pins"]["2"]))
+        elif c["type"] == "resistor" and c["role"] == "vcc_series":
+            # REV B: VCC --[R]-- mid --(FET)-- out. At switch level a resistor
+            # to VCC IS a pull-up, so mid becomes a weak-high node and the FET
+            # passes that weak high on. This makes the model's long-standing
+            # assumption -- that a pull-down beats a load -- physically true,
+            # instead of merely assumed (see cards/verification.md).
+            pullups.add(nid(c["pins"]["2"]))
     names = {}
     for name in list(d["nets"]):
         names[name] = nid(name)

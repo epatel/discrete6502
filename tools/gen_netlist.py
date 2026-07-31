@@ -17,6 +17,7 @@ Transforms (decisions of 2026-07-18, see cards/):
     sinking LED + resistor from vcc (no DC load on the dynamic node)
 """
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -36,6 +37,48 @@ GEN = ROOT / "gen"
 FET_VALUE, FET_LCSC = "BSS138K", "C504052"
 FET_FOOTPRINT = "Package_TO_SOT_SMD:SOT-323_SC-70"
 PULLUP_VALUE, PULLUP_LCSC = "10k", "C25744"
+
+# ---------------------------------------------------------------------------
+# REV B: series resistors on the VCC-side FETs.
+#
+# Ratioed NMOS needs the pull-down several times stronger than its load. The
+# 1,018 depletion loads became 10k resistors, so their ratio is right. The
+# enhancement-mode VCC-side FETs did NOT get that treatment and kept the same
+# BSS138W as their pull-down -- a 1:1 ratio where the die had a deliberately
+# weak load. Measured consequence (sim/driver_contention.sp): 262 mA and 0.90 W
+# per contended net at 5 V, and a "low" sitting at 1.0-1.9 V against a 1.1-1.5 V
+# receiver threshold. See "Driver contention" in project-plan.md.
+#
+# OFF BY DEFAULT. Rev A is fabricated and gen/netlist.json is what the golden
+# board and the released fab package were built from; changing it silently
+# would break check_parity and the RELEASE.md fingerprints. Enable with
+#     DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py
+# which is also how a rev B board would be generated.
+REV_B = os.environ.get("DISCRETE6502_REV_B") == "1"
+
+# A blanket 10k would be wrong: cclk carries 482 gates (13 nF) and cp1 198
+# (5.4 nF), where 10k would give a 286 us rise against a 25 us half-cycle and
+# destroy the clock. So size per net from its own gate load, keeping the RC
+# rise inside SERIES_R_RISE_BUDGET, and snap to values ALREADY IN THE BOM so
+# rev B needs no new part numbers.
+CISS_F = 27e-12               # BSS138W input capacitance per driven gate
+SERIES_R_RISE_BUDGET = 5e-6   # 20% of a 25 us half-cycle at the 20 kHz ceiling
+SERIES_R_CHOICES = (          # largest first; picked if it meets the budget
+    (10000.0, "10k", "C25744"),
+    (1000.0, "1k", "C11702"),
+    (100.0, "100R", "C25076"),
+)
+
+
+def series_r_for(gate_count):
+    """Largest in-BOM resistor whose RC rise still fits the budget."""
+    cap = gate_count * CISS_F
+    limit = SERIES_R_RISE_BUDGET / (2.2 * cap) if cap else float("inf")
+    for ohms, value, lcsc in SERIES_R_CHOICES:
+        if ohms <= limit:
+            return value, lcsc
+    return SERIES_R_CHOICES[-1][1], SERIES_R_CHOICES[-1][2]
+
 R_FOOTPRINT = "Resistor_SMD:R_0402_1005Metric"
 LED_R_VALUE, LED_R_LCSC = "2.2k", "C25879"
 LED_VALUE, LED_LCSC = "LED_RED", "C2286"
@@ -145,6 +188,12 @@ def main():
             return None
         return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
 
+    # How many gates does each net drive? Needed to size the rev B series
+    # resistors, and cheap to compute from the kept transistor list.
+    gate_load = defaultdict(int)
+    for tid, g, c1, c2, pos in kept:
+        gate_load[net(g)] += 1
+
     for tid, g, c1, c2, pos in kept:
         gnet = net(g)
         if vss in (c1, c2):
@@ -153,7 +202,15 @@ def main():
             stats["fet_pulldown"] += 1
         elif vcc in (c1, c2):
             other = c2 if c1 == vcc else c1
-            add_fet("vcc_side", tid, gnet, net(vcc), net(other), pos)
+            if REV_B:
+                # VCC --[R]-- mid --(FET)-- other, restoring the load ratio.
+                mid = "%s_vs" % tid
+                value, lcsc = series_r_for(gate_load.get(net(other), 0))
+                add_r("vcc_series", tid, value, lcsc, net(vcc), mid, pos)
+                add_fet("vcc_side", tid, gnet, mid, net(other), pos)
+                stats["vcc_series_resistors"] += 1
+            else:
+                add_fet("vcc_side", tid, gnet, net(vcc), net(other), pos)
             stats["fet_vcc_side"] += 1
         else:
             mid = "%s_mid" % tid
@@ -300,6 +357,13 @@ def main():
                 nets[netname].append((c["ref"], pad))
         doomed = set()
         for c in components:
+            if c["type"] == "resistor" and c.get("role") == "vcc_series":
+                # REV B: a series resistor whose FET has just been dropped for a
+                # floating channel would be left dangling on its own mid node.
+                # Let it die in the same fixed point (one real case: t1322).
+                if len(nets[c["pins"]["2"]]) == 1:
+                    doomed.add(c["ref"])
+                continue
             if c["type"] != "fet":
                 continue
             for pad in ("2", "3"):  # source, drain

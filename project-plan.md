@@ -474,10 +474,32 @@ and the low level is still invalid. A mitigation for first power-up, not a fix.
 **C — do nothing, monitor temperature.** 0.8 W in a SOT-323 is roughly a 200 C rise. Expect
 failure of the eight pull-ups, and suspect data-out corruption before that. Not viable.
 
-**D — rev B netlist fix.** Emit a series resistor for every one of the 164 VCC-side FETs in
-`tools/gen_netlist.py`, not just these 8. The other 156 show only transient contention (adh1–7 at
-about 1.2% duty) so they are not thermally urgent, but they carry the same ratio error and the
-same invalid-low risk during their switching windows.
+**D — rev B netlist fix. IMPLEMENTED 2026-08-01, off by default.**
+`DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py` emits a series resistor for every VCC-side
+FET, not just these 8. The other 156 show only transient contention (adh1–7 at about 1.2% duty)
+so they are not thermally urgent, but they carry the same ratio error and the same invalid-low
+risk during their switching windows.
+
+- **Off by default, and rev A output is byte-identical** (sha256 verified against the fabricated
+  `gen/netlist.json`). Rev A is in production and its fingerprints are pinned in
+  `gen/fab/RELEASE.md`; changing it silently would break `check_parity` and the release record.
+- **A blanket 10k would have been wrong.** `cclk` drives 482 gates (13 nF) and `cp1` 198 (5.4 nF);
+  10k there gives a 286 µs rise against a 25 µs half-cycle and destroys the clock. So the value is
+  **sized per net from its own gate load**, keeping the RC rise inside 5 µs (20% of a half-cycle
+  at the 20 kHz ceiling), and snapped to values **already in the BOM** so rev B needs no new part
+  numbers: **158 × 10k, 5 × 1k, 2 × 100R**. The two 100R sites are the heavy clock nets.
+- **The equivalence gate is green on rev B** — traces identical for half-cycles 20..219, program
+  check PASS. `switchsim.py` learned the new `vcc_series` role: a resistor to VCC *is* a pull-up
+  at switch level, so the mid node becomes weak-high and the FET passes that on. This makes the
+  model's long-standing assumption — that a pull-down beats a load — **physically true rather
+  than merely assumed**, which is precisely the blind spot recorded in `cards/verification.md`.
+- **One real bug found while building it:** the generator has a fixed-point pass that drops FETs
+  with a floating channel (it silently removes one, t1322, in rev A too — 165 emitted, 164 kept).
+  In rev B that left the matching series resistor dangling on its own mid node. The drop rule now
+  cascades to `vcc_series` resistors, so the fixed point converges with 0 singleton nets.
+- Component count: 5,585 for rev B against 5,364 for rev A (+164 resistors, −1 for t1322's pair).
+  A rev B board would need the full pipeline re-run from `gen_pcb.py` onward, including placement
+  and routing, so this is a real respin, not a patch.
 
 **Immediate consequences regardless of choice:** the bench supply must be rated **3 A, not 1 A**;
 USB-only demo mode is **not viable at 5 V**; and the first clocked power-up should be at 3.3 V
