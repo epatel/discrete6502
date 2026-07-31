@@ -51,7 +51,11 @@ Find it before you apply power.
 ### Step 2: board alone at 5 V
 
 Croc-clip the current-limited supply to the VCC and VSS bond pads. Set 5 V.
-**Compare the current against the 0.35 A prediction.** This one number is the
+**Compare the current against the 0.35 A prediction.** That prediction is valid
+*here* precisely because the clock is not running: contention needs live logic
+state, and an unclocked board has none. Expect the current to jump to roughly
+**1.8–2.1 A the moment you start clocking** — see "Driver contention" in
+`project-plan.md`, and size the supply for 3 A. This one number is the
 most informative test in the whole sequence. It finds a bridged rail, a reel
 loaded backwards and missing pull-ups. The worst case is 0.65 A, with every
 pull-up low and every LED lit.
@@ -166,8 +170,13 @@ module Schottky diode and VSYS. Three limits apply.
   4.8 V at the 0.35 A typical draw, and lower at the 0.65 A worst case. Cable
   resistance subtracts more. The board operates correctly, but you do not get
   the full 5 V margin.
-- **Current.** 0.35 A typical, 0.65 A worst case with every pull-up low and
-  every LED lit. The `wifi` firmware adds about 50 mA average, with 200 mA
+- **Current. SUPERSEDED 2026-08-01 — USB-only mode is NOT viable at 5 V.** The
+  figures below omit driver contention: the eight data-bus output drivers draw
+  262 mA each at 5 V for most of the time, adding about **1.76 A** and taking the
+  board to **≈2.1 A**. Use a **3 A bench supply**. See "Driver contention" in
+  `project-plan.md`. The original figures, still valid for the *un-clocked* board
+  (Step 2, where contention is zero): 0.35 A typical, 0.65 A worst case with every
+  pull-up low and every LED lit. The `wifi` firmware adds about 50 mA average, with 200 mA
   transmit bursts, thus about 0.9 A worst case. A USB-3 port or a charger
   supplies this. A legacy 500 mA port does not.
 - **Use a bench supply for test runs.** This is dynamic logic. A rail sag does

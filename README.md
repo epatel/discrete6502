@@ -90,6 +90,15 @@ Dominated by the NMOS pull-up current, not switching. Component counts are from
 | Pico 2 W, if VSYS is soldered | ~30 mA at 3.3 V through its buck | 0.02 A / 0.12 W | 0.03 A / 0.15 W |
 | **Total @ 5 V** | | **≈ 0.32 A / 1.6 W** | **≈ 0.63 A / 3.2 W** |
 
+> **SUPERSEDED 2026-08-01 — this table is wrong by about 6x.** It counts pull-up
+> resistors, LEDs and switching only. It does not count **driver contention**: the
+> eight data-bus output drivers hold a VCC-side FET and a pull-down FET on
+> together for 47–93% of the time, drawing 262 mA each at 5 V. Measured in
+> `sim/driver_contention.sp`, that adds **+1.76 A and +8.8 W**, taking the board to
+> **≈2.1 A / ≈10.4 W** — which is where the MOnSter 6502's published 2 A / 10 W was
+> all along. **A 1 A supply is not enough; use 3 A.** Full analysis and the rework
+> that fixes it: "Driver contention" in `project-plan.md`.
+
 **A 5 V / 1 A bench supply covers even the worst case.** Spread over the 900 cm²
 board the heat is imperceptible — compare the original MOnSter 6502 at ~10 W.
 

@@ -28,4 +28,11 @@ Results on the golden board: **2,639 conductors, 0 opens, 0 shorts, 0 unmapped p
 - **What this still assumes, because copper cannot show it:** pad number → device terminal (pad 1 of a SOT-323 is the gate) comes from the footprint library the generator also used; component *values* are invisible (10k and 100k are the same copper — switch-level does not need them, so this proves topology, not values); and the ~82 harness pin names are anchored from `gen/netlist.json` by `(ref, pad)` — the other ~2,600 nets are never consulted.
 - The extracted netlist carries 55 spurious pull-ups (the LED ballast resistors also hang off VCC). They sit on LED anode nodes that nothing reads, so they are harmless — visible only as a slightly longer settling window (28 half-cycles vs the transformed netlist's 20).
 
+**Structural blind spot — ratio errors (found 2026-08-01).** `switchsim._value()` returns low
+whenever `vss` is in the conducting group: it *assumes* the pull-down wins any contention. The
+gate is therefore incapable of seeing a **ratio** error, only a topology error. That is how a
+1:1 pull-up/pull-down ratio on the eight data-out drivers survived five green gates — see
+"Driver contention" in `project-plan.md` and `sim/driver_contention.sp`. Any future claim that
+"switchsim is green" should be read as *the topology is right*, never as *the levels are right*.
+
 **Closed 2026-07-25:** the pass pair was SPICEd at VCC = 3.3 V — see `cards/pass-pair-validation.md`. 3.3 V is now a diagnostic fallback rather than the first bring-up rail (`pico-controller/README.md`).

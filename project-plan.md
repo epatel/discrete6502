@@ -400,6 +400,90 @@ consequence is why the FET rotation deserved the greater scrutiny.
 what remains is the random-defect picture in "Expected fab yield": expect 2 of 4 working at first
 power-up, 3–4 after rework.
 
+## Driver contention: the power budget is wrong by 6x, and it is a ratio bug (2026-08-01)
+
+Found by asking whether the MOnSter has a clock floor, reading its designer's answer, and then
+re-deriving our own exposure instead of assuming the designs were equivalent.
+
+**The mechanism.** Ratioed NMOS needs the pull-down several times stronger than its load. The
+transform preserved topology but **not device ratios**: the 1,018 depletion loads became 10k
+resistors (ratio 10k against 6 ohm — fine), but the **164 enhancement-mode VCC-side FETs kept the
+same BSS138W as their pull-down**, giving a 1:1 ratio where the die had a deliberately weak load.
+
+**Where it bites.** `tools/switchsim.py` on the real netlist shows 8 nets contended 47–93% of the
+time (mean 6.7 at once) — all eight **data-bus output drivers**. `RnWstretched` gates their
+pull-downs, so during every *read* the pull-down is on while the `dor` bit still holds stale write
+data keeping the pull-up on. Reads dominate any program, hence the near-continuous duty.
+
+| Net | Pull-up FET (gate) | Duty | Position (top face) |
+|---|---|---|---|
+| n1325 | Q3047 (dor0) | 47% | x 219.35, y 189.00 |
+| n798 | Q401 (dor1) | 90% | x 219.35, y 200.20 |
+| n520 | Q684 (dor2) | 85% | x 219.35, y 214.20 |
+| n42 | Q1431 (dor3) | 89% | x 219.35, y 225.40 |
+| n1076 | Q242 (dor4) | 84% | x 219.35, y 236.60 |
+| n373 | Q205 (dor5) | 93% | x 219.35, y 247.80 |
+| n7 | Q3238 (dor6) | 88% | x 215.65, y 261.80 |
+| n298 | Q3580 (dor7) | 87% | x 215.65, y 275.80 |
+
+None of the eight has a 10k resistor pull-up — the FET *is* the load. All eight are on the **top
+face in one vertical column**, 11–14 mm apart, which is what makes rework practical.
+
+**The numbers** (`sim/driver_contention.sp`, hand models calibrated to the datasheet 6.0 ohm
+RDS(on) and cross-checked against the onsemi BSIM3v3 vendor model, which agrees within 20%):
+
+| | 5 V | 3.3 V |
+|---|---|---|
+| Current per contended net (4.5 V gate) | 262 mA | 224 mA |
+| Dissipation in the pull-up FET | **0.90 W** | 0.39 W |
+| Extra supply current (6.7 nets) | **1.76 A** | 1.50 A |
+| Extra board dissipation | **8.8 W** | 5.0 W |
+| **Board total** | **≈2.1 A / ≈10.4 W** | ≈1.8 A / ≈6 W |
+
+Against **220 mA continuous and ~0.3 W in SOT-323**, the current is over at ≥4 V gate drive and
+the dissipation is over everywhere in the realistic band.
+
+**Corroboration:** the MOnSter 6502 is published at 5 V, ~2 A, ~10 W — same logic, same style,
+20% more parts. Our recorded 0.32 A / 1.6 W was the outlier, and the six-fold gap sat unexamined
+in the plan for two weeks. Contention current is what fills it.
+
+**The worse consequence is functional, not thermal.** A contended node does not reach a valid
+low: Vout is 1.02 V at 3.5 V gate drive and 1.86 V at 5 V, against a receiving-gate threshold of
+1.1–1.5 V. The data-out stage may read HIGH when it should read LOW — i.e. the CPU could write
+wrong data. Heat is the symptom; the ratio is the disease.
+
+**Verification blind spot (record this):** `switchsim._value()` returns low whenever `vss` is in
+the group — it *assumes* the pull-down wins. The equivalence gate is therefore structurally
+incapable of seeing a ratio error, which is why this survived five green gates. Also noted in
+`cards/verification.md`.
+
+### Rework options
+
+**A — 10k in series with each of the 8 pull-up FETs. Recommended.** Restores the ratio to exactly
+what the other 1,018 nodes already have: **0.5 mA instead of 262 mA**, Vout ~3 mV instead of
+1.86 V, and no speed cost because each of these nets drives exactly **one** gate (27 pF; a series
+resistor up to ~337 kohm would still meet a 20 us rise, and 10k gives 0.6 us against a 25 us
+half-cycle). The part is **10k 0402, C25744 — already in the BOM**, so no new sourcing. Method:
+lift the pull-up FET's drain pin (the VCC side) and bridge pad-to-pin with the 0402. Eight sites,
+top face, one column, well spaced. Function is preserved exactly: the FET still gates the load
+with `dor`, it just stops being a 6-ohm load.
+
+**B — run at 3.3 V.** Halves the current but does not fix it: 0.39 W still exceeds the package,
+and the low level is still invalid. A mitigation for first power-up, not a fix.
+
+**C — do nothing, monitor temperature.** 0.8 W in a SOT-323 is roughly a 200 C rise. Expect
+failure of the eight pull-ups, and suspect data-out corruption before that. Not viable.
+
+**D — rev B netlist fix.** Emit a series resistor for every one of the 164 VCC-side FETs in
+`tools/gen_netlist.py`, not just these 8. The other 156 show only transient contention (adh1–7 at
+about 1.2% duty) so they are not thermally urgent, but they carry the same ratio error and the
+same invalid-low risk during their switching windows.
+
+**Immediate consequences regardless of choice:** the bench supply must be rated **3 A, not 1 A**;
+USB-only demo mode is **not viable at 5 V**; and the first clocked power-up should be at 3.3 V
+with a hard current limit, watching for the step from ~0.3 A to ~1.8 A that says contention is
+real on copper.
+
 ## Open questions
 
 _(design questions from M1–M4 are settled and live in Decisions; only live items remain here)_

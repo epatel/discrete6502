@@ -1,5 +1,5 @@
 
-Checking parameters for BSIM 3.2 model x1:bsim3
+Checking parameters for BSIM 3.2 model x3up:bsim3
 Warning: This model supports BSIM3v3.2, BSIM3v3.2.2, BSIM3v3.2.3, BSIM3v3.2.4
 You specified a wrong version number. Working now with BSIM3v3.2.4.
 Warning: Pscbe2 = 0 is not positive.
