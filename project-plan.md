@@ -59,8 +59,11 @@ _(append-only; timestamp and mark locked decisions)_
   component. Re-derived our exposure from `gen/netlist.json` rather than assuming symmetry: all
   **1,018 pull-ups are 10k resistors** (0.5 mA, inherently safe — structurally better than the
   MOnSter), but **266 nets carry a FET-to-FET path** with no series resistance, only 105 of them
-  also having a pull-up, and the clock drivers are the worst (`cclk`: 33 VCC-side FETs against
-  31 pull-downs, ~0.18 Ω vs ~0.19 Ω). **Consequence for bring-up: the tester's `w`/`W` commands
+  also having a pull-up. **Corrected 2026-08-01:** this entry first called `cclk` the worst at
+  "33 VCC-side FETs against 31 pull-downs" — a bad query that counted FETs *gated by* cclk rather
+  than FETs *on* it. Re-measured, **every one of the 164 nets has exactly one pull-up FET** (cclk
+  included: 1 up, 1 down, 482 gates hanging off it), so no net is a near-short and each contended
+  net is the same ~262 mA pair. **Consequence for bring-up: the tester's `w`/`W` commands
   deliberately create exactly this condition**, so they may damage rather than measure. It also
   re-weights earlier advice — the bench supply matters mainly because its **current limit is the
   protection**, not because of rail sag; a USB charger will push 3 A into a partially-conducting
@@ -551,8 +554,8 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   causing both pullup and pulldown to be turned on"* — which he had to add protective resistors
   to survive. Checked against `gen/netlist.json`: our 1,018 pull-ups are 10k **resistors**
   (0.5 mA, safe), but **266 nets have a FET-to-FET path** with no series resistance and only 105
-  of those also carry a pull-up; worst is `cclk` at **33 VCC-side FETs against 31 pull-downs**
-  (~0.18 Ω vs ~0.19 Ω, so the FETs are not the limiting element — the supply and copper are).
+  of those also carry a pull-up. Every one of the 164 is a **single** pull-up FET against its
+  pull-downs (a 1:1 ratio), so each contended net is the same ~262 mA — there is no near-short.
   The stall commands may therefore damage rather than measure. Mitigations are procedural and
   documented in `pico-controller/README.md`: current-limited bench supply at ~0.5 A and never
   USB, first scans at 3.3 V, sub-millisecond stalls ramped up, and watch supply current. This is

@@ -464,9 +464,10 @@ long, the machine forgets its state mid-instruction.
 > Our 1,018 pull-ups are 10k **resistors**, so those nodes are current-limited to
 > 0.5 mA and are safe. But **266 nets have a FET-to-FET path** (a VCC-side FET
 > sourcing against pull-down FETs, no series resistance), and only 105 of those
-> also carry a 10k pull-up. The worst is `cclk`: **33 VCC-side FETs against 31
-> pull-downs**, about 0.18 Ω against 0.19 Ω. If those ever conduct together the
-> FETs are not the limiting element — the supply and the copper are.
+> also carry a 10k pull-up. Each is a **single** pull-up FET against its pull-downs
+> — a 1:1 ratio where the die had a weak load — so a contended net draws about
+> **262 mA and 0.90 W** (measured, `sim/driver_contention.sp`), well past the
+> 220 mA and ~0.3 W a SOT-323 is rated for.
 >
 > Therefore, before any stall test:
 > 1. **Use a current-limited bench supply, set to about 0.5 A. Never USB.** A
