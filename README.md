@@ -66,8 +66,9 @@ the corroboration is that it puts the board at ~2 A / ~10 W, which is exactly wh
 6502 has always been published.
 
 **Rev A boards are fixable by hand:** 10 kΩ in series with eight FETs, all on the front face in
-one column. Illustrated procedure with true-scale renders of every site:
-[`docs/rework-dor-series-r.html`](docs/rework-dor-series-r.html).
+one column. **→ [Illustrated rework instructions](https://epatel.github.io/discrete6502/rework-dor-series-r.html)**
+— true-scale renders of all eight sites generated from the board file, the exact coordinates, the
+procedure and its verification steps. (Source: [`docs/rework-dor-series-r.html`](docs/rework-dor-series-r.html).)
 
 **Rev B fixes it in the generator.** `DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py` emits a
 series resistor for every one of the 164 VCC-side FETs, sized per net from its gate load (10k
