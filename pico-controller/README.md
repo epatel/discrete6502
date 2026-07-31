@@ -480,27 +480,36 @@ resolve leakage at that level. Its answer moves 3.5 orders of magnitude with
 the solver tolerances, and its leakage falls with temperature when it must
 rise. You must therefore measure the number on real copper:
 
+**Both commands take MICROSECONDS** (changed 2026-07-31 from milliseconds — the
+change is in the safe direction, since an old `w 5` now stalls 5 µs instead of
+5 ms):
+
 ```
-w 5        # freeze the clock for 5 ms. Did the CPU survive?
-W          # bisect for the boundary (default up to 4000 ms)
-W 20000    # if it survives 4 s, search further
+w 500        # freeze the clock for 500 us. Did the CPU survive?
+W            # ramp from 64 us, doubling, then bisect (default ceiling 4 s)
+W 20000000   # if it survives 4 s, search further
 ```
+
+`W` **ramps from 64 µs** rather than opening at a millisecond, so it approaches
+the boundary from below instead of starting deep in the hazardous condition.
+The bisection stops once the bracket is within about 6% of the answer, which is
+all the precision the measurement deserves and saves ~18 trials.
 
 `W` prints output like this:
 
 ```
-control passed (0 ms survives). searching...
-       1 ms -> survived
-       2 ms -> survived
+control passed (0 us survives). searching...
+        64 us -> survived
+       128 us -> survived
        ...
-     512 ms -> lost
-retention boundary: survives 256 ms, fails at 512 ms
+   512.000 ms -> lost
+retention boundary: survives 256.000 ms, fails at 512.000 ms
 ```
 
 The counter image stores an incrementing A to `$0300` on every pass. The test
 records one stored value. It then freezes the clock and requires the next store
 to be exactly one greater. A forgotten register breaks the sequence. A
-forgotten PC stops the stores. `W` runs a **0 ms control first**. If the CPU
+forgotten PC stops the stores. `W` runs a **0 µs control first**. If the CPU
 cannot survive a stall of zero, the harness is broken and every later number is
 meaningless. `W` then stops and reports the fault.
 
