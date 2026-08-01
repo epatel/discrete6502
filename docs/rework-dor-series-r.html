@@ -33,8 +33,9 @@
 
 <h1>Rev A rework: 10&nbsp;kΩ in series with the eight data-out driver pull-ups</h1>
 <p class="sub">discrete6502 — generated from <code>gen/board_routed_golden.kicad_pcb</code>.
-Background and measurements: “Driver contention” in <code>project-plan.md</code> and
-<code>sim/driver_contention.sp</code>.</p>
+Background and measurements: “Driver contention” in <code>project-plan.md</code>,
+<code>sim/driver_contention.sp</code> (the defect) and <code>sim/revb_driver.sp</code>
+(the fix, simulated).</p>
 
 <h2>Why</h2>
 <p>Ratioed NMOS needs the pull-down several times stronger than its load. The transform turned the
@@ -53,6 +54,40 @@ where the die had a deliberately weak load. Measured consequences at 5&nbsp;V:</
 already have: <strong>0.5&nbsp;mA instead of 262&nbsp;mA</strong>, and a low of ~3&nbsp;mV. There is
 no speed cost — each of these nets drives exactly <em>one</em> gate (27&nbsp;pF), so 10&nbsp;kΩ gives
 a 0.6&nbsp;µs rise against a 25&nbsp;µs half-cycle.</p>
+
+<h2>The fix is simulated, not just argued</h2>
+<p><code>sim/revb_driver.sp</code> measures this exact modification on a driver taken out of
+<code>gen/netlist.json</code> rather than an invented one — <code>dor1&nbsp;→&nbsp;Q401&nbsp;→
+n798&nbsp;→&nbsp;Q192&nbsp;→&nbsp;db1</code>, the worst of the eight (90% duty), carried
+<em>two stages deep to the actual data-bus output pad</em>, so the fix is judged by what leaves the
+CPU rather than by the node the resistor sits on. Before and after, same devices, same models:</p>
+
+<table>
+  <tr><th>At 5&nbsp;V</th><th>As built</th><th>With the 10&nbsp;kΩ</th></tr>
+  <tr><td>Contention current</td><td>262&nbsp;mA</td><td><strong>0.499&nbsp;mA</strong> — 525× less</td></tr>
+  <tr><td>The contended “low”</td><td>1.86&nbsp;V — invalid</td><td><strong>2.9&nbsp;mV</strong> — valid</td></tr>
+  <tr><td>db1 rise to 1.5&nbsp;V</td><td>18&nbsp;ns</td><td>271&nbsp;ns — 90× inside a 25&nbsp;µs half-cycle</td></tr>
+  <tr><td>db1 fall</td><td>2.8&nbsp;ns</td><td>2.7&nbsp;ns — unchanged</td></tr>
+  <tr><td>db1 high level</td><td>3.81&nbsp;V</td><td><strong>4.38&nbsp;V</strong></td></tr>
+  <tr><td>Peak supply current, one cycle</td><td>346&nbsp;mA</td><td><strong>0.92&nbsp;mA</strong></td></tr>
+</table>
+
+<div class="ok">
+<strong>The output gets stronger, not weaker — which is the opposite of what a series resistor
+sounds like.</strong> Probed node by node before it was believed: db1 rising couples back into the
+gate that drives it through the next FET’s C<sub>gs</sub> (21&nbsp;pF) — the ordinary bootstrap this
+design already relies on. As built, the pull-up’s drain is a stiff VCC, so the instant that node is
+pushed above VCC the FET conducts backwards and dumps the bootstrap charge straight into the supply.
+With the 10&nbsp;kΩ in the way, the charge is kept. Treat it as a bonus, not as something to depend
+on — it scales with the next stage’s C<sub>gs</sub>.
+</div>
+
+<p>The same run also settled a question about the fallback option below. At 3.3&nbsp;V with
+worst-case V<sub>th</sub> (1.5&nbsp;V, the datasheet maximum), the <em>un</em>-reworked board’s db1
+stops at <strong>1.306&nbsp;V and never reaches the 1.5&nbsp;V threshold of the gate it has to
+drive</strong>; reworked, it reaches 1.579&nbsp;V. Two source followers in series subtract
+V<sub>th</sub> twice. So running at 3.3&nbsp;V is not a way to avoid the rework — the rework is what
+makes 3.3&nbsp;V viable.</p>
 
 <h2>Where — eight sites, all on the FRONT face, in one column</h2>
 <p>All eight are the same part (BSS138W, SOT-323) in the same orientation (0°), with identical
@@ -166,9 +201,17 @@ near the pull-up budget of a few hundred mA instead of jumping to ~1.8–2.1 A. 
 <h2>If you would rather not rework</h2>
 <ul>
   <li><strong>Run at 3.3 V.</strong> Halves the contention current (224 mA, 0.39 W) but does not fix
-      it: still over the package limit, and the low level is still invalid.</li>
+      it: still over the package limit, and the low level is still invalid. Worse, it is now
+      measured to be the <em>tighter</em> corner — see the 1.306&nbsp;V result above. 3.3&nbsp;V is
+      not an alternative to the rework.</li>
   <li><strong>Do nothing and monitor.</strong> 0.8 W in a SOT-323 is roughly a 200 °C rise. Expect
       the eight pull-ups to fail, and suspect data-out corruption before they do.</li>
   <li><strong>Rev B.</strong> <code>DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py</code> emits
-      the series resistor for all 164 VCC-side FETs, sized per net. That is a respin, not a patch.</li>
+      the series resistor at <strong>142</strong> sites — every VCC-side FET that has a pull-down to
+      fight — sized per net from its own gate load, because a blanket 10&nbsp;kΩ on the heavy clock
+      nets would give a 286&nbsp;µs rise and destroy the clock. Simulated too: the clock net keeps
+      its level to within 2&nbsp;mV and rises 25× inside a half-cycle. One caveat if it is ever
+      fabricated — the two 100&nbsp;Ω sites (<code>cclk</code>, <code>cp1</code>) dissipate
+      200&nbsp;mW while contended in an 0402 rated 0.0625&nbsp;W, so use 0805 there. That is a
+      respin, not a patch.</li>
 </ul>

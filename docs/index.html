@@ -524,8 +524,10 @@
       <b>Both fixes exist.</b> The boards already in production can be repaired by hand: one resistor
       added to each of eight transistors, all on the front face in a single column &mdash;
       <a href="rework-dor-series-r.html">here is exactly how, site by site</a>. And the
-      generator can now emit the fix for all 164 affected transistors, verified equivalent, ready
-      for a future revision. The flaw is recorded rather than quietly patched, because the
+      generator can now emit the fix at all 142 sites that can actually contend, ready for a future
+      revision. Both are simulated rather than merely argued: the repair drops the contention
+      current 525&times;, turns an invalid 1.86&nbsp;V &ldquo;low&rdquo; into 2.9&nbsp;mV, and costs
+      271&nbsp;ns of rise time against a 25&nbsp;&micro;s budget. The flaw is recorded rather than quietly patched, because the
       interesting part is not the bug &mdash; it is that five green verification gates could not
       see it. They all check <em>topology</em>. None of them checks <em>strength</em>.
     </p>
