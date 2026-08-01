@@ -19,6 +19,7 @@
   .cell { margin: 0; }
   .cell figcaption { margin: 0 0 .3rem; font-size: .85rem; }
   svg.site { border-radius: 4px; display: block; width: 100%; height: auto; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 4px; }
   .legend { font-size: .88rem; color: #666; }
   .ba { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.2rem; }
   .bah { font-size: .95rem; margin: 0 0 .4rem; }
@@ -90,6 +91,20 @@ V<sub>th</sub> twice. So running at 3.3&nbsp;V is not a way to avoid the rework 
 makes 3.3&nbsp;V viable.</p>
 
 <h2>Where — eight sites, all on the FRONT face, in one column</h2>
+
+<figure>
+  <a href="rework-8-sites-marked.jpg"><img src="rework-8-sites-marked.jpg" alt="The assembled
+    board seen from the top, with the eight rework sites ringed in magenta down the right-hand
+    side of the datapath, each labelled with its FET designator and dor bit, and pad 3 ringed in
+    cyan"></a>
+  <figcaption>The eight sites on the real board, on JLCPCB’s top-side assembly view. <b>Magenta</b>
+    ring = the SOT-323 to rework; <b>cyan</b> ring = pad&nbsp;3, the lone VCC-side pin to lift.
+    They sit in one column at the right-hand edge of the datapath, 11–14&nbsp;mm apart — sites 7
+    and 8 step 3.7&nbsp;mm left of the other six, which is real and not a drawing error. Positions
+    come from <code>gen/board_routed_golden.kicad_pcb</code>; the mm-to-pixel mapping was fitted on
+    all 36 bond pads, worst error 0.07&nbsp;mm against a 0.65&nbsp;mm pad pitch. Click to enlarge.</figcaption>
+</figure>
+
 <p>All eight are the same part (BSS138W, SOT-323) in the same orientation (0°), with identical
 copper around them. Board origin is top-left; x increases right, y increases down, matching KiCad.</p>
 
