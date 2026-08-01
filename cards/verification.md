@@ -35,4 +35,17 @@ gate is therefore incapable of seeing a **ratio** error, only a topology error. 
 "Driver contention" in `project-plan.md` and `sim/driver_contention.sp`. Any future claim that
 "switchsim is green" should be read as *the topology is right*, never as *the levels are right*.
 
+**The blind spot's practical rule: a ratio change needs a SPICE deck, not a green gate.**
+`sim/revb_driver.sp` (2026-08-01) is what that looks like for rev B — the same two-stage chain
+taken out of `gen/netlist.json` (`dor1 → Q401 → n798 → Q192 → db1`, the worst-measured contender)
+simulated as rev A and rev B side by side, at both rails and at typical *and* datasheet-max Vth.
+It confirms the fix on the numbers switchsim cannot produce: contention current 262 mA → 0.5 mA,
+contended level 1.86 V → 2.9 mV, rise 18 ns → 271 ns against a 25 µs budget, fall unchanged. Two
+things it found that reasoning had not: rev B's high levels come out *higher* than rev A's (the
+10k keeps bootstrap charge that rev A's stiff VCC drain dumps back into the supply), and the
+**two 100R sites (`cclk`, `cp1`) dissipate 200 mW in an 0402 rated 0.0625 W while contended** —
+harmless at ~4% duty, a real limit if the clock is ever stopped with `cclk` contended. It also
+carries a **rev A worst-Vth chain purely so the comparison stays fair**, which is what showed the
+3.3 V marginality is pre-existing rather than caused by rev B.
+
 **Closed 2026-07-25:** the pass pair was SPICEd at VCC = 3.3 V — see `cards/pass-pair-validation.md`. 3.3 V is now a diagnostic fallback rather than the first bring-up rail (`pico-controller/README.md`).

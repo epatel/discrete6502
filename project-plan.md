@@ -49,6 +49,33 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-01 (later): **Rev B validated in SPICE — the fix holds, and the hand rework is now
+  simulated rather than merely argued.** Yesterday's rev B was implemented against a green
+  `switchsim` run, which `cards/verification.md` had just finished recording as *structurally
+  incapable* of judging a ratio change — so the fix rested on exactly the gate that missed the bug.
+  `sim/revb_driver.sp` closes that: a representative driver lifted out of `gen/netlist.json`
+  (`dor1 → Q401 → n798 → Q192 → db1` — the worst-measured contender at 90% duty, carried two stages
+  deep to a real chip output), simulated as rev A and rev B side by side at both rails and at
+  typical and datasheet-max Vth. **Contention current 262 mA → 0.499 mA, contended level 1.86 V →
+  2.9 mV, rise 18 ns → 271 ns against a 25 µs budget, fall unchanged.** Since the eight-site hand
+  rework is the same topology, this validates the boards-in-flight rework too, not just a future
+  respin. Three things the simulation produced that the reasoning had not: **rev B's high levels
+  come out higher than rev A's** (the 10k keeps bootstrap charge that rev A's stiff VCC drain
+  conducts back into the supply — probed node by node before believing it); **the 3.3 V worst-Vth
+  marginality is pre-existing**, shown by adding a rev A worst-Vth chain purely so the comparison
+  could not be rigged — at 3.3 V rev A's db1 stops at 1.306 V and never reaches the 1.5 V threshold
+  it must drive, while rev B reaches 1.579 V; and **the one genuine caveat, the two 100R sites**
+  (`cclk`, `cp1`), which dissipate 200 mW in an 0402 rated 0.0625 W while contended — harmless at
+  ~4% duty, but a real limit if the clock is ever stopped with `cclk` contended, which is precisely
+  what the retention test creates. Rev B does not break the clock: `cclk` keeps its level to within
+  2 mV and rises 25x inside a half-cycle. Full tables in "Driver contention" below. Two measurement
+  traps worth keeping: rev A's contended nodes **never reach 0.5 V**, so a rise measured from 0.5 V
+  silently fails on rev A only and would have looked like rev B being the broken one; and one
+  measurement in the deck is *expected* to fail (rev A worst-Vth at 3.3 V never crosses 1.5 V) — the
+  failure is the finding and the deck says so, so nobody "fixes" it later. Rev A output re-verified
+  byte-identical (sha256) after generating rev B. **Nothing changed on the board, the fab package
+  or the firmware** — simulation and documentation only.
+
 - 2026-08-01: **A real design defect found, measured, and fixed two ways — the boards in
   production need a hand rework before they can run.** Following yesterday's shoot-through lead
   into our own netlist turned up a genuine bug, not a scare: **the transform preserved topology
@@ -503,7 +530,9 @@ true to the board rather than to a drawing of it.
 what the other 1,018 nodes already have: **0.5 mA instead of 262 mA**, Vout ~3 mV instead of
 1.86 V, and no speed cost because each of these nets drives exactly **one** gate (27 pF; a series
 resistor up to ~337 kohm would still meet a 20 us rise, and 10k gives 0.6 us against a 25 us
-half-cycle). The part is **10k 0402, C25744 — already in the BOM**, so no new sourcing. Method:
+half-cycle). **Simulated 2026-08-01, not merely argued** — `sim/revb_driver.sp` measures this exact
+topology two stages deep to the db1 output pad and confirms all three claims (0.499 mA, 2.9 mV,
+271 ns rise against a 25 us budget), with the db1 high level going *up* rather than down. The part is **10k 0402, C25744 — already in the BOM**, so no new sourcing. Method:
 lift the pull-up FET's drain pin (the VCC side) and bridge pad-to-pin with the 0402. Eight sites,
 top face, one column, well spaced. Function is preserved exactly: the FET still gates the load
 with `dor`, it just stops being a 6-ohm load.
@@ -563,6 +592,48 @@ risk during their switching windows.
 - **The green gate is weak evidence here.** `switchsim` resolves any contention as low — the very
   blind spot that hid this bug. It confirms rev B did not break the topology; it cannot confirm
   the levels are now right.
+- **SPICE now supplies the levels the gate cannot — rev B validated 2026-08-01**
+  (`sim/revb_driver.sp`). A representative driver was taken out of `gen/netlist.json` rather than
+  invented: `dor1 → Q401 → n798 → Q192 → db1`, i.e. the worst-measured contender (90% duty) carried
+  **two stages deep to an actual chip output**, so the fix is judged by what leaves the CPU. Rev A
+  and rev B are simulated side by side, at 5 V and 3.3 V, at typical and datasheet-max Vth.
+  **Verdict: rev B works and is not a trade — every figure it touches improves.**
+
+  | | rev A | rev B |
+  |---|---|---|
+  | Contention current (4.5 V gate) | 262 mA | **0.499 mA** (525x down) |
+  | Contended level on n798 | 1.86 V (invalid) | **2.9 mV** (valid) |
+  | db1 rise to 1.5 V | 18 ns | 271 ns — **90x inside** the 25 µs budget |
+  | db1 fall | 2.8 ns | 2.7 ns (unchanged — R is not in the pull-down path) |
+  | db1 high level | 3.81 V | **4.38 V** |
+  | Peak supply current, one cycle | 346 mA | **0.92 mA** |
+
+  Three findings that reasoning had not produced, each worth more than the confirmation:
+  - **Rev B's high levels come out HIGHER, and the reason is physical.** db1 rising couples back
+    into n798 through the next FET's Cgs (21 pF) — the ordinary bootstrap. In rev A the pull-up's
+    drain is stiff VCC, so any push above VCC conducts backwards and dumps that charge into the
+    supply; in rev B the same path is 10k, so the charge is kept (n798 probed decaying 5.16 → 5.10 V
+    over 45 µs). A bonus, not something to depend on — it scales with the next stage's Cgs.
+  - **The 3.3 V worst-Vth marginality is pre-existing, not rev B's doing.** The deck carries a
+    rev A worst-Vth chain *specifically so the comparison cannot be rigged*, and it is rev A that
+    fails: at 3.3 V with Vto = 1.5 V, rev A's db1 stops at **1.306 V and never reaches the 1.5 V
+    threshold of the gate it drives**, while rev B reaches 1.579 V. Two source followers in series
+    subtract Vth twice. Independent support for the existing position that 3.3 V is the tighter
+    operating point, not the safer one.
+  - **One real caveat, and it is the only one: the two 100R sites.** Contended, a 100R dissipates
+    **200 mW in an 0402 rated 0.0625 W — 320% of rating** (10k: 2.5 mW/4%; 1k: 24 mW/39%). Those two
+    are `cclk` and `cp1`. At normal running it is harmless (~1 µs per edge at 20 kHz, ~4% duty,
+    ~8 mW mean); it bites in exactly one situation — **a stopped clock with `cclk` parked
+    contended, which is what the retention test deliberately creates.** If rev B is ever fabricated:
+    0805 (0.125 W) at those two sites, or keep stalls there sub-millisecond.
+
+  The clock was checked separately as the one site where rev B could break the CPU rather than one
+  driver: `cclk` (13 nF behind 100R) keeps its high level to within 2 mV (4.141 vs 4.143 V), rises
+  in 0.98 µs — **25x inside a half-cycle** — falls identically, and gains a valid low
+  (1.86 V → 0.26 V). Pad capacitance was swept 20–500 pF since 50 pF was an estimate; it moves the
+  rise 207 ns → 1.41 µs and the level not at all, so the estimate does not need to be right.
+  **What this does not prove:** one chain out of 142. It shows the fix is sound and affordable, not
+  that every site is safe.
 - Component count: 5,563 for rev B against 5,364 for rev A (+142 resistors, −1 dropped FET pair).
   A rev B board would need the full pipeline re-run from `gen_pcb.py` onward, including placement
   and routing, so this is a real respin, not a patch.
