@@ -1,0 +1,4 @@
+address,kind,test_case,listing_line,source
+$024f,jmp * (PASS),0,131,"dec_pass        jmp dec_pass    ;PASS  -- self-loop, distinct address"
+$0252,jmp *,0,132,"dec_fail        jmp dec_fail    ;FAIL  -- self-loop, distinct address"
+$02f3,jmp *,0,367,int_trap    jmp int_trap    ;discrete6502: spurious NMI or IRQ landed here

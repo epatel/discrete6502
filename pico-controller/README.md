@@ -505,14 +505,63 @@ inside the 16 KB mirrored window, and it leaves the reset vector at `$3FFC`
 clear. The `ram_top` option of the suite even offers `$40 = 16k` as a preset
 for mirrored systems. **The loss of ab14 and ab15 does not block the suite.**
 
-Assemble the suite with `as65 -l -m -s2 -w -h0`. The `-s2` option writes Intel
-hex. Then run these commands:
+### Build the images with `tools/build_functest.py`
+
+Do not assemble by hand. `tools/build_functest.py` drives the suite's own
+assembler and then does the four board-specific things:
+
+```sh
+python3 tools/build_functest.py            # both tests
+python3 tools/build_functest.py decimal    # just one
+```
+
+It expects a checkout of the suite as a sibling directory
+(`../6502_65C02_functional_tests`, override with `--suite`) and Docker, because
+AS65 1.42 is an i386 binary and the suite's `BUILDING.md` documents
+`--platform linux/386` as the working recipe on Apple Silicon. Outputs go to
+`gen/functest/`:
+
+| file | what it is |
+|---|---|
+| `<test>.hex` | Intel hex of the folded 16 KB image, reset vector already patched |
+| `<test>_traps.csv` | every self-loop: address, kind, `test_case` at that point, source line |
+
+What the script does beyond assembling:
+
+1. **Sets `ram_top = $40`**, the suite's own preset for a 16k mirrored system.
+2. **Folds 64 KB to 16 KB** the way the hardware does, and **fails on a genuine
+   aliasing collision.** The vectors at `$fffa` alias onto `$3ffa`, thus this is
+   a real check and not a formality.
+3. **Patches the reset vector**, because the suite aims RES at `res_trap` on
+   purpose. `m 3FFC 00 04` is therefore no longer needed.
+4. **Extracts the verdict map.** Pass and fail are both self-loops, told apart
+   only by address, thus an address-to-source table is what makes a failure
+   diagnosable.
+
+Verified: with stock configuration the same toolchain reproduces upstream's
+committed `bin_files/6502_functional_test.bin` **byte for byte**, and both
+generated images were executed in an emulator against a mirrored 16 KB memory
+before any hardware existed.
+
+### The addresses you need
+
+| | functional test | decimal test |
+|---|---|---|
+| Entry | `$0400` | `$0200` |
+| Highest code byte | `$38A2` (1,880 bytes spare) | `$02F5` |
+| Progress address | **`$0200`** (`test_case`) | **`$0001`** (`N2`) |
+| Progress range | 0..43, then `$F0` for the final phase | 0..255, twice |
+| **PASS** | **`$34D8`** | **`$024F`** |
+| FAIL | any other self-loop — look it up in the CSV | `$0252` |
+| Spurious NMI | `$380B` | `$02F3` |
+| Spurious IRQ | `$3819` | `$02F3` |
+
+### Run it
 
 ```
 p 50          # start at the conservative default clock
-L             # then paste the .hex file into the terminal
-m 3FFC 00 04  # start at $0400: the suite's own RES vector points at res_trap
-k on          # watcher on (test_case defaults to $0200)
+L             # then paste gen/functest/<test>.hex into the terminal
+k 0200        # watcher on at the progress address ($0001 for the decimal test)
 R             # reset
 g             # go: run until a self-loop, print progress
 ```
@@ -525,16 +574,43 @@ bus:
   opcode tests are complete and the final RAM-integrity check has started.
 - **Verdict.** A pass and a failure are both branch-to-self loops. The watcher
   reports any address whose opcode fetch repeats 4 times, and it stops the run.
-  Compare that address against your assembly listing. The `success` address
-  means **PASS**. Any other address is the trap for the opcode above it.
+  Look the address up in `gen/functest/<test>_traps.csv`. `$34D8` means **PASS**.
+  Any other address is the trap for the opcode above it, and the CSV gives the
+  source line and the `test_case` number that was current.
 
-Plan the time. A full pass takes 10⁷ to 10⁸ cycles. At 10 kHz to 20 kHz that is
-an **overnight run**. The printed cycle counts give the exact figure on the
-first run. Run the shorter `6502_decimal_test.a65` first. Decimal mode comes
-free from the visual6502 netlist, and emulators get it wrong more often than
-any other feature. For a run of that length the **`wifi/` firmware is the
-better harness**. It uses the same watcher, but you upload the hex over HTTP
-and read the progress in a browser instead of a tethered terminal.
+**Human-readable error messages are not available on this board, and that is
+measured rather than assumed.** The suite's `report = 1` option produces text
+through an I/O channel, but it adds 3.5 kB: the image then ends at **`$466B`**,
+past the `$3FFA` ceiling of the mirrored window. The two side channels above are
+the whole story. This is the reason the verdict map matters.
+
+**Tie `irq` and `nmi` high before a long run.** Neither has a pull-up on the
+board — only a 100R and the clamp diodes, unlike `rdy` and `so`, which carry 10k
+(`R48`, `R991`) — and the Pico does not drive either one. Both float. A floating
+gate on a dynamic input can drift across threshold and fire a spurious
+interrupt, which would end an overnight run for no reason. Croc-clip both bond
+pads to VCC, directly or through 10k. If one does fire anyway it is
+**identifiable rather than confusing**: the run stops at `$380B` for NMI or
+`$3819` for IRQ, and neither is a test trap.
+
+**Plan the time — measured, not estimated.** Both images were executed to
+completion in an emulator against a mirrored 16 KB memory:
+
+| | cycles to PASS | at 10 kHz | at 20 kHz |
+|---|---|---|---|
+| `6502_decimal_test` | 46,089,513 | 1 h 17 m | 38 m |
+| `6502_functional_test` | 96,779,996 | **2 h 41 m** | 1 h 21 m |
+
+That is an afternoon, not an overnight run — the earlier "overnight" figure was
+conservative, though the 10⁷ to 10⁸ order of magnitude was right. Run the
+decimal test first: it is half the length, and decimal mode comes free from the
+visual6502 netlist while emulators get it wrong more often than any other
+feature. For runs of these lengths the **`wifi/` firmware is the better
+harness**. It uses the same watcher, but you upload the hex over HTTP and read
+the progress in a browser instead of a tethered terminal.
+
+These are also the numbers to compare against. A run that reaches PASS in
+substantially more cycles than the table says did not execute the same path.
 
 `g` accepts an optional cycle cap, for example `g 500000`. Any keypress stops
 it.

@@ -36,6 +36,36 @@ _(append-only; timestamp and mark locked decisions)_
 
 - 2026-07-27 **[correction]** The core FET is **BSS138W**, not "BSS138K" — the earlier entries in this log used a name the part does not have. Verified on LCSC: `C504052` is **JSCJ BSS138W, SOT-323**, 50 V, 220 mA, **Ciss 27 pF**, Vgs(th) 1.5 V, RDS(on) 6 Ω @ 4.5 V, Crss 6 pF. **No engineering consequence** — the LCSC code was always correct, and every figure the sims rely on matches: 27 pF is what `sim/fanout_speed.sp` and `tools/dynamic_nodes.py` assume, and the 3.3 V pass-pair and LED decks already simulate the Vth = 1.5 V worst case. The prose docs and sim comments are corrected; the append-only entries below are left as written. **`tools/gen_netlist.py` still emits the string "BSS138K"** on purpose: it becomes the BOM's Comment field, and changing it would alter `gen/fab/discrete6502_bom.csv`, whose sha256 is pinned in `RELEASE.md` and already uploaded. JLC matches on the LCSC code, so the comment is cosmetic. Also noted at the same check: LCSC stock is **20,740 against 16,234 needed** for 4 assembled boards — adequate but not roomy.
 
+- 2026-08-08 **[M6, settled]** The acceptance suite is **built by script, not by hand**:
+  `tools/build_functest.py` against a sibling checkout of Klaus Dormann's repo, emitting
+  `gen/functest/<test>.hex` (ready for the tester's `L`) plus `<test>_traps.csv` (the verdict map).
+  It sets `ram_top = $40`, folds 64 KB to 16 KB the way the hardware does — failing on a genuine
+  aliasing collision rather than letting last-writer-win — patches the reset vector so
+  `m 3FFC 00 04` is no longer a manual step, and extracts every self-loop with its source line.
+  **Validated two ways before hardware exists:** with stock config the toolchain reproduces
+  upstream's committed `bin_files/6502_functional_test.bin` byte for byte, and both generated images
+  were then *executed* in an emulator against a mirrored 16 KB memory and **both reach PASS** —
+  decimal at `$024F` in **46,089,513 cycles**, functional at `$34D8` in **96,779,996 cycles** with
+  `test_case` = `$F0`. Four facts this produced that were previously assumed: (a) **`report = 1` does
+  not fit** — the readable-error channel pushes the image to `$466B`, past the `$3FFA` ceiling, which
+  is *why* the bus side channels are the only option and not merely a preference; (b) the run is an
+  **afternoon, not overnight** — 2 h 41 m at 10 kHz, 1 h 21 m at 20 kHz (the 2026-07-26 entry's
+  "overnight" was conservative, though its 10⁷–10⁸ order was right); (c) **`test_case` runs 0..43 then
+  `$F0`**, 45 checkpoints, not a smooth count; (d) the decimal test needed real fixing, not just
+  configuring — its `end_of_test` emits `db $db`, a 65C02 STP that is an **undefined opcode on NMOS**,
+  so it is replaced by two distinct self-loops branching on `ERROR`, and it emits **no interrupt
+  vectors** at all, so an `int_trap` and a vector block were added.
+
+- 2026-08-08 **[M6, hardware finding]** **`irq` and `nmi` float on the assembled board.** Neither
+  carries a pull-up — only a 100R input-protect resistor and the two clamp diodes — whereas `rdy` and
+  `so` do have 10k (`R48`, `R991`), and the Pico's 26 GPIOs drive neither. A floating gate on a
+  dynamic input can drift across threshold and fire a spurious interrupt, which would end a
+  multi-hour functional-test run for no reason. **Mitigation: croc-clip both bond pads to VCC**
+  (directly or through 10k) before any long run. Consequence if one fires anyway is benign because it
+  is *identifiable*: the functional test traps them at `$380B` (NMI) and `$3819` (IRQ), neither of
+  which is a test trap. Found by checking `gen/netlist.json` while asking why the decimal test's
+  unset `$FFFF` vectors mattered — which is also why that test now has vectors of its own.
+
 - 2026-07-26 **[M6, settled]** The bring-up acceptance test is **Klaus Dormann's `6502_65C02_functional_tests`** (GPLv3, found via 6502.org's Tools → Emulators page) — the standard suite for 6502 *re-implementations* rather than emulators. Checked against our constraints before adopting: with its stock configuration (`zero_page = $0A`, `data_segment = $200`, `code_segment = $400`, 13.1 kB) the image ends ≈ `$3800`, so it fits the 16 KB mirrored window with the reset vector at `$3FFC` clear — **the ab14/ab15 sacrifice does not block it**, and the suite's own `ram_top` option offers `$40 = 16k` as a mirrored-system preset. It has no I/O, so `pico-controller/common/functest.c` reads its two side channels off the bus: writes to `test_case` ($0200) as live progress, and a repeated opcode-fetch address (branch-to-self) as the verdict — pass and fail are both self-loops, distinguished by the address in the assembly listing. Runtime is order 10⁷–10⁸ cycles ⇒ an overnight run at 10–20 kHz; run `6502_decimal_test.a65` first (decimal mode comes free from the netlist and is what emulators most often get wrong). One gotcha: the suite's own RES vector points at `res_trap`, so `$3FFC/D` must be patched to `$0400` after loading.
 
 - 2026-07-25 **[user decision, at order]** Core FET switched to **BSS138K, LCSC C504052** (JSCJ, SOT-323) — 2N7002W (C139444) not in JLCPCB inventory. BSS138 was the designated fallback since M2 and is SPICE-validated; Vth 0.8–1.5V improves 3.3V-bring-up margins. Same package/pinout; netlist, generator, and BOM updated (datasheet reviewed: 27pF Ciss, 50V, standard G/S/D). BOM also re-chunked to ≤2000-char designator cells (JLC upload limit).
@@ -48,6 +78,32 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-25: **M6 prep started — Pico firmware scaffolded** in `pico-controller/` (`common/` shared bus engine — clock master, 16KB mirrored memory serving, trace ring, reset ceremony; `tester/` interactive bring-up CLI; `general/` free-runner with `$3F00` char-out port). Builds against pico-sdk 2.x (`PICO_BOARD=pico2_w`), untested until hardware exists. **Open question (resolve before power-up): 3.3V Pico vs 5V core levels** — inputs are practically safe through the 1k series resistors. **Verified: the board has NO pull-up on clk0** (only 100R protection + pico series R), so the clock must be driven push-pull; open-drain would leave clk0 floating unless an external 10k is croc-clipped Φ0→VCC. **Corrected 2026-07-25:** the earlier claim that a 3.3V clock under-drives the pass-pair bootstrap was wrong — clk0 gates only two pull-downs, and the internal phases (cclk/cp1) are regenerated on-board at full VCC swing; simulated, a 3.3V clk0 into a 5V core is functionally identical to a 5V one (1.7mV low, 17ns delay). The external pull-up is optional polish, not a requirement. Recommended first bring-up: whole CPU at VCC=3.3V (single domain, logic smoke test) — SPICE the pass-pair at 3.3V before boards arrive.
 
 ## Current state / handoff
+
+- 2026-08-08 (later): **The acceptance suite is built, validated, and passing — in an emulator, so
+  the images are no longer an unknown at bring-up.** Klaus Dormann's suite is checked out as a
+  sibling directory (`../6502_65C02_functional_tests`, which already carried a verified
+  `BUILDING.md` recipe for running the i386 AS65 under `docker --platform linux/386`).
+  `tools/build_functest.py` now drives it end to end and writes `gen/functest/` — see the two
+  Decisions entries above for what it does and what it measured. **The headline: both images reach
+  PASS in an emulator against a mirrored 16 KB memory**, so if the board fails the suite, the board
+  is what failed. Deliberate choices worth knowing: the images are **committed** rather than
+  regenerated at bring-up time, so no Docker is needed on the day; and the toolchain is checked by
+  reproducing upstream's own committed binary byte-for-byte, which tests the assembler path
+  independently of anything we changed. **The user's question — "add an output addr to follow their
+  progress?" — turned out to be already answered by the suite and better left alone.** `test_case` at
+  `$0200` is exactly that address, `functest.c` already watches it, and adding a *second* dedicated
+  port would have been actively harmful: with `ram_top = $40` the RAM-integrity check checksums
+  everything from the data segment up to `$3FFF`, so any I/O address inside the window is inside the
+  checksum, and every address is inside the window because the Pico only decodes 14 bits. So the
+  progress channel is `k 0200` for the functional test and `k 0001` (the `N2` outer counter) for the
+  decimal test. Two real problems were fixed rather than documented around: the decimal test ended on
+  `db $db`, a **65C02 STP that is an undefined opcode on NMOS**, and it emitted **no interrupt
+  vectors**; both now produce identifiable self-loops. **Nothing on the board, in the fab package or
+  in the firmware changed** — a new tool, its outputs, and documentation. Docs updated to match:
+  `pico-controller/README.md` (build recipe, address table, measured runtimes replacing the
+  "overnight" estimate) and `docs/bring-up.html` Step 8. **Next, unchanged: the boards.** Bring-up
+  Step 1, Step 2's current reading, then the eight-site rework, then Step 6 onward — and tie `irq`
+  and `nmi` high before starting a multi-hour run.
 
 - 2026-08-08: **The bring-up procedure is now written down, and writing it exposed two soft claims
   in our own instructions.** Boards were expected to ship 2026-08-06, so this session produced the

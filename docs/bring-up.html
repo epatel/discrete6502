@@ -578,36 +578,81 @@ worth knowing, and it is the only reason to have a pre-rework figure at all.
 <p><code>6502_decimal_test.a65</code> before the main suite. Decimal mode comes free from the
 netlist and is the thing emulators most often get wrong, so it is a high-information, short test.</p>
 
-<h3>Recipe</h3>
-<ol>
-  <li>Assemble the suite with its stock configuration (<code>zero_page&nbsp;=&nbsp;$0A</code>,
-      <code>data_segment&nbsp;=&nbsp;$200</code>, <code>code_segment&nbsp;=&nbsp;$400</code>). The
-      image ends around <code>$3800</code>, so it fits the 16&nbsp;KB mirrored window with the reset
-      vector clear.</li>
-  <li>Load it with <code>L</code> and paste the Intel hex into the terminal.</li>
-  <li><strong>Patch the reset vector:</strong> <code>m 3FFC 00 04</code>. The suite's own RES vector
-      points at <code>res_trap</code>, so this step is mandatory.</li>
-  <li>Turn the watcher on with <code>k</code> (the <code>test_case</code> address, hex).</li>
-  <li><code>g</code> — run until a self-loop, printing progress. Any keypress interrupts.</li>
-</ol>
+<h3>Build the images</h3>
+<p>Do not assemble by hand. <code>tools/build_functest.py</code> drives the suite's own assembler
+and does the board-specific work — it needs a checkout of the suite as a sibling directory and
+Docker, because AS65 1.42 is an i386 binary:</p>
+<pre><code>python3 tools/build_functest.py            # both tests
+python3 tools/build_functest.py decimal    # just one</code></pre>
+<p>Outputs land in <code>gen/functest/</code>: a <code>.hex</code> ready for <code>L</code>, and a
+<code>_traps.csv</code> listing every self-loop with its source line. The script sets
+<code>ram_top&nbsp;=&nbsp;$40</code> (the suite's own preset for a 16k mirrored system), folds
+64&nbsp;KB to 16&nbsp;KB the way the hardware does and <em>fails</em> on a real aliasing collision,
+patches the reset vector, and extracts the verdict map.</p>
 
-<h3>How to read the verdict</h3>
-<p>The suite has no I/O, so the firmware reads its two side channels off the bus: writes to
-<code>test_case</code> (<code>$0200</code>) give live progress, and a repeated opcode-fetch address
-gives the verdict. <strong>Pass and fail are both self-loops</strong> — they are distinguished by
-the address, which you look up in the assembly listing.</p>
-
-<div class="warn">
-<strong>This is an overnight run.</strong> Order 10⁷–10⁸ cycles at 10–20&nbsp;kHz. Use the bench
-supply with margin — this is dynamic logic, and a rail sag does not degrade gracefully, it corrupts
-dynamic nodes and you read the result as a CPU logic fault. For an unattended run, the
-<code>wifi</code> firmware is built for exactly this: it serves a browser control panel with live
-bus and test progress, with the bus engine pinned to core 1 so that association and DHCP cannot
-stretch a clock phase.
+<div class="ok">
+<strong>Both images have been executed before any hardware existed, and both reach PASS.</strong>
+The toolchain first reproduces upstream's committed <code>bin_files/6502_functional_test.bin</code>
+byte for byte, which validates the assembler path; then each generated image was run to completion
+in an emulator against a mirrored 16&nbsp;KB memory. The decimal test reaches its PASS loop in
+46,089,513 cycles and the functional test reaches <code>$34D8</code> in 96,779,996 cycles with
+<code>test_case</code> at <code>$F0</code>. So a failure on the board is the board, not the image.
 </div>
 
-<p>The per-<code>test_case</code> progress is what makes a failure useful: it narrows 4,051 FETs to
-a functional block.</p>
+<h3>The addresses you need</h3>
+<table>
+  <tr><th></th><th>Functional test</th><th>Decimal test</th></tr>
+  <tr><td>Entry</td><td><code>$0400</code></td><td><code>$0200</code></td></tr>
+  <tr><td>Progress address</td><td><code>$0200</code> (<code>test_case</code>)</td><td><code>$0001</code> (<code>N2</code>)</td></tr>
+  <tr><td>Progress range</td><td>0..43, then <code>$F0</code> for the final phase</td><td>0..255, twice</td></tr>
+  <tr><td><strong>PASS</strong></td><td><strong><code>$34D8</code></strong></td><td><strong><code>$024F</code></strong></td></tr>
+  <tr><td>FAIL</td><td>any other self-loop — look it up in the CSV</td><td><code>$0252</code></td></tr>
+  <tr><td>Spurious NMI</td><td><code>$380B</code></td><td><code>$02F3</code></td></tr>
+  <tr><td>Spurious IRQ</td><td><code>$3819</code></td><td><code>$02F3</code></td></tr>
+  <tr><td>Cycles to PASS</td><td>96,779,996 — 2 h 41 m at 10 kHz</td><td>46,089,513 — 1 h 17 m at 10 kHz</td></tr>
+</table>
+
+<h3>Run it</h3>
+<pre><code>p 50          # the conservative default clock
+L             # paste gen/functest/&lt;test&gt;.hex into the terminal
+k 0200        # watcher at the progress address ($0001 for the decimal test)
+R             # reset
+g             # go: run until a self-loop, printing progress</code></pre>
+<p>The reset vector is already patched in the image, so the old <code>m 3FFC 00 04</code> step is no
+longer needed.</p>
+
+<h3>How to read the verdict</h3>
+<p>The suite has no I/O, so the firmware reads two side channels off the bus: writes to the progress
+address give live progress, and a repeated opcode-fetch address gives the verdict.
+<strong>Pass and fail are both self-loops</strong>, distinguished only by address — which is why the
+generated <code>_traps.csv</code> matters. It gives every failure address its source line and the
+<code>test_case</code> number that was current, so a stop narrows 4,051 FETs to a functional
+block.</p>
+
+<div class="warn">
+<strong>Human-readable error messages are not available on this board — measured, not assumed.</strong>
+The suite's <code>report&nbsp;=&nbsp;1</code> option prints text through an I/O channel, but it adds
+3.5&nbsp;kB and the image then ends at <code>$466B</code>, past the <code>$3FFA</code> ceiling of the
+mirrored window. The two side channels are the whole story.
+</div>
+
+<div class="warn">
+<strong>Tie <code>irq</code> and <code>nmi</code> high before a long run.</strong> Neither has a
+pull-up on the board — only a 100R and the clamp diodes, unlike <code>rdy</code> and <code>so</code>
+which carry 10&nbsp;kΩ (<code>R48</code>, <code>R991</code>) — and the Pico drives neither. Both
+float, and a floating gate on a dynamic input can drift across threshold and fire a spurious
+interrupt that ends a three-hour run for no reason. Croc-clip both bond pads to VCC, directly or
+through 10&nbsp;kΩ. If one fires anyway it is <em>identifiable</em>: the run stops at
+<code>$380B</code> (NMI) or <code>$3819</code> (IRQ), and neither is a test trap.
+</div>
+
+<div class="note">
+<strong>It is an afternoon, not an overnight run</strong> — 2 h 41 m at 10 kHz, 1 h 21 m at 20 kHz.
+Still use the bench supply with margin: this is dynamic logic, a rail sag does not degrade
+gracefully, and you would read the corruption as a CPU logic fault. The <code>wifi</code> firmware
+is the better harness for a run this long — same watcher, but progress in a browser, with the bus
+engine pinned to core 1 so association and DHCP cannot stretch a clock phase.
+</div>
 </div>
 
 <hr>
