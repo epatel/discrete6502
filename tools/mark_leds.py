@@ -126,6 +126,11 @@ def main():
     ap.add_argument("--netlist", default=os.path.join(here, "gen/netlist.json"))
     ap.add_argument("--render", default=os.path.join(here, "gen/board_top.png"))
     ap.add_argument("--out", default=os.path.join(here, "docs/leds-marked.jpg"))
+    ap.add_argument("--width", type=int, default=1600,
+                    help="final image width in px (0 = keep full render size). "
+                         "Drawing always happens at full resolution and the "
+                         "result is downsampled, so stroke weights and text "
+                         "stay proportional.")
     args = ap.parse_args()
 
     nl = json.load(open(args.netlist))
@@ -269,9 +274,14 @@ def main():
                f"{len(by_group[role])}x  {desc[role]}", font=f_legs,
                fill=(210, 210, 215, 255))
 
+    if args.width and args.width < img.size[0]:
+        h = round(img.size[1] * args.width / img.size[0])
+        img = img.resize((args.width, h), Image.LANCZOS)
+        print(f"downsampled to {args.width}x{h}")
+
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     if args.out.lower().endswith((".jpg", ".jpeg")):
-        img.save(args.out, quality=88, optimize=True)
+        img.save(args.out, quality=90, optimize=True)
     else:
         img.save(args.out)
     print(f"wrote {args.out} ({os.path.getsize(args.out)/1024:.0f} KB, {img.size[0]}x{img.size[1]})")
