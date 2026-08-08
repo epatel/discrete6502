@@ -49,6 +49,46 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-08: **The bring-up procedure is now written down, and writing it exposed two soft claims
+  in our own instructions.** Boards were expected to ship 2026-08-06, so this session produced the
+  document that gets used when they arrive: `docs/bring-up.html`, linked from `docs/index.html`
+  (live at `epatel.github.io/discrete6502/bring-up.html`). Nine steps from receiving inspection to
+  the overnight functional test, each tagged with its power state, gated on a stated measurement,
+  and paired with what a wrong reading means. Content is assembled from
+  `pico-controller/README.md`, the "Driver contention" and "Expected fab yield" sections here, and
+  the tester's own help text — no new engineering, but three decisions the sources had left
+  implicit. **(a) Where the rework belongs: between the unpowered checks and the first clocked
+  run.** Steps 1–2 are the only tests that catch a *systematic* assembly fault, and any such fault
+  makes the rework wasted labour on four boards; everything after the Pico goes on involves
+  sustained clocking, which is what makes the defect thermal. The README had **no rework step at
+  all** — it now has Step 2b, numbered rather than renumbered so existing Step 3/Step 4 references
+  stay valid. **(b) The 0.5 A limit is below the 0.65 A legitimate worst case**, so a healthy board
+  at worst case would trip the limit and look like a fault. Both documents now say to ramp the
+  voltage from zero, because *where* it folds back is the diagnostic — a bridge limits at a
+  fraction of a volt, a healthy-but-high board near the top — with an escalation to 0.8 A that is
+  still far below the ~1.8 A contention draws. **(c) "An unclocked board cannot contend" was
+  overstated** and is now qualified: the dynamic nodes are not in a defined state on an unclocked
+  board, so nothing forbids a `dor` gate and its pull-down both sitting above threshold. Operationally
+  nothing changes, because the protection was always the current limit rather than the absence of
+  contention — but the honest form of the claim is "sustained contention is unlikely". **Also
+  settled: pre-flash the Pico before soldering it.** It can be reprogrammed in place indefinitely
+  (`pico_stdio_usb/reset_interface.c` is linked, so the 1200-baud touch works and BOOTSEL is never
+  needed again), but flashing once beforehand lets a bad module be rejected while rejection is still
+  cheap — the footprint's pads run *under* the module — and makes first power-up a known state
+  rather than merely a harmless one. Safe because **the firmware is inert at boot**: `bus_init(false)`
+  then a block on `stdio_usb_connected()`, so a powered board with no terminal attached does
+  nothing. One subtlety recorded in both files: `bus_init` leaves **clk0 an output driven LOW**, so a
+  powered pre-programmed board sits with the clock *parked* — the stall condition, which the
+  retention test creates deliberately and which contention makes dangerous. Safe in this order, and
+  a reason not to move Step 2b after Step 3. Two README corrections fell out: Step 4 no longer tells
+  you to flash a firmware Step 3 already flashed, and it now carries the clocked-current check and
+  the "measure the retention floor after the rework, never before" rule. **Left unverified and
+  marked as such:** the module mounts pads-down, so USB and BOOTSEL should face away from the PCB —
+  reasoned from the footprint, not from a board in hand, and it decides how the board must be
+  propped for flashing. **No design, board, fab or firmware files were touched** — documentation
+  only. Incidental: `docs/index.html` has a pre-existing `<head>` tag mismatch (confirmed against
+  `git show HEAD:`); it renders fine and was left alone.
+
 - 2026-08-01 (later): **Rev B validated in SPICE — the fix holds, and the hand rework is now
   simulated rather than merely argued.** Yesterday's rev B was implemented against a green
   `switchsim` run, which `cards/verification.md` had just finished recording as *structurally

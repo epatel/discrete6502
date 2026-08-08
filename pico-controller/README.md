@@ -50,38 +50,129 @@ Find it before you apply power.
 
 ### Step 2: board alone at 5 V
 
-Croc-clip the current-limited supply to the VCC and VSS bond pads. Set 5 V.
-**Compare the current against the 0.35 A prediction.** That prediction is valid
-*here* precisely because the clock is not running: contention needs live logic
-state, and an unclocked board has none. Expect the current to jump to roughly
-**1.8–2.1 A the moment you start clocking** — see "Driver contention" in
-`project-plan.md`, and size the supply for 3 A. This one number is the
+Croc-clip the current-limited supply to the VCC and VSS bond pads. Set the limit
+to 0.5 A, set 5 V, and **ramp the voltage up from zero** while you watch the
+current. Do not switch 5 V on in one step; the reason is below.
+
+**Compare the current against the 0.35 A prediction.** This one number is the
 most informative test in the whole sequence. It finds a bridged rail, a reel
-loaded backwards and missing pull-ups. The worst case is 0.65 A, with every
-pull-up low and every LED lit — still an *unclocked* figure, which is what makes
-it the right yardstick for this step.
+loaded backwards and missing pull-ups. Expect the current to jump to roughly
+**1.8–2.1 A the moment you start clocking** — see "Driver contention" in
+`project-plan.md`, and size the supply for 3 A.
+
+| Reading at 5 V | Verdict |
+|---|---|
+| ≈0.35 A | The prediction. A healthy board. |
+| Up to 0.65 A | The legitimate worst case: every pull-up low, every LED lit. Unusual, not a fault. |
+| Limits at a fraction of a volt | A short. Stop and find it. |
+| Limits only near 5 V | Ambiguous — see below. |
+| Grossly high or grossly low | A systematic fault. Do not proceed, and do not rework three more boards. |
+
+**Why you ramp: the limit is below the legitimate worst case.** 0.65 A on a
+healthy board would trip a 0.5 A limit and look exactly like a fault. *Where* it
+folds back is what separates them — a bridge limits almost immediately, a
+healthy-but-high board limits near the top. If it limits near the top and you
+need to tell the two apart, raise the limit to **0.8 A**. That is still far below
+the ~1.8 A that contention draws, so the limit stays diagnostic and does not
+merely become permissive.
+
+**An honest limit on "an unclocked board cannot contend".** The reasoning is that
+contention needs live logic state, which an unclocked board has none of. That is
+likely but not guaranteed: the dynamic nodes are not in a defined state on an
+unclocked board, they hold whatever power-up charge leaves them, and nothing
+forbids a `dor` gate and its pull-down from both sitting above threshold. Read the
+claim as *sustained* contention being unlikely, not as contention being
+impossible. It changes nothing you do, because **the protection was never the
+absence of contention — it is the current limit.** At 0.5 A the supply folds back
+as soon as two nets contend at 262 mA each, the rail sags, and dissipation stays
+well below what damages a SOT-323. These parts fail from sustained heating, which
+a current-limited supply prevents.
 
 Optionally, croc-clip a function generator to the Φ0 bond pad and drive clk0
 push-pull at some kHz. The data bus floats, because no memory is connected,
 thus the CPU executes garbage. The register LEDs must still move. Movement
 proves that the clock phases regenerate on-board and that the dynamic logic
-holds charge.
+holds charge. Keep this brief and keep the current limit on: clocking is what
+makes driver contention thermal, and the rework has not been done yet.
+
+### Step 2b: the eight-site rework (rev A boards)
+
+Unpowered. Add a 10k resistor in series with each of the eight data-out driver
+pull-ups. Instructions, site by site, with true-scale renders:
+`docs/rework-dor-series-r.html`. Background: "Driver contention" in
+`project-plan.md`.
+
+It belongs **here**, between Step 2 and Step 3, and the order is the point.
+Steps 1 and 2 are the only tests that detect a *systematic* assembly fault, and
+any such fault would make the rework wasted labour on four boards. Everything
+from Step 4 onward involves sustained clocking, which is the condition that makes
+the defect thermal. Thus the rework goes exactly between them.
+
+Repeat the Step 1 resistance measurement when all eight are done.
 
 ### Step 3: mount the Pico
 
-Solder the Pico 2 W module on the underside site. **Solder pin 39.** See
-Powering for why pin 39 must be a soldered joint and not a decision.
+**Flash the `tester` firmware onto the bare module first**, on the bench, and
+confirm that it enumerates over USB. Then solder the Pico 2 W module on the
+underside site. **Solder pin 39.** See Powering for why pin 39 must be a
+soldered joint and not a decision.
 
 Pin 38 is `vss` and pin 39 is `vcc`, side by side on 2.54 mm pitch. A solder
 bridge between them is a dead short across the board supply. Repeat the Step 1
-resistance measurement after you solder the module.
+resistance measurement after you solder the module. Apply power only after that
+measurement.
+
+#### Flash before soldering, even though it can be reflashed in place
+
+The module can be reprogrammed in place indefinitely, and with no button press.
+`pico_stdio_usb/reset_interface.c` is linked into all three firmwares, thus the
+SDK 1200-baud-touch reset-to-bootloader works and `picotool` can reboot the
+module into its bootloader over USB. Flash it once beforehand anyway, for three
+reasons.
+
+- **A bad module is cheap to reject before it is soldered.** The
+  `RaspberryPi_Pico_W_SMD` pads are 3.2 x 1.6 mm and run *under* the module, thus
+  desoldering one is a poor operation to perform beside 4,051 transistors.
+- **The first flash is the one that needs BOOTSEL**, held while the board
+  power-cycles. That is the awkward step, and it is the step you can do off the
+  board.
+- **The first power-up becomes a known state**, not merely a harmless one. A
+  blank module is safe, because RP2350 GPIOs default to inputs, but safe and
+  known are not the same property.
+
+**The firmware is inert at boot, which is what makes this safe.** `main()` calls
+`bus_init(false)` and then blocks on `while (!stdio_usb_connected())
+sleep_ms(100)`. A pre-programmed board that is powered with no terminal attached
+does nothing: no clocking and no reset ceremony. The CPU moves only when you
+open a serial connection, thus entering Step 4 is a decision and not an event.
+
+**One subtlety: `bus_init` leaves clk0 an output driven LOW**, and every other
+pin an input. A powered pre-programmed board therefore sits with the clock
+*parked*, which is the stall condition — the condition the retention test
+creates deliberately, and the condition that driver contention makes dangerous.
+This is safe in the sequence as written, because Step 2b puts the rework before
+the Pico goes on. Do not reorder those two, and do not leave an un-reworked board
+powered with a Pico fitted.
+
+**Unverified, worth checking before you choose a workholding setup:** the module
+mounts pads-down, thus its component side — USB connector and BOOTSEL button —
+faces away from the PCB, which is downward when the board lies flat on its back.
+Prop the board up or use standoffs to reach the connector. This is reasoned from
+the footprint, not from a board in hand.
 
 ### Step 4: 5 V logic bring-up
 
-Power the board at 5 V from the bench supply and flash the `tester` firmware.
-USB may stay connected for serial. Run the default A-register counter image and
-watch the A LEDs count. Then walk the clock up with `p` to find the real
-ceiling, and measure the retention floor with `W`.
+Power the board at 5 V from the bench supply. The `tester` firmware is already on
+the module from Step 3; reflash it in place if you have changed it, with no button
+press needed. USB may stay connected for serial. Open the terminal — the firmware
+waits for it before touching the CPU — then run the default A-register counter
+image and watch the A LEDs count.
+
+Watch the supply current here. With the rework done it stays in the low hundreds
+of mA. A jump toward 1.8–2.1 A means a rework site did not take.
+
+Then walk the clock up with `p` to find the real ceiling, and measure the
+retention floor with `W`. Measure the floor **after** the rework, never before.
 
 3.3 V is **not** a step in this sequence. It is a diagnostic fallback. See
 "3.3 V operation" below.

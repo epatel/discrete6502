@@ -1,0 +1,702 @@
+<meta charset="utf-8">
+<title>discrete6502 — bringing the board to life: a step-by-step bring-up guide</title>
+<style>
+  body { font: 15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif;
+         max-width: 62rem; margin: 2rem auto; padding: 0 1.2rem; color: #1c1c1e; }
+  h1 { font-size: 1.6rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.15rem; margin-top: 2.4rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin-top: 1.6rem; }
+  .sub { color: #666; margin-top: 0; }
+  table { border-collapse: collapse; margin: 1rem 0; font-size: .92rem; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #f5f5f7; }
+  code { background: #f5f5f7; padding: .1rem .3rem; border-radius: 3px; font-size: .92em; }
+  pre { background: #f5f5f7; padding: .8rem 1rem; border-radius: 5px; overflow-x: auto; font-size: .88rem; }
+  pre code { background: none; padding: 0; }
+  .warn { background: #fff6e5; border-left: 4px solid #e8a33d; padding: .8rem 1rem; margin: 1rem 0; }
+  .stop { background: #fdeaea; border-left: 4px solid #c94a4a; padding: .8rem 1rem; margin: 1rem 0; }
+  .ok   { background: #eef7ee; border-left: 4px solid #4a9d4a; padding: .8rem 1rem; margin: 1rem 0; }
+  .note { background: #eef2f8; border-left: 4px solid #5a7fb8; padding: .8rem 1rem; margin: 1rem 0; }
+  ol li, ul li { margin: .35rem 0; }
+  figure { margin: 1.5rem 0; }
+  figcaption { color: #666; font-size: .9rem; margin-top: .4rem; }
+  .step { border: 1px solid #ddd; border-radius: 6px; padding: .1rem 1.1rem 1rem; margin: 1.6rem 0; }
+  .step h2 { margin-top: 1rem; border: none; padding-bottom: 0; }
+  .tag { display: inline-block; font-size: .78rem; font-weight: 600; letter-spacing: .03em;
+         text-transform: uppercase; padding: .15rem .5rem; border-radius: 3px;
+         background: #e8e8ed; color: #444; margin-right: .5rem; vertical-align: .12em; }
+  .tag.risk { background: #fbe3e3; color: #8d2f2f; }
+  .tag.safe { background: #e3f1e3; color: #2f6b2f; }
+  .gate { font-weight: 600; }
+  svg.flow { width: 100%; height: auto; max-width: 40rem; display: block; margin: 1.5rem auto; }
+  .flow .box { fill: #f5f5f7; stroke: #b8b8bd; }
+  .flow .box.act { fill: #eef2f8; stroke: #5a7fb8; }
+  .flow .box.dan { fill: #fdeaea; stroke: #c94a4a; }
+  .flow text { fill: #1c1c1e; font: 12px -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .flow text.sm { font-size: 10.5px; fill: #666; }
+  .flow line, .flow path { stroke: #b8b8bd; fill: none; }
+  nav ol { columns: 2; column-gap: 2rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1c1c1e; color: #e8e8ea; }
+    th { background: #2c2c2e; } td, th { border-color: #3a3a3c; }
+    code, pre { background: #2c2c2e; } .sub, figcaption { color: #9a9aa0; }
+    .warn { background: #3a2f1a; } .ok { background: #1e3320; }
+    .stop { background: #3a1e1e; } .note { background: #1e2a3a; }
+    .step { border-color: #3a3a3c; }
+    .tag { background: #3a3a3c; color: #cfcfd4; }
+    .tag.risk { background: #4a2020; color: #f0a0a0; }
+    .tag.safe { background: #1e3320; color: #9fd39f; }
+    .flow .box { fill: #2c2c2e; stroke: #55555a; }
+    .flow .box.act { fill: #1e2a3a; stroke: #5a7fb8; }
+    .flow .box.dan { fill: #3a1e1e; stroke: #c94a4a; }
+    .flow text { fill: #e8e8ea; } .flow text.sm { fill: #9a9aa0; }
+    .flow line, .flow path { stroke: #55555a; }
+  }
+</style>
+
+<h1>Bringing the board to life</h1>
+<p class="sub">discrete6502 — the bring-up sequence for the boards as delivered: 4 assembled,
+1 bare. Sources: <code>pico-controller/README.md</code> (the authoritative sequence),
+“Driver contention” and “Expected fab yield” in <code>project-plan.md</code>, and
+<a href="rework-dor-series-r.html">the rev A rework page</a>.</p>
+
+<div class="stop">
+<strong>Read this before you connect anything.</strong>
+<ul>
+  <li><strong>Use a bench supply with an adjustable current limit. Never USB, and never a
+      charger.</strong> The current limit is what protects a mis-assembled board — not a lower
+      rail voltage, not luck. A charger will happily push 3&nbsp;A into a partially-conducting
+      driver.</li>
+  <li><strong>Size the supply for 3&nbsp;A</strong>, not 1&nbsp;A. The clocked board draws
+      ≈2.1&nbsp;A until the rework is done, and ≈0.3&nbsp;A after it.</li>
+  <li><strong>ESD precautions throughout.</strong> 4,051 MOSFET gates sit on dynamic nodes with
+      no protection whatsoever. Wrist strap, mat, handle by the edges.</li>
+  <li><strong>Do not run the retention test (<code>w</code>&nbsp;/&nbsp;<code>W</code>) before the
+      rework.</strong> Freezing the clock is precisely the condition that parks a pull-up and a
+      pull-down on together. Before the rework that is 262&nbsp;mA and ~0.9&nbsp;W per site; after
+      it, 0.5&nbsp;mA.</li>
+  <li><strong>Bring up one board at a time.</strong> You have four. Take one all the way through
+      and leave the other three untouched until you know what a good board looks like.</li>
+</ul>
+</div>
+
+<h2>The sequence at a glance</h2>
+
+<svg class="flow" viewBox="0 0 440 560" role="img"
+     aria-label="Flow chart of the bring-up sequence from receiving inspection through the functional test">
+  <g>
+    <rect class="box" x="60" y="8" width="320" height="42" rx="5"/>
+    <text x="72" y="27">Step 0 — Receiving inspection</text>
+    <text class="sm" x="72" y="42">ESD, photograph, visual check, support flat. No power.</text>
+
+    <line x1="220" y1="50" x2="220" y2="68" marker-end="url(#a)"/>
+
+    <rect class="box" x="60" y="68" width="320" height="42" rx="5"/>
+    <text x="72" y="87">Step 1 — VCC↔VSS resistance, no power</text>
+    <text class="sm" x="72" y="102">Must read high. A low reading is a solder bridge.</text>
+
+    <line x1="220" y1="110" x2="220" y2="128" marker-end="url(#a)"/>
+
+    <rect class="box act" x="60" y="128" width="320" height="54" rx="5"/>
+    <text x="72" y="147">Step 2 — 5 V, unclocked, no Pico</text>
+    <text class="sm" x="72" y="162">Expect ≈0.35 A. THE systematic-fault detector:</text>
+    <text class="sm" x="72" y="175">finds a bridged rail, a backwards reel, missing pull-ups.</text>
+
+    <line x1="220" y1="182" x2="220" y2="200" marker-end="url(#a)"/>
+
+    <rect class="box" x="60" y="200" width="320" height="42" rx="5"/>
+    <text x="72" y="219">Step 3 — Optional: external clock, watch the LEDs</text>
+    <text class="sm" x="72" y="234">Proves the on-board clock phases regenerate.</text>
+
+    <line x1="220" y1="242" x2="220" y2="260" marker-end="url(#a)"/>
+
+    <rect class="box dan" x="60" y="260" width="320" height="54" rx="5"/>
+    <text x="72" y="279">Step 4 — The eight-site 10 kΩ rework</text>
+    <text class="sm" x="72" y="294">Do it here: after the board is proven alive,</text>
+    <text class="sm" x="72" y="307">before any sustained clocking or any stall test.</text>
+
+    <line x1="220" y1="314" x2="220" y2="332" marker-end="url(#a)"/>
+
+    <rect class="box" x="60" y="332" width="320" height="42" rx="5"/>
+    <text x="72" y="351">Step 5 — Solder the Pico, pin 39 included</text>
+    <text class="sm" x="72" y="366">Then repeat the Step 1 resistance measurement.</text>
+
+    <line x1="220" y1="374" x2="220" y2="392" marker-end="url(#a)"/>
+
+    <rect class="box act" x="60" y="392" width="320" height="42" rx="5"/>
+    <text x="72" y="411">Step 6 — First clocked run: the A counter</text>
+    <text class="sm" x="72" y="426">The A-register LEDs count. This is “it is alive”.</text>
+
+    <line x1="220" y1="434" x2="220" y2="452" marker-end="url(#a)"/>
+
+    <rect class="box" x="60" y="452" width="320" height="42" rx="5"/>
+    <text x="72" y="471">Step 7 — Measure the clock window</text>
+    <text class="sm" x="72" y="486">Ceiling with <tspan font-family="monospace">p</tspan>, then the retention floor with <tspan font-family="monospace">W</tspan>.</text>
+
+    <line x1="220" y1="494" x2="220" y2="512" marker-end="url(#a)"/>
+
+    <rect class="box" x="60" y="512" width="320" height="42" rx="5"/>
+    <text x="72" y="531">Step 8 — The functional test</text>
+    <text class="sm" x="72" y="546">Klaus Dormann's suite. Overnight. The acceptance gate.</text>
+  </g>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10" stroke="#b8b8bd" fill="none"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="note">
+<strong>Why the rework sits at Step 4 and not earlier or later.</strong> Steps 1–3 are the only
+tests that can detect a <em>systematic</em> assembly fault — a wrong reel, a bridged rail, a
+rotation error — and all of them would make the rework wasted labour on four boards. Everything
+from Step 6 onward involves sustained clocking, which is the condition that makes the defect
+thermal. So the rework goes exactly between them.
+</div>
+
+<div class="note">
+<strong>Numbering, reconciled.</strong> <code>pico-controller/README.md</code> carries the same
+sequence under its own numbering, which predates this page and is referenced from elsewhere in the
+repo. The steps map like this: this page's Steps&nbsp;0–2 are its Steps&nbsp;1–2, Step&nbsp;3 is the
+optional paragraph at the end of its Step&nbsp;2, Step&nbsp;4 is its <strong>Step&nbsp;2b</strong>,
+Step&nbsp;5 is its Step&nbsp;3, and Steps&nbsp;6–8 are its Step&nbsp;4. Same order, same gates.
+</div>
+
+<h2>What you need</h2>
+
+<h3>Instruments</h3>
+<ul>
+  <li><strong>Bench supply, 3&nbsp;A, adjustable current limit</strong> and a readable current
+      display. The display is an instrument here, not a convenience — several steps below are
+      nothing but reading it.</li>
+  <li><strong>Multimeter</strong> with fine, sharp probe tips. Blunt probes slip onto neighbouring
+      parts on a board this dense.</li>
+  <li><strong>Croc-clip leads.</strong> The 11.6&nbsp;mm bond pads exist precisely so croc clips
+      work from the back.</li>
+  <li><strong>Optional but valuable: a function generator</strong> (Step 3) and an oscilloscope.</li>
+</ul>
+
+<h3>For the rework (Step 4)</h3>
+<ul>
+  <li>8 × <strong>10&nbsp;kΩ 0603</strong> resistors, plus spares — buy 20–25. 0.1&nbsp;W is the
+      standard 0603 rating and is 40× what these dissipate (~2.5&nbsp;mW). Tolerance is
+      irrelevant; this is a load, not a divider. 0402 (the board's own size, LCSC C25744) also
+      works but is fiddlier for this method.</li>
+  <li>Fine-tip iron (1&nbsp;mm conical or bevel), fine solder (0.3–0.5&nbsp;mm, leaded if you have
+      it), tacky flux, fine bent tweezers, solder wick, magnification, IPA and a brush.</li>
+  <li>30&nbsp;AWG wire-wrap wire for the optional leg-to-resistor link.</li>
+  <li>Kapton tape, and a flat support for the board.</li>
+</ul>
+
+<h3>For the Pico (Step 5)</h3>
+<ul>
+  <li>A <strong>Raspberry Pi Pico 2 W</strong>, SMD-mount variant. The site is DNP — the boards
+      arrive with no Pico on them.</li>
+  <li>A USB cable for flashing and serial.</li>
+</ul>
+
+<h3>Software</h3>
+<ul>
+  <li>pico-sdk 2.x and <code>arm-none-eabi-gcc</code>, to build <code>pico-controller/tester</code>
+      (and later <code>wifi</code>). Build with <code>PICO_BOARD=pico2_w</code>.</li>
+  <li>A serial terminal.</li>
+  <li>For Step 8: Klaus Dormann's <code>6502_65C02_functional_tests</code>, assembled to Intel hex.</li>
+</ul>
+
+<hr>
+
+<div class="step">
+<h2><span class="tag safe">No power</span>Step 0 — Receiving inspection</h2>
+
+<p>Before a probe touches anything.</p>
+
+<ol>
+  <li><strong>Put the ESD strap on first</strong>, and work on a mat. Handle every board by its
+      edges.</li>
+  <li><strong>Photograph the packaging before you open it</strong>, and each board as it comes out.
+      If there is shipping damage, this is your evidence. A 300&nbsp;×&nbsp;322&nbsp;mm 6-layer
+      board is a plausible flex casualty in transit.</li>
+  <li><strong>Support each board flat.</strong> 1.6&nbsp;mm thick over a 300&nbsp;mm span is a
+      floppy ratio, and the underside is populated with passives — support it on something soft
+      and full-area, never clamped by two edges.</li>
+  <li><strong>Visual inspection of all five.</strong> Look for tombstoned passives, solder bridges,
+      missing parts, and — most valuable — sweep your eye down the FET field checking that every
+      <strong>SOT-323 pin-1 marker is in the same corner</strong>. Rotation was already verified on
+      JLC's DFM image before production, so this is confirmation rather than discovery, but it is
+      the one fault that takes out all four boards at once.</li>
+  <li><strong>The bare board</strong> will probably still carry its two 5&nbsp;mm edge rails, since
+      depaneling is a PCBA-side option. Snapping those off an unpopulated board by hand is safe.
+      Do <em>not</em> flex the four assembled ones.</li>
+  <li><strong>Set the bare board aside.</strong> Its job is to be looked at and to be a reference
+      artefact — it is the die artwork with nothing in the way. It is also your spare.</li>
+</ol>
+
+<div class="note">
+<strong>Expectation setting, so a defect does not read as a disaster.</strong> The pre-arrival
+estimate in <code>project-plan.md</code> is <strong>0.5–2 defects per board</strong> across ~14,700
+solder joints. Expect <strong>2 of the 4 to work at first power-up</strong> (plausibly 1–3), ~85%
+odds that at least one does, and 3–4 working after rework. A single-defect board is a repair job,
+not a loss: every FET is on the top face, and the functional test localises failures to a block.
+The one pattern worth noticing is <em>clustering</em> — thermal mass and warpage on a board this
+large make defects more likely to group by region than to scatter. If failures map onto one area of
+the die, suspect the reflow profile, not a random joint.
+</div>
+</div>
+
+<div class="step">
+<h2><span class="tag safe">No power</span>Step 1 — VCC↔VSS resistance</h2>
+
+<p>Measure resistance from a <strong>VCC bond pad to a VSS bond pad</strong> on each of the four
+assembled boards.</p>
+
+<p class="gate">Gate: it must read high.</p>
+
+<p>The pull-up resistors reach floating nodes through FETs that are off, so no low-resistance path
+to VSS exists on a good board. A low reading is a solder bridge — find it before you apply power.</p>
+
+<div class="ok">
+<strong>Record all four numbers.</strong> The absolute value matters less than the comparison: four
+boards from one panel and one reflow should agree closely. The odd one out is telling you something
+before you have spent any current finding out.
+</div>
+</div>
+
+<div class="step">
+<h2><span class="tag risk">5 V</span>Step 2 — Board alone at 5 V, unclocked, no Pico</h2>
+
+<p>This is <strong>the single most informative measurement in the whole project.</strong> It finds a
+bridged rail, a reel loaded backwards, and missing pull-ups — the faults that would otherwise be
+identical on all four boards.</p>
+
+<h3>Procedure</h3>
+<ol>
+  <li>Croc-clip the supply to a VCC bond pad and a VSS bond pad.</li>
+  <li>Set the <strong>current limit to 0.5&nbsp;A</strong> and the voltage to 5&nbsp;V.</li>
+  <li><strong>Ramp the voltage up from zero</strong> while watching the current, rather than
+      switching 5&nbsp;V on in one step.</li>
+  <li>Read the current at 5&nbsp;V.</li>
+</ol>
+
+<h3>What the number means</h3>
+<table>
+  <tr><th>Reading at 5 V</th><th>Verdict</th></tr>
+  <tr><td><strong>≈0.35&nbsp;A</strong></td><td>The prediction. This is a healthy board.</td></tr>
+  <tr><td>Up to 0.65&nbsp;A</td><td>Still within the legitimate worst case — every pull-up low and
+      every LED lit. Unusual but not a fault.</td></tr>
+  <tr><td>Folds back into current limit at <em>near-zero volts</em></td><td>A short. Stop, find it.</td></tr>
+  <tr><td>Folds back only near 5&nbsp;V</td><td>Ambiguous — see the box below.</td></tr>
+  <tr><td>Grossly high, or grossly low</td><td>A systematic fault: bridged rail, wrong or backwards
+      reel, missing pull-ups. Do not proceed, and do not rework three more boards.</td></tr>
+</table>
+
+<div class="warn">
+<strong>A tension in the numbers you should know about before you meet it.</strong> The documented
+worst case for a <em>healthy</em> unclocked board is 0.65&nbsp;A, but the recommended limit is
+0.5&nbsp;A — so a legitimate worst case would trip the limit and be indistinguishable from a fault.
+That is why you ramp: <em>where</em> it folds back is the diagnostic. A bridge limits almost
+immediately, at a fraction of a volt. A healthy-but-high board limits near the top. If it limits
+near the top and you need to distinguish the two, raise the limit to <strong>0.8&nbsp;A</strong> —
+still far below the ~1.8&nbsp;A that driver contention would draw, so the limit stays diagnostic
+rather than merely permissive.
+</div>
+
+<div class="warn">
+<strong>An honest caveat on “unclocked means no contention”.</strong> The reasoning is that
+contention needs live logic state and an unclocked board has none. That is <em>likely</em> but not
+guaranteed: on an unclocked board the dynamic nodes are not in a defined state, they float at
+whatever power-up charge leaves them, and nothing forbids a <code>dor</code> bit's gate and its
+pull-down's gate from both sitting above threshold. The claim is really “sustained contention is
+unlikely without clocking”, not “contention is impossible”. It does not change what you do, because
+<strong>the protection was never the absence of contention — it is the current limit.</strong> At
+0.5&nbsp;A the supply folds back the moment two nets contend at 262&nbsp;mA each, the rail sags, and
+dissipation stays far below the level that damages a SOT-323. These parts fail from sustained
+heating, which a current-limited supply prevents.
+</div>
+
+<p class="gate">Gate: a current reading you understand, on a board you are willing to keep.</p>
+</div>
+
+<div class="step">
+<h2><span class="tag risk">5 V</span>Step 3 — Optional: an external clock, and watch the LEDs</h2>
+
+<p>Worth doing. It is the first evidence that the logic itself lives, and it needs no firmware.</p>
+
+<ol>
+  <li>Croc-clip a function generator to the <strong>Φ0 bond pad</strong>.</li>
+  <li>Drive clk0 <strong>push-pull</strong> at a few kHz. The board has <em>no pull-up on
+      clk0</em> — an open-drain driver would leave it floating, and a dynamic CPU cannot survive
+      that.</li>
+  <li>Watch the register LEDs.</li>
+</ol>
+
+<p>The data bus floats, because no memory is connected, so the CPU executes garbage. That is fine
+and expected. <strong>What matters is that the register LEDs move.</strong> Movement proves two
+things at once: the internal clock phases (<code>cclk</code>, 482 gates; <code>cp1</code>, 198
+gates) are being regenerated on-board at full VCC swing, and the dynamic logic is holding charge
+between edges.</p>
+
+<div class="warn">
+Keep this brief and keep the current limit on. Clocking is what makes the driver-contention defect
+thermal, and the rework has not been done yet. Seconds, not minutes — and watch the supply current
+while you do it. A jump toward ~2&nbsp;A is contention becoming real on copper, which is
+information, but it is not something to sit in.
+</div>
+</div>
+
+<div class="step">
+<h2><span class="tag safe">No power</span>Step 4 — The eight-site 10 kΩ rework</h2>
+
+<p><strong>Full illustrated instructions, with true-scale renders of all eight sites and their
+neighbouring designators: <a href="rework-dor-series-r.html">the rev A rework page</a>.</strong>
+Follow that page for the procedure; this is only why it belongs here in the sequence.</p>
+
+<p>The board as fabricated has a device-ratio defect: the eight data-bus output drivers use a
+BSS138W as the load against a BSS138W as the pull-down — a 1:1 ratio where ratioed NMOS needs a
+weak load. Measured consequences at 5&nbsp;V, per contended site:</p>
+
+<table>
+  <tr><th></th><th>As built</th><th>With the 10&nbsp;kΩ</th></tr>
+  <tr><td>Contention current</td><td>262&nbsp;mA</td><td><strong>0.499&nbsp;mA</strong></td></tr>
+  <tr><td>The contended “low”</td><td>1.86&nbsp;V — invalid</td><td><strong>2.9&nbsp;mV</strong> — valid</td></tr>
+  <tr><td>Dissipation in the pull-up FET</td><td>0.90&nbsp;W in a SOT-323 rated ~0.3&nbsp;W</td><td>2.5&nbsp;mW</td></tr>
+  <tr><td>Board total, clocked</td><td>≈2.1&nbsp;A / ≈10.4&nbsp;W</td><td>≈0.3&nbsp;A</td></tr>
+</table>
+
+<p>The thermal problem is the loud one, but the functional problem is the serious one: a contended
+node sits at 1.0–1.9&nbsp;V against a 1.1–1.5&nbsp;V receiver threshold, so <strong>the CPU can
+write wrong data.</strong> The fix is simulated end-to-end in <code>sim/revb_driver.sp</code>, two
+stages deep to a real chip output — it costs nothing in speed (271&nbsp;ns rise against a
+25&nbsp;µs budget) and it makes the output level <em>higher</em>, not lower.</p>
+
+<p><strong>Eight sites, all on the front face, in one column</strong> at x ≈ 220&nbsp;mm (dor6/dor7
+at x ≈ 216.5&nbsp;mm), 11–14&nbsp;mm apart. Same part, same orientation, identical copper — it is
+the same operation eight times.</p>
+
+<div class="warn">
+<strong>Confirm each part against the table on the rework page before you touch it.</strong> Every
+neighbour is an identical SOT-323. This is the step where the wrong transistor gets reworked.
+</div>
+
+<p class="gate">Gate, per site: pin&nbsp;3 lead to a VCC bond pad reads 10&nbsp;kΩ; pad&nbsp;3 to VCC
+still reads ~0&nbsp;Ω.</p>
+<p class="gate">Gate, whole board: VCC to VSS still reads high — you have not introduced a bridge.</p>
+
+<p>Clean the flux off after each site and inspect under magnification. Then repeat Step 1 and Step 2
+on the reworked board; Step 2 should be essentially unchanged, since contention was near zero
+unclocked anyway.</p>
+
+<div class="note">
+<strong>If you would rather not rework:</strong> the alternatives are running at 3.3&nbsp;V (halves
+the current but leaves the low level invalid — a mitigation, not a fix) or accepting eight FETs at
+~0.9&nbsp;W and expecting them to fail. Neither is viable for the functional test. See “Rework
+options” in <code>project-plan.md</code>.
+</div>
+</div>
+
+<div class="step">
+<h2><span class="tag safe">No power</span>Step 5 — Solder the Pico</h2>
+
+<ol>
+  <li><strong>Flash the <code>tester</code> firmware onto the bare module first</strong>, on the
+      bench, and confirm it enumerates over USB. Reasons below.</li>
+  <li>Solder the Pico 2 W module onto the underside site.</li>
+  <li><strong>Solder pin 39.</strong> This is not a decision to be made per board.</li>
+  <li><strong>Repeat the Step 1 resistance measurement.</strong></li>
+  <li>Only then apply power.</li>
+</ol>
+
+<h3>Why flash it before soldering, when it can be reflashed in place</h3>
+
+<p>It <em>can</em> be reprogrammed in place, indefinitely and without touching the button:
+<code>pico_stdio_usb/reset_interface.c</code> is linked into all three firmwares, so the SDK's
+1200-baud-touch reset-to-bootloader works and <code>picotool</code> can reboot the module into its
+bootloader over USB. Flashing once beforehand is still worth it:</p>
+
+<ul>
+  <li><strong>You get to reject a bad module while rejecting it is still cheap.</strong> A dead or
+      damaged Pico soldered to this board is a miserable desolder job — the footprint's
+      3.2&nbsp;×&nbsp;1.6&nbsp;mm pads run <em>under</em> the module — and you would be doing it
+      beside 4,051 transistors you care about. Two minutes on the bench buys that away.</li>
+  <li><strong>The first flash is the one that needs BOOTSEL</strong>, held while power-cycling. That
+      is the awkward operation, and it is the one you can do off the board.</li>
+  <li><strong>It makes the first power-up a known state</strong> rather than merely a harmless one.
+      A blank module is safe — RP2350 GPIOs default to inputs — but safe and known are not the same
+      thing.</li>
+</ul>
+
+<div class="ok">
+<strong>The firmware is inert at boot, which is what makes pre-flashing safe rather than
+presumptuous.</strong> <code>main()</code> calls <code>bus_init(false)</code> and then blocks on
+<code>while (!stdio_usb_connected()) sleep_ms(100);</code>. A pre-programmed board powered up with no
+terminal attached does nothing at all — no clocking, no reset ceremony. The CPU starts moving only
+when you open a serial connection, which means the transition into Step 6 is something you choose
+rather than something that happens to you.
+</div>
+
+<div class="warn">
+<strong>One subtlety: <code>bus_init</code> leaves clk0 as an output driven LOW</strong> — every other
+pin is an input. So a powered, pre-programmed board sits with the clock <em>parked</em>, which is the
+stall condition: exactly what the retention test deliberately creates, and exactly what the
+driver-contention defect makes dangerous. This is not a problem for the sequence as written, because
+the Pico goes on at Step 5 and the rework happened at Step 4. It <em>is</em> a reason not to swap
+those two steps, and a reason not to leave an un-reworked board sitting powered with a Pico fitted.
+</div>
+
+<div class="note">
+<strong>Check before you settle on a workholding setup:</strong> the module mounts pads-down, so its
+component side — USB connector and BOOTSEL button — faces <em>away</em> from the PCB, i.e. downward
+when the board lies flat on its back. You will want the board propped up or on standoffs to reach
+the connector. This is reasoned from the footprint rather than from a board in hand, so confirm it
+physically.
+</div>
+
+<div class="warn">
+<strong>Pin 38 is <code>vss</code> and pin 39 is <code>vcc</code>, side by side on 2.54&nbsp;mm
+pitch.</strong> A bridge there is a dead short across the board supply. That is why Step 1 gets
+repeated here.
+</div>
+
+<p><strong>Why pin 39 must be soldered</strong> rather than left off, which was considered and
+rejected:</p>
+<ul>
+  <li><strong>It removes the power-sequencing question entirely.</strong> Board VCC and Pico VSYS
+      become one node, so the hazard of a 5&nbsp;V core driving 26 clamp diodes into a dead 3V3
+      rail becomes unreachable.</li>
+  <li><strong>An unsoldered pin 39 is not an open circuit — it is an intermittent contact.</strong>
+      The footprint's 3.2&nbsp;×&nbsp;1.6&nbsp;mm pads extend inward, under the module, so an
+      unsoldered castellation is two flat copper faces held apart only by whatever standoff the
+      neighbouring joints happen to give. Board flex or a croc clip closes it. A rail that makes and
+      breaks corrupts every dynamic node at once, and it reads as a random CPU fault.</li>
+</ul>
+
+<p>With pin 39 soldered, <strong>either end can supply power</strong>: a bench supply on the bond
+pads runs the board and feeds VSYS (connect USB for serial only), or USB into the Pico runs
+everything through the module Schottky. Use the bench supply for anything that matters —
+<strong>USB-only is not viable at 5&nbsp;V</strong> now that the real clocked current is known.</p>
+</div>
+
+<div class="step">
+<h2><span class="tag risk">5 V</span>Step 6 — First clocked run: the A-register counter</h2>
+
+<p>This is the “it is alive” moment.</p>
+
+<ol>
+  <li>Build and flash the <code>tester</code> firmware
+      (<code>pico-controller/tester</code>, <code>PICO_BOARD=pico2_w</code>).</li>
+  <li>Power the board at <strong>5&nbsp;V from the bench supply</strong>, current limit at
+      <strong>1&nbsp;A</strong> for this step. USB may stay connected for serial — the module
+      Schottky drops VBUS to ~4.7–4.8&nbsp;V, so a 5.0&nbsp;V bench supply wins the node and the
+      diode blocks back-feed into the host.</li>
+  <li>Open the serial terminal. Press <code>h</code> for the command list.</li>
+  <li>Run the default image — an A-register counter loop — and <strong>watch the A LEDs
+      count.</strong></li>
+</ol>
+
+<p>The default clock is a 50&nbsp;µs half-period, i.e. 10&nbsp;kHz.</p>
+
+<h3>Watch the supply current</h3>
+<p class="gate">Gate: with the rework done, clocked current should stay in the low hundreds of mA.</p>
+<p>If it jumps toward <strong>1.8–2.1&nbsp;A</strong>, a rework site did not take. That current step
+<em>is</em> the measurement — it is the cheapest whole-board verification of the rework you will
+get. Go back and re-check the eight sites.</p>
+
+<h3>Useful commands at this point</h3>
+<pre><code>R          reset sequence (assert, 8 cycles, release)
+c N        run N cycles (quiet)
+t N        run N cycles, printing each bus cycle
+s [N]      step N instructions, printing cycles
+d [N]      dump the last N trace entries
+x A L      hexdump L bytes of the image at offset A (hex)
+m A B..    poke bytes at offset A (all hex)
+z          zero the cycle counter and trace</code></pre>
+
+<p>If the LEDs do not count, <code>t</code> is the tool: it prints
+<code>cycle&nbsp;&nbsp;addr(14-bit)&nbsp;&nbsp;data&nbsp;&nbsp;r/W&nbsp;&nbsp;SYNC</code> per cycle,
+so you can see whether the CPU is fetching sensible addresses at all.</p>
+
+<div class="note">
+<strong>Remember the address space.</strong> The CPU exposes only 14 address bits to the Pico, so
+memory is a <strong>16&nbsp;KB image mirrored</strong> across the 64&nbsp;KB space. The reset vector
+<code>$FFFC/D</code> appears at offset <code>$3FFC/D</code>.
+</div>
+</div>
+
+<div class="step">
+<h2><span class="tag risk">5 V</span>Step 7 — Measure the clock window</h2>
+
+<p>Two unknowns that only hardware can settle, and they are the two ends of the same window.</p>
+
+<h3>The ceiling — <code>p</code></h3>
+<p>Walk the clock up with <code>p US</code> (half-period in µs) until the CPU stops executing
+correctly. Simulation predicts <strong>~20&nbsp;kHz at 5&nbsp;V</strong> (~10&nbsp;kHz at
+3.3&nbsp;V), set by the decode-PLA input lines driving up to 71 gates behind a single 10&nbsp;kΩ
+pull-up. The M2 target was ≥50&nbsp;kHz, so this is a known shortfall, not a surprise.</p>
+
+<div class="note">
+For scale: the original NMOS 6502's own specified window was <strong>50&nbsp;kHz to
+1&nbsp;MHz</strong>. A discrete rebuild of this logic style runs entirely below the band the real
+chip was specified for, and the MOnSter's ~50&nbsp;kHz ceiling sits on the original's
+<em>minimum</em>.
+</div>
+
+<h3>The floor — <code>W</code></h3>
+<p class="gate">Only after the rework. This is the test the safety rules exist for.</p>
+<p>Dynamic logic has a lower clock bound as well as an upper one: stop too long and the stored
+charge leaks away. <code>w MS</code> freezes the clock for MS milliseconds and asks whether the
+state survived; <code>W [MAXMS]</code> finds the boundary by bisection, running a 0&nbsp;ms control
+first so a broken harness cannot masquerade as a result.</p>
+
+<p>The worst nodes are <code>sb1..sb7</code> — one gate of capacitance (32&nbsp;pF) against
+<em>twelve</em> FET channels leaking them. The big nets are the safe ones. The decisive number:
+at the 20&nbsp;kHz ceiling the worst node must leak <strong>under 53&nbsp;nA per FET</strong>
+(under 27&nbsp;nA at 3.3&nbsp;V), or the floor rises above the ceiling and there is no working clock
+at all. Typical parts are ~1&nbsp;nA, giving ~50× margin — but SPICE could not resolve leakage at
+this level, so <strong>this is genuinely unmeasured until you measure it.</strong></p>
+
+<ol>
+  <li>Start with <strong>sub-millisecond stalls</strong> and ramp up.</li>
+  <li>Keep the current limit on and watch the current through the stall.</li>
+  <li>The result also bounds how long the tester's single-step pause may safely last.</li>
+</ol>
+
+<div class="note">
+<strong>If you measured a floor before the rework as well, keep both numbers.</strong> A floor that
+moves after the rework is evidence that the eight sites were heating their neighbours — leakage
+roughly doubles every 10&nbsp;°C, and eight drivers at ~0.9&nbsp;W is a real thermal source. That is
+worth knowing, and it is the only reason to have a pre-rework figure at all.
+</div>
+</div>
+
+<div class="step">
+<h2><span class="tag risk">5 V</span>Step 8 — The functional test: the acceptance gate</h2>
+
+<p>The bring-up acceptance target is <strong>Klaus Dormann's
+<code>6502_65C02_functional_tests</code></strong> — the standard suite for 6502
+<em>re-implementations</em> rather than emulators.</p>
+
+<h3>Run the decimal test first</h3>
+<p><code>6502_decimal_test.a65</code> before the main suite. Decimal mode comes free from the
+netlist and is the thing emulators most often get wrong, so it is a high-information, short test.</p>
+
+<h3>Recipe</h3>
+<ol>
+  <li>Assemble the suite with its stock configuration (<code>zero_page&nbsp;=&nbsp;$0A</code>,
+      <code>data_segment&nbsp;=&nbsp;$200</code>, <code>code_segment&nbsp;=&nbsp;$400</code>). The
+      image ends around <code>$3800</code>, so it fits the 16&nbsp;KB mirrored window with the reset
+      vector clear.</li>
+  <li>Load it with <code>L</code> and paste the Intel hex into the terminal.</li>
+  <li><strong>Patch the reset vector:</strong> <code>m 3FFC 00 04</code>. The suite's own RES vector
+      points at <code>res_trap</code>, so this step is mandatory.</li>
+  <li>Turn the watcher on with <code>k</code> (the <code>test_case</code> address, hex).</li>
+  <li><code>g</code> — run until a self-loop, printing progress. Any keypress interrupts.</li>
+</ol>
+
+<h3>How to read the verdict</h3>
+<p>The suite has no I/O, so the firmware reads its two side channels off the bus: writes to
+<code>test_case</code> (<code>$0200</code>) give live progress, and a repeated opcode-fetch address
+gives the verdict. <strong>Pass and fail are both self-loops</strong> — they are distinguished by
+the address, which you look up in the assembly listing.</p>
+
+<div class="warn">
+<strong>This is an overnight run.</strong> Order 10⁷–10⁸ cycles at 10–20&nbsp;kHz. Use the bench
+supply with margin — this is dynamic logic, and a rail sag does not degrade gracefully, it corrupts
+dynamic nodes and you read the result as a CPU logic fault. For an unattended run, the
+<code>wifi</code> firmware is built for exactly this: it serves a browser control panel with live
+bus and test progress, with the bus engine pinned to core 1 so that association and DHCP cannot
+stretch a clock phase.
+</div>
+
+<p>The per-<code>test_case</code> progress is what makes a failure useful: it narrows 4,051 FETs to
+a functional block.</p>
+</div>
+
+<hr>
+
+<h2>Reference</h2>
+
+<h3>Expected numbers, in one place</h3>
+<table>
+  <tr><th>Measurement</th><th>Expected</th><th>Meaning if wrong</th></tr>
+  <tr><td>VCC↔VSS, unpowered</td><td>High</td><td>Low = solder bridge</td></tr>
+  <tr><td>5 V, unclocked, no Pico</td><td>≈0.35 A (worst case 0.65 A)</td><td>Systematic assembly fault</td></tr>
+  <tr><td>5 V, clocked, <em>before</em> rework</td><td>≈2.1 A / ≈10.4 W</td><td>The defect, working as measured</td></tr>
+  <tr><td>5 V, clocked, <em>after</em> rework</td><td>Low hundreds of mA</td><td>~2 A = a rework site did not take</td></tr>
+  <tr><td>Pin 3 to VCC, after rework</td><td>10 kΩ</td><td>0 Ω = leg still touching; open = bad joint</td></tr>
+  <tr><td>Clock ceiling</td><td>~20 kHz at 5 V</td><td>Unmeasured until you measure it</td></tr>
+  <tr><td>Retention floor</td><td>Expect ~ms-scale; needs &lt;53 nA/FET</td><td>Above the ceiling = nothing runs</td></tr>
+</table>
+
+<h3>Pin map (fixed by the board)</h3>
+<table>
+  <tr><th>Pico GPIO</th><th>Signal</th><th>Direction, Pico view</th></tr>
+  <tr><td>GP0–7</td><td>db0–7</td><td>bidirectional</td></tr>
+  <tr><td>GP8–21</td><td>ab0–13</td><td>in</td></tr>
+  <tr><td>GP22</td><td>clk0</td><td>out — clock master</td></tr>
+  <tr><td>GP26</td><td>/res</td><td>out, open-drain</td></tr>
+  <tr><td>GP27</td><td>r/w</td><td>in</td></tr>
+  <tr><td>GP28</td><td>sync</td><td>in</td></tr>
+</table>
+<p class="sub">The CPU sees only 14 address bits: memory is a 16&nbsp;KB image mirrored across
+64&nbsp;KB, and <code>$FFFC/D</code> lands at offset <code>$3FFC/D</code>.</p>
+
+<h3>Tester commands</h3>
+<pre><code>R          reset sequence (assert, 8 cycles, release)
+c N        run N cycles (quiet)
+t N        run N cycles, print each bus cycle
+s [N]      step N instructions (default 1), print cycles
+d [N]      dump last N trace entries (default 32)
+x A L      hexdump L bytes of image at offset A (hex)
+m A B..    poke bytes at offset A (all hex)
+p US       set clock half-period in us (default 50 = 10 kHz)
+z          zero cycle counter + trace
+L          load an Intel hex image pasted into this terminal
+k [on|off|ADDR]  functional-test watcher (test_case addr, hex)
+g [N]      go: run N cycles (0/omitted = until a self-loop),
+           printing watcher progress; any key interrupts
+w MS       charge retention: freeze the clock MS ms, did it survive?
+W [MAXMS]  find the retention boundary by bisection (default 4000)
+h          this help
+
+columns: cycle  addr(14-bit)  data  r/W  SYNC</code></pre>
+
+<h3>3.3 V operation — a fallback, not a first step</h3>
+<p>The whole CPU can run at 3.3&nbsp;V, and <code>sim/passpair_33v.sp</code> clears it. But it is the
+<em>tighter</em> operating point, not the safer one, and it squeezes the clock window from both
+ends:</p>
+<table>
+  <tr><th></th><th>5 V</th><th>3.3 V</th></tr>
+  <tr><td>Clock ceiling</td><td>~20 kHz</td><td>~10 kHz</td></tr>
+  <tr><td>Retention floor: leakage budget</td><td>&lt;53 nA per FET</td><td>&lt;27 nA per FET</td></tr>
+  <tr><td>Usable clock window</td><td>~50×</td><td>~13×</td></tr>
+  <tr><td>Register LED current</td><td>1.42 mA</td><td>0.67 mA</td></tr>
+</table>
+<p>The cost is ambiguity: a board that misbehaves at 3.3&nbsp;V does not tell you whether the cause
+is an assembly fault or reduced margin, and you have to go to 5&nbsp;V to find out. A first test with
+an ambiguous failure mode is a bad first test. Use 3.3&nbsp;V <em>after</em> Step 2 has given a good
+reading, as a diagnostic lever — changing the rail changes the timing, and the difference is
+informative.</p>
+<p>To get there, remove the competing supply: a soldered pin 39 plus USB holds board VCC near
+4.8&nbsp;V and a 3.3&nbsp;V bench setting cannot win. Either disconnect USB after flashing (use the
+<code>wifi</code> firmware to keep control with no cable), or use a data-only USB cable —
+<strong>unverified:</strong> the RP2350 may need VBUS present to enumerate when self-powered, so
+test that on a spare Pico before relying on it.</p>
+
+<h3>Things deliberately not in this sequence</h3>
+<ul>
+  <li><strong>The VBUS-to-VSYS bridge</strong> (pins 39–40). A demo-board-only modification: it
+      gives a true 5&nbsp;V rail and the brightest LEDs on USB, but it removes reverse blocking, so
+      a bridged board must <em>never</em> see a bench supply on its bond pads. Do it to one board,
+      mark it physically, leave the other three alone. See <code>pico-controller/README.md</code>.</li>
+  <li><strong>The external 10 kΩ clk0 pull-up.</strong> Only needed if you drive clk0 open-drain
+      (<code>bus_init(true)</code>). The default push-pull mode needs nothing, and a 3.3&nbsp;V
+      push-pull clock into a 5&nbsp;V core is simulated as functionally identical to a 5&nbsp;V
+      one.</li>
+</ul>
+
+<hr>
+<p class="sub">Authoritative sources, in order of precedence when they disagree:
+<code>pico-controller/README.md</code> for the sequence and the firmware,
+<code>project-plan.md</code> (“Driver contention”, “Expected fab yield”) for the measurements and
+the risk picture, <a href="rework-dor-series-r.html">the rework page</a> for the eight sites, and
+<code>gen/board_routed_golden.kicad_pcb</code> for anything geometric. If this page and one of those
+disagree, they are right and this page is stale — please fix it.</p>
