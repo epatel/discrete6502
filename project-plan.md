@@ -787,8 +787,30 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
 - **Clock drive at 5 V**: the board has no pull-up on clk0, so open-drain full-swing clocking
   needs an external 10k croc-clipped from the Φ0 bond pad to VCC. Confirm at bring-up whether
   the 3.3 V push-pull clock is enough, or the external pull-up is mandatory.
-- **Optional LEDs**: whether to add address/data-bus (24) and IR (8) LED taps in a future
-  revision — script-generated, cheap, but more parts and more routing.
+- ~~**Optional LEDs**: address/data-bus (24) and IR (8) LED taps~~ **CLOSED 2026-08-09
+  [user decision] — the 55 register LEDs stay exactly as designed.** Three reasons, in order of
+  weight. (a) **Bus LEDs would duplicate what is already visible.** `ab0-15`, `db0-7`, `R/W` and
+  `SYNC` all terminate on the bond-pad ring, and the Pico captures the whole bus every cycle with
+  the `wifi` panel already displaying it live. The register LEDs earn their place precisely because
+  A/X/Y/S/P/PC are *internal* and no external observer can see them; the bus is not. IR is the one
+  genuinely internal candidate, and even IR is derivable — at `SYNC` the data bus carries the opcode
+  being fetched, so the firmware can already name the instruction with no added part.
+  (b) **A 7-segment alternative was considered and rejected on readability, not cost.** At the
+  achievable ~10 kHz (~2,900 instructions/s against a ~50-60 Hz flicker-fusion threshold) a hex
+  display is exactly as unreadable as the LEDs while free-running — the same blur, two digits wide.
+  Per-bit LEDs are the *better* instrument at that speed: a stuck bit shows as a steady LED among
+  flickering ones and localises the fault to one register bit and thus one region of the die, and
+  apparent brightness encodes duty cycle, so the blur itself carries information. (c) **Driving
+  7-segments is the real cost**: hex-to-segment decode from internal bits cannot come from the Pico
+  (those nodes are invisible to it), so it needs either ~100 FETs per digit — order **1,200 FETs**,
+  +30% on transistor count, and *our* logic rather than the die's — or a companion MCU plus
+  shift registers, which puts a hidden microcontroller inside a board whose premise is that there
+  isn't one. **Space was measured, not the blocker**: the top face is 41% component-free but only in
+  strips, the largest usable being **233.5 x 11.5 mm** along the bottom edge (also 163.5 x 8.5 mm
+  above the decode PLA), which would take a row of twelve 0.28" digits. Any of this is a **rev C
+  respin** in any case — the full pipeline from `gen_pcb.py` onward, placement and routing included,
+  and new nets would hang off `ab`/`db`, the most congested signals on a board that already needed
+  6 layers. Revisit only if a rev B respin is ever fabricated.
 - **Licensing**: `segdefs.js` is CC BY-NC-SA (noncommercial). Fine for this hobby build;
   would need clarifying before any commercial use of derived design files.
 - ~~**Order status**~~ **RESOLVED 2026-07-28 — ordered and paid.**
