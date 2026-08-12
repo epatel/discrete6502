@@ -56,6 +56,19 @@ _(append-only; timestamp and mark locked decisions)_
   so it is replaced by two distinct self-loops branching on `ERROR`, and it emits **no interrupt
   vectors** at all, so an `int_trap` and a vector block were added.
 
+- 2026-08-12 **[M6, hardware finding]** **The Step 1 gate was wrong: there is no resistive path
+  between VCC and VSS, so the meter reads a junction and the number depends on the range.** Measured
+  ≈195 Ω (200 Ω range, red on VSS) on all four boards; the same board reads 314 Ω on 2k and 3.77 kΩ
+  on 20k, while the voltage across it stays at 0.36–0.47 V — one diode drop. The path is **1,899 FET
+  body diodes across 947 nets**, each conducting VSS → drain and out through that net's 10 kΩ
+  pull-up. Consequences: (a) *"must read high"* is replaced by a polarity- and range-aware gate —
+  a fault is <1 Ω, or a value that does **not** change with range; (b) **Step 1 is a positive test**,
+  since the forward path cannot exist without the pull-ups, so it confirms ~1,000 back-side 0402s
+  are populated; (c) reverse conduction exists and is exponential (**55.4 mV/decade vs 59.5 ideal**,
+  ~95 µA at 0.8 V), not a leak. Derived by `tools/step1_model.py`; logged in
+  `docs/actual-bring-up.html`. A prediction made before measuring (3601 Ω at 0.1 mA) matched the
+  20k-range reading within 5%.
+
 - 2026-08-08 **[M6, hardware finding]** **`irq` and `nmi` float on the assembled board.** Neither
   carries a pull-up — only a 100R input-protect resistor and the two clamp diodes — whereas `rdy` and
   `so` do have 10k (`R48`, `R991`), and the Pico's 26 GPIOs drive neither. A floating gate on a
@@ -78,6 +91,40 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-25: **M6 prep started — Pico firmware scaffolded** in `pico-controller/` (`common/` shared bus engine — clock master, 16KB mirrored memory serving, trace ring, reset ceremony; `tester/` interactive bring-up CLI; `general/` free-runner with `$3F00` char-out port). Builds against pico-sdk 2.x (`PICO_BOARD=pico2_w`), untested until hardware exists. **Open question (resolve before power-up): 3.3V Pico vs 5V core levels** — inputs are practically safe through the 1k series resistors. **Verified: the board has NO pull-up on clk0** (only 100R protection + pico series R), so the clock must be driven push-pull; open-drain would leave clk0 floating unless an external 10k is croc-clipped Φ0→VCC. **Corrected 2026-07-25:** the earlier claim that a 3.3V clock under-drives the pass-pair bootstrap was wrong — clk0 gates only two pull-downs, and the internal phases (cclk/cp1) are regenerated on-board at full VCC swing; simulated, a 3.3V clk0 into a 5V core is functionally identical to a 5V one (1.7mV low, 17ns delay). The external pull-up is optional polish, not a requirement. Recommended first bring-up: whole CPU at VCC=3.3V (single domain, logic smoke test) — SPICE the pass-pair at 3.3V before boards arrive.
 
 ## Current state / handoff
+
+- 2026-08-12: **THE BOARDS ARE HERE, AND STEP 1 IS PASSED — bring-up has actually started.**
+  4 assembled + 1 bare, depaneled, visually good. Receiving inspection confirmed on real hardware
+  the two things that were previously verified only on JLC's DFM render: **FET orientation is
+  uniform across the array** (pin-1 marker against the silk triangle everywhere) and **one marking
+  code throughout**, so the all-four-boards rotation and wrong-reel risks are now closed by
+  inspection of the delivered product. Fillets look formed and consistent at the magnification
+  available — encouraging, not conclusive, since the predicted defects are singles.
+  **Step 1 read ≈195 Ω on all four boards and this looked like a short. It is not.** The written
+  gate ("must read high") was wrong, and correcting it produced the first real finding of bring-up:
+  **there is no resistor-only path between VCC and VSS at all** — the meter is reading the FET body
+  diodes, of which **1,899 across 947 nets** conduct VSS → drain → 10k → VCC. So the display is a
+  diode drop divided by the range's test current, and the same board legitimately reads 195 Ω / 314 Ω
+  / 3.77 kΩ on the 200 / 2k / 20k ranges while the **voltage across it stays at 0.36–0.47 V**. Four
+  arguments kill the short hypothesis, the strongest needing no model: **a reading that changes with
+  range is not a resistance**, and a plane-to-plane bridge would read under an ohm, not hundreds.
+  The reverse direction (red on VCC, which is also the normal operating polarity) conducts too —
+  not predicted — and was resolved by observation: held 20 s it drifted *down*, killing the
+  capacitor-charging hypothesis, and its two points give **55.4 mV/decade against an ideal 59.5**,
+  i.e. an exponential junction rather than a resistive fault. ~95 µA of leakage at 0.8 V.
+  **A model prediction made before the measurement landed within 5%** (3601 Ω predicted at 0.1 mA;
+  3.77 kΩ read at an implied 95 µA), which is independent evidence the netlist-derived model matches
+  the hardware. **The upgrade worth remembering: Step 1 is a positive test, not a null one** — the
+  forward path cannot exist unless the 10 kΩ pull-ups are populated, so one 10-second measurement
+  confirms ~1,000 back-side 0402s are present and connected, which no photograph of a green board
+  can do. New: `tools/step1_model.py` (derives all of the above from `gen/netlist.json`, measured
+  values in one editable table) and `docs/actual-bring-up.html`, the measurement log, kept separate
+  from `docs/bring-up.html` which stays the procedure. The Step 1 gate in the procedure page is
+  corrected in place, with the old wording left visible as a correction. **Nothing on the board, in
+  the fab package or in the firmware changed.** **Next: Step 2** — 5 V, unclocked, no Pico, voltage
+  ramped from zero, expecting ≈0.35 A; record the current at 0.5/1/2/3/4/5 V rather than only at
+  5 V, which turns it into the board's I-V curve and retires the leakage question with a real
+  instrument. Then the eight-site rework *before* any stall test. Still open from Step 1: reverse
+  readings on boards #2–#4, and a diode-mode reading to remove the inferred test currents.
 
 - 2026-08-08 (later): **The acceptance suite is built, validated, and passing — in an emulator, so
   the images are no longer an unknown at bring-up.** Klaus Dormann's suite is checked out as a

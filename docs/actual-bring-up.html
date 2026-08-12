@@ -1,0 +1,283 @@
+<meta charset="utf-8">
+<title>discrete6502 — bring-up as it actually happened: the measurement log</title>
+<style>
+  body { font: 15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif;
+         max-width: 62rem; margin: 2rem auto; padding: 0 1.2rem; color: #1c1c1e; }
+  h1 { font-size: 1.6rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.15rem; margin-top: 2.4rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin-top: 1.6rem; }
+  .sub { color: #666; margin-top: 0; }
+  table { border-collapse: collapse; margin: 1rem 0; font-size: .92rem; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #f5f5f7; }
+  code { background: #f5f5f7; padding: .1rem .3rem; border-radius: 3px; font-size: .92em; }
+  pre { background: #f5f5f7; padding: .8rem 1rem; border-radius: 5px; overflow-x: auto; font-size: .88rem; }
+  pre code { background: none; padding: 0; }
+  .warn { background: #fff6e5; border-left: 4px solid #e8a33d; padding: .8rem 1rem; margin: 1rem 0; }
+  .stop { background: #fdeaea; border-left: 4px solid #c94a4a; padding: .8rem 1rem; margin: 1rem 0; }
+  .ok   { background: #eef7ee; border-left: 4px solid #4a9d4a; padding: .8rem 1rem; margin: 1rem 0; }
+  .note { background: #eef2f8; border-left: 4px solid #5a7fb8; padding: .8rem 1rem; margin: 1rem 0; }
+  ol li, ul li { margin: .35rem 0; }
+  .step { border: 1px solid #ddd; border-radius: 6px; padding: .1rem 1.1rem 1rem; margin: 1.6rem 0; }
+  .step h2 { margin-top: 1rem; border: none; padding-bottom: 0; }
+  .tag { display: inline-block; font-size: .78rem; font-weight: 600; letter-spacing: .03em;
+         text-transform: uppercase; padding: .15rem .5rem; border-radius: 3px;
+         background: #e8e8ed; color: #444; margin-right: .5rem; vertical-align: .12em; }
+  .tag.pass { background: #e3f1e3; color: #2f6b2f; }
+  .tag.todo { background: #e8e8ed; color: #666; }
+  .tag.risk { background: #fbe3e3; color: #8d2f2f; }
+  .gate { font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+  td.pass { color: #2f6b2f; font-weight: 600; }
+  td.todo { color: #888; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1c1c1e; color: #e8e8ea; }
+    th { background: #2c2c2e; } td, th { border-color: #3a3a3c; }
+    code, pre { background: #2c2c2e; } .sub { color: #9a9aa0; }
+    .warn { background: #3a2f1a; } .ok { background: #1e3320; }
+    .stop { background: #3a1e1e; } .note { background: #1e2a3a; }
+    .step { border-color: #3a3a3c; }
+    .tag { background: #3a3a3c; color: #cfcfd4; }
+    .tag.pass { background: #1e3320; color: #9fd39f; }
+    .tag.todo { background: #3a3a3c; color: #9a9aa0; }
+    .tag.risk { background: #4a2020; color: #f0a0a0; }
+    td.pass { color: #9fd39f; } td.todo { color: #8a8a90; }
+  }
+</style>
+
+<h1>Bring-up, as it actually happened</h1>
+<p class="sub">discrete6502 — the measurement log for the real boards. This page records
+<em>what was measured and what it meant</em>. The procedure — what to do, in what order, and why —
+lives in <a href="bring-up.html">bringing the board to life</a>. Where the two disagree, this page
+is the record of events and that page is the instruction; both get corrected.</p>
+
+<div class="note">
+<strong>Why this page exists.</strong> The very first measurement of the project disagreed with its
+own written gate, and the disagreement was the procedure's fault, not the board's. That is worth
+capturing while it is fresh: a number that looks alarming, the reasoning that resolved it, and the
+correction it forced upstream. Everything here is dated and attributed to a specific board.
+</div>
+
+<h2>Progress</h2>
+
+<table>
+<tr><th>Step</th><th>Date</th><th>Board</th><th>Result</th></tr>
+<tr><td>0 — Receiving inspection</td><td>2026-08-12</td><td>all</td><td class="pass">PASS</td></tr>
+<tr><td>1 — VCC↔VSS resistance, unpowered</td><td>2026-08-12</td><td>#1 (all four, forward)</td><td class="pass">PASS</td></tr>
+<tr><td>2 — 5 V, unclocked, no Pico</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>3 — External clock, watch the LEDs</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>4 — Eight-site 10 kΩ rework</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>5 — Solder the Pico</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>6 — First clocked run</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>7 — Clock window</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>8 — Functional test</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+</table>
+
+
+<div class="step">
+<h2><span class="tag pass">Pass</span>Step 0 — Receiving inspection, 2026-08-12</h2>
+
+<p>Boards arrived: 4 assembled, 1 bare, as ordered. Depaneled by JLC, so the 5 mm process rails
+are already gone. Visual condition good on all four.</p>
+
+<p>What the close-up inspection actually confirms, beyond “it looks nice”:</p>
+
+<ul>
+  <li><strong>FET orientation is uniform across the array.</strong> Every SOT-323 sits the same
+      way round, pin-1 marker against the silk triangle, matching the all-0° rotation recorded in
+      “Placement verified from JLC's DFM” in <code>project-plan.md</code>. That check was made on
+      a DFM render before production; this is the same check on delivered hardware, and it closes
+      the risk that would have taken out all four boards at once.</li>
+  <li><strong>One marking code throughout.</strong> Every transistor carries the same top mark, so
+      the array came off one reel — consistent with a single line item and against the
+      wrong-reel-on-one-feeder failure.</li>
+  <li><strong>Fillets are formed and consistent</strong> at the magnification available, with no
+      visible bridging between the 0.65 mm SOT-323 pins and no tombstoning in view. This is a
+      sample of a few dozen parts out of 5,328, so it is encouraging rather than conclusive; the
+      defects the yield estimate predicts are singles, and singles are not found by eye.</li>
+  <li><strong>Silkscreen is legible and correctly placed</strong> — the die-block labels, the
+      bond-pad names, and the <code>MOS 6502 / discrete6502 / after visual6502.org / CC BY-NC-SA</code>
+      block all print cleanly, which retires the concern behind the rev A silk re-placement (text
+      crossing pad copper was being printed half-eaten).</li>
+</ul>
+
+<div class="note">
+<strong>Not yet verified visually:</strong> the underside passives. At photographic scale a 0402
+resistor on a green board is a few pixels and is easy to mistake for a via. This did not need
+resolving by eye, because Step 1 settles it electrically — see below.
+</div>
+</div>
+
+
+<div class="step">
+<h2><span class="tag pass">Pass</span>Step 1 — VCC↔VSS resistance, unpowered, 2026-08-12</h2>
+
+<p>Instrument: Biltema 2000018521 handheld DMM, manual range. Probes on a VCC bond pad and a VSS
+bond pad. “Forward” below means <strong>red probe on VSS</strong> — the direction the FET body
+diodes conduct. “Reverse” means red on VCC, which is also the board's normal operating polarity.</p>
+
+<h3>What was read</h3>
+
+<table>
+<tr><th>Range</th><th class="num">Forward (red on VSS)</th><th class="num">Reverse (red on VCC)</th></tr>
+<tr><td>200 Ω</td><td class="num">195 Ω</td><td class="num">OL (over range)</td></tr>
+<tr><td>2000 Ω</td><td class="num">314 Ω</td><td class="num">595 Ω</td></tr>
+<tr><td>20 kΩ</td><td class="num">3.77 kΩ</td><td class="num">8.21 kΩ</td></tr>
+</table>
+
+<p>All four boards read ≈195 Ω forward on the 200 Ω range. The reverse reading was held for ~20 s
+and drifted slowly <em>down</em>, 8.21 → 8.18 kΩ.</p>
+
+<p class="gate">Verdict: PASS. This is a healthy board, and the guide's gate was wrong.</p>
+
+<h3>Why 195 Ω is not a solder bridge</h3>
+
+<p>Four independent arguments, in increasing order of how much they depend on modelling:</p>
+
+<ol>
+  <li><strong>A rail bridge cannot read 195 Ω.</strong> VCC and VSS are solid inner-layer planes
+      joined by thousands of stitching vias. Solder shorting them reads a fraction of an ohm.
+      195 Ω is three orders of magnitude too high.</li>
+  <li><strong>All four boards agree.</strong> A solder bridge is a random defect. Four boards
+      landing on the same number is a property of the design, not of the assembly.</li>
+  <li><strong>The reading changes with range.</strong> The same two points read 195 Ω, 314 Ω and
+      3.77 kΩ depending only on which range is selected. A resistance is one number on every
+      range; a 19× spread means the thing between the rails is a junction, whose apparent
+      “resistance” is just a diode drop divided by whatever current that range sources. This
+      argument needs no model at all and is the strongest one.</li>
+  <li><strong>It is polarity-dependent.</strong> 195 Ω one way, OL the other, on the same range.</li>
+</ol>
+
+<h3>What the meter is actually seeing</h3>
+
+<p>Derived from <code>gen/netlist.json</code> by <code>tools/step1_model.py</code>: <strong>there is
+no resistor-only path between VCC and VSS at all.</strong> The conduction path is the FET body
+diodes. Every pull-down FET has its source on VSS and its drain on a node; the body diode is
+anode-on-source, so it conducts VSS → drain, and if that drain carries a 10 kΩ pull-up the pair
+forms a VSS → VCC branch:</p>
+
+<pre><code>947 nets, 1899 body diodes
+10.56 ohm of pull-up in parallel, sitting behind the diodes</code></pre>
+
+<p>Feeding that network the onsemi body-diode parameters from <code>sim/2N7002_onsemi.lib</code>
+predicts the display as a function of the range's test current — and inverting each measured
+reading gives the current that range must be sourcing:</p>
+
+<table>
+<tr><th>Range</th><th class="num">Forward</th><th class="num">Implied test current</th><th class="num">Volts across board</th></tr>
+<tr><td>200 Ω</td><td class="num">195 Ω</td><td class="num">2.419 mA</td><td class="num">0.472 V</td></tr>
+<tr><td>2000 Ω</td><td class="num">314 Ω</td><td class="num">1.422 mA</td><td class="num">0.447 V</td></tr>
+<tr><td>20 kΩ</td><td class="num">3.77 kΩ</td><td class="num">0.095 mA</td><td class="num">0.359 V</td></tr>
+</table>
+
+<p>That is the whole story in one column: <strong>the displayed resistance moves 19×, while the
+voltage across the board moves 1.3× and stays at 0.36–0.47 V</strong> — one silicon junction drop.
+The board is not 195 Ω. The board is a diode, and 195 Ω is what a diode looks like to a meter
+sourcing 2.4 mA.</p>
+
+<div class="ok">
+<strong>A prediction that was made before the measurement.</strong> The model predicted 3601 Ω at
+0.1 mA. The 20 kΩ range read 3.77 kΩ, implying 95 µA — within 5%, at a plausible round-number test
+current for that range. The netlist-derived model of the board matches the board.
+</div>
+
+<h3>The reverse direction, and why it is also fine</h3>
+
+<p>Reverse conduction was not predicted — the analysis said the body diodes are reverse-biased and
+the clamp diodes point the other way, so it should have been open. Two candidates were
+distinguished by observation rather than argument:</p>
+
+<ul>
+  <li><strong>Decoupling capacitors charging</strong> (49.6 µF sits across the rails: 96 × 100 nF
+      plus 4 × 10 µF). This predicts the reading <em>climbs</em> toward OL as the caps charge.</li>
+  <li><strong>Real steady conduction.</strong></li>
+</ul>
+
+<p>Held for ~20 s, the reading drifted <em>downward</em> (8.21 → 8.18 kΩ). That rules out charging,
+and the direction is itself explained: leakage has a positive temperature coefficient, so a
+slightly warming board conducts slightly more. Steady conduction it is — and it is exponential,
+not ohmic:</p>
+
+<pre><code>0.781 V -&gt;    95.2 uA
+0.846 V -&gt;  1422.3 uA
+slope ................  55.4 mV/decade
+ideal junction slope .  59.5 mV/decade   (n = 0.93)</code></pre>
+
+<p><strong>15× the current for 65 mV more voltage.</strong> A resistive fault — a bridge, a flux
+track, contamination — has no slope at all: double the voltage, double the current. Two independent
+ranges landing within 7% of the ideal thermal slope is semiconductor physics, not a defect. The
+figure is ~95 µA of leakage at 0.8 V, against the 350 mA this board draws at 5 V.</p>
+
+<div class="warn">
+<strong>Do not extrapolate that exponential to 5 V.</strong> It describes only the sub-threshold
+region where every FET is off. By 5 V the pull-ups dominate and the expected current is the 0.35 A
+of Step 2.
+</div>
+
+<h3>The finding worth keeping: Step 1 is a positive test, not a null one</h3>
+
+<p>The guide treats Step 1 as a check for the <em>absence</em> of a fault. It is more than that.
+The forward path requires the 10 kΩ pull-ups to exist — without them there is no route from the
+body diodes to VCC and the board would read open in both directions. So a forward reading in the
+expected band is <strong>direct evidence that the pull-up network and the FET array are populated
+and connected</strong>, which is exactly what the photographs could not resolve on the underside.
+One 10-second measurement confirms roughly a thousand back-side resistors are present.</p>
+
+<h3>Corrections this forced</h3>
+
+<ul>
+  <li><strong>“Gate: it must read high” is wrong</strong>, and it sent a healthy board's first
+      measurement looking like a fault. A good board reads a few hundred ohms in one polarity.
+      <a href="bring-up.html">The procedure page</a> has been corrected with the polarity
+      dependence, the range dependence, and real expected values.</li>
+  <li><strong>Record the polarity and the range, not just the number.</strong> “195 Ω” alone is
+      meaningless for this board; “195 Ω, 200 Ω range, red on VSS” is a measurement.</li>
+</ul>
+
+<h3>Still open from this step</h3>
+
+<ul>
+  <li>Reverse readings on boards #2–#4 — four forward numbers exist but only one reverse set, and
+      the odd-one-out comparison is the whole value of Step 1.</li>
+  <li>Diode-test mode both directions, which displays millivolts <em>directly</em> and would remove
+      the inferred test currents from the record.</li>
+  <li>The meter's per-range test currents remain inferred, not measured. The conclusions that do
+      not depend on them are arguments 1–4 above, which is all of the ones that matter.</li>
+</ul>
+</div>
+
+
+<div class="step">
+<h2><span class="tag todo">Next</span>Step 2 — 5 V, unclocked, no Pico</h2>
+
+<p>Not yet run. Bench supply in normal polarity, current limit set, <strong>voltage ramped up from
+zero</strong> — where it folds back is the diagnostic, and the 0.5 A limit sits below the 0.65 A
+legitimate worst case, so a healthy board can trip it.</p>
+
+<p>Worth recording the current at <strong>0.5, 1, 2, 3, 4 and 5 V</strong> rather than only at 5 V.
+That turns Step 2 into the board's I-V curve with a known, displayed current at every point, which
+retires the leakage question above with a real instrument instead of an ohmmeter's inferred test
+current.</p>
+
+<p class="gate">Gate: ≈0.35 A at 5 V (worst case 0.65 A). A gross deviation is a systematic
+assembly fault — bridged rail, backwards reel, missing pull-ups.</p>
+</div>
+
+
+<h2>Reproducing the analysis</h2>
+
+<p>The numbers on this page are generated, not asserted:</p>
+
+<pre><code>python3 tools/step1_model.py</code></pre>
+
+<p>It reads <code>gen/netlist.json</code>, proves there is no resistor-only path between the rails,
+counts the body-diode branches, predicts the display against test current, inverts the measured
+readings, and computes the reverse-direction slope. The measured values are recorded in the
+<code>MEASURED</code> table at the top of that file, so adding a board or a range means editing one
+list.</p>
+
+<p>Authoritative sources, in order of precedence when they disagree:
+<code>pico-controller/README.md</code> for the sequence and the firmware,
+<code>project-plan.md</code> for the measurements and the risk picture,
+<a href="rework-dor-series-r.html">the rework page</a> for the eight sites, and
+<code>gen/board_routed_golden.kicad_pcb</code> for anything geometric.</p>

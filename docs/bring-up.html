@@ -58,7 +58,9 @@
 <p class="sub">discrete6502 — the bring-up sequence for the boards as delivered: 4 assembled,
 1 bare. Sources: <code>pico-controller/README.md</code> (the authoritative sequence),
 “Driver contention” and “Expected fab yield” in <code>project-plan.md</code>, and
-<a href="rework-dor-series-r.html">the rev A rework page</a>.</p>
+<a href="rework-dor-series-r.html">the rev A rework page</a>.<br>
+<strong>What actually happened when these steps were run on the real boards is logged separately:
+<a href="actual-bring-up.html">bring-up as it actually happened</a>.</strong></p>
 
 <div class="stop">
 <strong>Read this before you connect anything.</strong>
@@ -93,7 +95,7 @@
 
     <rect class="box" x="60" y="68" width="320" height="42" rx="5"/>
     <text x="72" y="87">Step 1 — VCC↔VSS resistance, no power</text>
-    <text class="sm" x="72" y="102">Must read high. A low reading is a solder bridge.</text>
+    <text class="sm" x="72" y="102">Polarity- and range-dependent. Hundreds of ohms is normal.</text>
 
     <line x1="220" y1="110" x2="220" y2="128" marker-end="url(#a)"/>
 
@@ -247,17 +249,52 @@ the die, suspect the reflow profile, not a random joint.
 <h2><span class="tag safe">No power</span>Step 1 — VCC↔VSS resistance</h2>
 
 <p>Measure resistance from a <strong>VCC bond pad to a VSS bond pad</strong> on each of the four
-assembled boards.</p>
+assembled boards. <strong>Record the polarity and the range with every number</strong> — on this
+board a bare figure in ohms is meaningless, for the reason below.</p>
 
-<p class="gate">Gate: it must read high.</p>
+<p class="gate">Gate: red on VSS reads a few hundred ohms and the value <em>changes with range</em>;
+red on VCC reads OL on a low range.</p>
 
-<p>The pull-up resistors reach floating nodes through FETs that are off, so no low-resistance path
-to VSS exists on a good board. A low reading is a solder bridge — find it before you apply power.</p>
+<div class="warn">
+<strong>This gate used to say “it must read high”, and that was wrong.</strong> It is left here as a
+correction rather than quietly fixed, because it made a healthy board's first measurement look like
+a fault. Measured on the real boards: <strong>≈195 Ω on the 200 Ω range with the red probe on
+VSS</strong>, on all four. See
+<a href="actual-bring-up.html">bring-up as it actually happened</a> for the full dataset and the
+analysis.
+</div>
+
+<p><strong>There is no resistive path between the rails at all</strong> — verified against
+<code>gen/netlist.json</code> by <code>tools/step1_model.py</code>. The meter is reading a
+<em>junction</em>: every pull-down FET's body diode conducts VSS → drain, and where that drain
+carries a 10 kΩ pull-up it forms a VSS → VCC branch. There are <strong>1,899 such body diodes
+across 947 nets</strong>. So what the meter displays is a diode drop divided by whatever current
+the selected range happens to source, and it legitimately reads 195 Ω, 314 Ω or 3.77 kΩ for the
+same board.</p>
+
+<p>What identifies a genuine fault is therefore not a low number, but a number that behaves like a
+resistance:</p>
+
+<ul>
+  <li><strong>Under ~1 Ω</strong> — a solder bridge. The rails are solid planes with thousands of
+      stitching vias; a bridge reads a fraction of an ohm, not hundreds.</li>
+  <li><strong>The same value on every range, in both polarities</strong> — a real resistive path.
+      A junction cannot do this; its apparent resistance must move with range.</li>
+  <li><strong>One board unlike the other three.</strong></li>
+</ul>
 
 <div class="ok">
 <strong>Record all four numbers.</strong> The absolute value matters less than the comparison: four
 boards from one panel and one reflow should agree closely. The odd one out is telling you something
 before you have spent any current finding out.
+</div>
+
+<div class="note">
+<strong>This step proves more than the absence of a bridge.</strong> The forward path only exists
+if the 10 kΩ pull-ups are populated — without them there is no route from the body diodes to VCC
+and the board reads open both ways. A forward reading in the expected band is positive evidence
+that the back-side pull-up network and the FET array are present and connected, which is not
+something you can confirm by eye on 0402 parts.
 </div>
 </div>
 
@@ -684,7 +721,8 @@ engine pinned to core 1 so association and DHCP cannot stretch a clock phase.
 <h3>Expected numbers, in one place</h3>
 <table>
   <tr><th>Measurement</th><th>Expected</th><th>Meaning if wrong</th></tr>
-  <tr><td>VCC↔VSS, unpowered</td><td>High</td><td>Low = solder bridge</td></tr>
+  <tr><td>VCC↔VSS, unpowered, red on VSS</td><td>~195 Ω on a 200 Ω range; rises with range</td><td>&lt;1 Ω = solder bridge. Same value on every range = a real resistive fault</td></tr>
+<tr><td>VCC↔VSS, unpowered, red on VCC</td><td>OL on a 200 Ω range</td><td>Low and range-independent = fault</td></tr>
   <tr><td>5 V, unclocked, no Pico</td><td>≈0.35 A (worst case 0.65 A)</td><td>Systematic assembly fault</td></tr>
   <tr><td>5 V, clocked, <em>before</em> rework</td><td>≈2.1 A / ≈10.4 W</td><td>The defect, working as measured</td></tr>
   <tr><td>5 V, clocked, <em>after</em> rework</td><td>Low hundreds of mA</td><td>~2 A = a rework site did not take</td></tr>
