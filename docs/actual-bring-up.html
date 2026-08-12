@@ -153,6 +153,45 @@ resistor on a green board is a few pixels and is easy to mistake for a via — c
 photo above. This did not need resolving by eye, because Step 1 settles it electrically: see
 “Step 1 is a positive test” below.
 </div>
+
+<h3>The empty pads on the back are meant to be empty</h3>
+
+<p>Besides the Pico site there are <strong>56 unpopulated 0402 capacitor footprints</strong>,
+<code>C101</code>–<code>C156</code>, and they are correct. They are the DNP ballast capacitors added
+as layout insurance in M4 (2026-07-18), one per bit on each of the six buses:</p>
+
+<table>
+<tr><th>Bus</th><th class="num">Bits</th><th>What it is</th></tr>
+<tr><td><code>sb0–7</code></td><td class="num">8</td><td>special bus — internal</td></tr>
+<tr><td><code>idb0–7</code></td><td class="num">8</td><td>internal data bus</td></tr>
+<tr><td><code>adl0–7</code></td><td class="num">8</td><td>address low</td></tr>
+<tr><td><code>adh0–7</code></td><td class="num">8</td><td>address high</td></tr>
+<tr><td><code>db0–7</code></td><td class="num">8</td><td>data bus</td></tr>
+<tr><td><code>ab0–15</code></td><td class="num">16</td><td>address bus</td></tr>
+</table>
+
+<p>They were never in the BOM or the CPL, so the assembler was never asked to place them. The
+census reconciles exactly, which is the real answer to “did they miss something?”:</p>
+
+<pre><code>5,421 netlist components
+  - 57 DNP  (56 ballast caps + the Pico site)
+  - 36 THT bond pads (not placed parts)
+  ---------
+  5,328 placements  =  CPL row count, exactly</code></pre>
+
+<p>The CPL splits 4,106 top / 1,222 bottom, and the 100 capacitors it does place on the bottom are
+the 96 decouplers plus 4 bulk — so every part that was supposed to be fitted, was.</p>
+
+<div class="ok">
+<strong>Keep these pads in mind at Step 7.</strong> They are not decoration: <code>sb0–7</code> are
+the <em>worst dynamic nodes on the board</em> — no pull-up at all, 13 FET pins hanging off each, and
+the 32 pF that sets the retention floor (see <code>tools/dynamic_nodes.py</code> and the clock-floor
+entry in <code>project-plan.md</code>). If the measured retention floor comes out too close to the
+clock ceiling, <strong>these footprints are the built-in remedy</strong> — hand-fitting 100 pF on the
+<code>sb</code> bits multiplies that node's stored charge several-fold. It is a trade, not a free
+win: more capacitance buys retention at the cost of slewing the node more slowly, so it lowers the
+ceiling while lowering the floor. Decide it with the Step 7 numbers in hand, not before.
+</div>
 </div>
 
 
