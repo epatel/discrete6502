@@ -18,6 +18,12 @@
   .ok   { background: #eef7ee; border-left: 4px solid #4a9d4a; padding: .8rem 1rem; margin: 1rem 0; }
   .note { background: #eef2f8; border-left: 4px solid #5a7fb8; padding: .8rem 1rem; margin: 1rem 0; }
   ol li, ul li { margin: .35rem 0; }
+  figure { margin: 1.5rem 0; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 4px; background: #f5f5f7; }
+  figcaption { color: #666; font-size: .9rem; margin-top: .45rem; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin: 1.5rem 0; }
+  .pair figure { margin: 0; }
+  @media (max-width: 44rem) { .pair { grid-template-columns: 1fr; } }
   .step { border: 1px solid #ddd; border-radius: 6px; padding: .1rem 1.1rem 1rem; margin: 1.6rem 0; }
   .step h2 { margin-top: 1rem; border: none; padding-bottom: 0; }
   .tag { display: inline-block; font-size: .78rem; font-weight: 600; letter-spacing: .03em;
@@ -42,6 +48,7 @@
     .tag.todo { background: #3a3a3c; color: #9a9aa0; }
     .tag.risk { background: #4a2020; color: #f0a0a0; }
     td.pass { color: #9fd39f; } td.todo { color: #8a8a90; }
+    figcaption { color: #9a9aa0; } figure img { background: #2c2c2e; }
   }
 </style>
 
@@ -80,6 +87,26 @@ correction it forced upstream. Everything here is dated and attributed to a spec
 <p>Boards arrived: 4 assembled, 1 bare, as ordered. Depaneled by JLC, so the 5 mm process rails
 are already gone. Visual condition good on all four.</p>
 
+<div class="pair">
+  <figure>
+    <img src="img/bringup-front.jpg" alt="Top face of the assembled discrete6502 board, showing
+         thousands of SOT-323 transistors arranged in the pattern of the MOS 6502 die, with gold
+         bond pads around the edge.">
+    <figcaption><strong>Top face.</strong> The die floorplan reproduces itself out of component
+    placement alone — decode PLA across the top, control in the middle band, datapath below. The
+    empty space is deliberate: refusing to pack the transistors is what keeps the texture readable
+    and, incidentally, what keeps the board locally sparse enough to assemble easily.</figcaption>
+  </figure>
+  <figure>
+    <img src="img/bringup-back.jpg" alt="Underside of the board: mostly bare green solder mask with
+         thousands of vias, the unpopulated Raspberry Pi Pico 2 W site silkscreened at top right.">
+    <figcaption><strong>Underside.</strong> The Pico 2 W site is silkscreened but unpopulated, as
+    designed. The back also carries every passive on the board — roughly a thousand 0402 resistors —
+    but at this scale a 0402 is a few pixels and indistinguishable from a via. That is why Step 1
+    matters more than this photograph.</figcaption>
+  </figure>
+</div>
+
 <p>What the close-up inspection actually confirms, beyond “it looks nice”:</p>
 
 <ul>
@@ -101,10 +128,30 @@ are already gone. Visual condition good on all four.</p>
       crossing pad copper was being printed half-eaten).</li>
 </ul>
 
+<div class="pair">
+  <figure>
+    <img src="img/bringup-array.jpg" alt="Close-up of the transistor array: rows of SOT-323
+         packages, all marked SS, all in the same orientation, each with a silkscreen triangle
+         marking pin 1.">
+    <figcaption><strong>The evidence, close up.</strong> Every package is oriented identically and
+    every one carries the same top mark. The silk triangle beside each part marks pin 1; the
+    package's own pin-1 corner lines up with it throughout. This is the rotation check from JLC's
+    DFM render, repeated on delivered hardware.</figcaption>
+  </figure>
+  <figure>
+    <img src="img/bringup-silk.jpg" alt="Close-up of the silkscreen reading MOS 6502, discrete6502,
+         after visual6502.org, CC BY-NC-SA, surrounded by SOT-323 transistors.">
+    <figcaption><strong>Silkscreen quality.</strong> Crisp edges, no fill-in, nothing eaten by a
+    pad opening — which is what the rev A silk re-placement was for. Attribution to visual6502.org
+    and the CC BY-NC-SA notice are on the board itself, where they belong.</figcaption>
+  </figure>
+</div>
+
 <div class="note">
-<strong>Not yet verified visually:</strong> the underside passives. At photographic scale a 0402
-resistor on a green board is a few pixels and is easy to mistake for a via. This did not need
-resolving by eye, because Step 1 settles it electrically — see below.
+<strong>Not verified visually: the underside passives.</strong> At photographic scale a 0402
+resistor on a green board is a few pixels and is easy to mistake for a via — compare the underside
+photo above. This did not need resolving by eye, because Step 1 settles it electrically: see
+“Step 1 is a positive test” below.
 </div>
 </div>
 
