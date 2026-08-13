@@ -378,6 +378,56 @@ thermal, and the rework has not been done yet. Seconds, not minutes — and watc
 while you do it. A jump toward ~2&nbsp;A is contention becoming real on copper, which is
 information, but it is not something to sit in.
 </div>
+
+<div class="note">
+<h3 style="margin-top:0">Doing it with an Arduino instead of a function generator</h3>
+
+<p>A 5&nbsp;V Uno or Nano is a good fit, for one specific reason: its outputs are <strong>push-pull</strong>.
+That is not a convenience here — <code>clk0</code> has no pull-up on the board (only
+<code>R1079</code>, 100&nbsp;R, and the clamp diodes <code>D66</code>/<code>D67</code>), so an
+open-drain or tri-stated driver would leave the clock floating, and a dynamic CPU cannot survive
+that.</p>
+
+<table>
+  <tr><th>Arduino</th><th>Board</th><th>Why</th></tr>
+  <tr><td>D9</td><td><strong>Φ0</strong> bond pad</td><td>The clock. Goes through the on-board
+      100&nbsp;R; no external pull-up needed with a push-pull driver.</td></tr>
+  <tr><td>GND</td><td><strong>VSS</strong> bond pad</td><td>Mandatory. Without a common reference
+      nothing works, and the clock edge is undefined.</td></tr>
+  <tr><td>D8</td><td><strong>RES</strong> bond pad</td><td>Or croc-clip straight to VCC. RES has
+      <em>no</em> pull-up — only <code>R1074</code> and its clamps — so it must be driven.</td></tr>
+  <tr><td>—</td><td><strong>IRQ</strong>, <strong>NMI</strong> → VCC</td><td>Both float: 100&nbsp;R
+      and clamp diodes only, no pull-up. A floating gate on a dynamic input can drift across
+      threshold and fire a spurious interrupt.</td></tr>
+  <tr><td>—</td><td>RDY, SO — leave alone</td><td>These two <em>do</em> carry 10&nbsp;k pull-ups
+      (<code>R48</code>, <code>R991</code>).</td></tr>
+</table>
+
+<p><strong>Do not power the board from the Arduino.</strong> The board draws ~0.35&nbsp;A, past what
+the Uno's regulator should supply and well past USB-only sanity for this design. Bench supply for
+the board, USB for the Arduino, grounds commoned through the table above.</p>
+
+<pre><code>void setup() {
+  pinMode(8, OUTPUT); digitalWrite(8, LOW);   // RES asserted low
+  tone(9, 2000);                              // clock running FIRST
+  delay(20);                                  // >> 2 clocks at 2 kHz
+  digitalWrite(8, HIGH);                      // release reset
+}
+void loop() {}                                // tone() is timer-driven</code></pre>
+
+<p><strong>1–2&nbsp;kHz</strong> is the frequency to pick: comfortably above the predicted
+worst-node retention floor (~378&nbsp;Hz) and far below the ~20&nbsp;kHz ceiling. Jitter is
+irrelevant — dynamic logic cares only about the maximum period, not about stability — so
+<code>tone()</code> is entirely adequate and no timer configuration is needed.</p>
+
+<p>Tying RES straight to VCC is enough for a smoke test, but the sequence above gives the CPU a
+defined entry: clock first, then release reset. Note the ordering. Releasing reset into a stopped
+clock is the stall condition.</p>
+
+<p class="gate">The one rule: <strong>never stop the clock while the board is powered.</strong> Kill
+the supply first, then the Arduino. A parked clock is what freezes the dynamic nodes and parks a
+pull-up and pull-down on together.</p>
+</div>
 </div>
 
 <div class="step">
