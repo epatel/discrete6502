@@ -22,13 +22,42 @@
 #include <string.h>
 
 // Blocking line reader. Returns the length; the buffer is NUL-terminated.
-static int read_line(char *buf, int cap) {
+//
+// We echo each character ourselves: this is a raw USB CDC link, not a tty, so
+// there is no line discipline doing it for us and a terminal like `screen`
+// shows nothing while you type. Every character is flushed as it arrives --
+// buffering until the newline is exactly the behaviour we are fixing.
+//
+// echo=false is for pasted Intel hex ('L'), where echoing 37.6 kB back down the
+// same link would double the traffic for no benefit.
+static int read_line(char *buf, int cap, bool echo) {
     int n = 0;
     for (;;) {
         int ch = getchar();
-        if (ch == '\r' || ch == '\n') break;
-        if (ch == 8 || ch == 127) { if (n) n--; continue; }
-        if (n < cap - 1 && ch >= 0) buf[n++] = (char)ch;
+        if (ch == '\r' || ch == '\n') {
+            if (echo) { putchar('\n'); fflush(stdout); }
+            break;
+        }
+        if (ch == 8 || ch == 127) {  // backspace / delete
+            if (n) {
+                n--;
+                // Rub out on screen too, or the display and the buffer diverge.
+                if (echo) { fputs("\b \b", stdout); fflush(stdout); }
+            }
+            continue;
+        }
+        if (ch == 27) {
+            // An arrow key is ESC [ A..D. Swallow the sequence rather than
+            // letting "[A" land in the command buffer. Timeout so that a bare
+            // ESC does not wedge the reader waiting for a sequence.
+            if (getchar_timeout_us(20000) >= 0) getchar_timeout_us(20000);
+            continue;
+        }
+        if (ch < 0x20 || ch > 0x7E) continue;  // other control characters
+        if (n < cap - 1) {
+            buf[n++] = (char)ch;
+            if (echo) { putchar(ch); fflush(stdout); }
+        }
     }
     buf[n] = 0;
     return n;
@@ -42,7 +71,7 @@ static void load_intel_hex(char *line, int cap) {
     ihex_begin(&hx);
     printf("paste Intel hex; ends at the EOF record or a blank line\n");
     for (;;) {
-        if (read_line(line, cap) == 0) { printf("(blank line)\n"); break; }
+        if (read_line(line, cap, false) == 0) { printf("(blank line)\n"); break; }
         if (!ihex_line(&hx, line, bus_mem(), BUS_MEM_SIZE - 1)) {
             printf("(EOF record)\n");
             break;
@@ -179,8 +208,8 @@ int main(void) {
     char line[128];
     for (;;) {
         printf("> ");
-        read_line(line, (int)sizeof line);
-        printf("%s\n", line);
+        fflush(stdout);  // the prompt must appear before we block on input
+        read_line(line, (int)sizeof line, true);  // echoes as you type
 
         char *tok = strtok(line, " ");
         if (!tok) continue;
