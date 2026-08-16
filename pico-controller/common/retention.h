@@ -20,10 +20,17 @@
 // that the first trials are far below a millisecond. That is deliberate: the
 // MOnSter 6502's designer documents the low-clock failure as pullup and
 // pulldown turning on together, and 266 of our nets have a FET-to-FET path
-// with no series resistance (worst: cclk, 33 VCC-side FETs against 31
-// pulldowns). A scan that opened at milliseconds would spend its first trials
-// deep in that condition. See the safety block in ../README.md -- and use a
-// current-limited supply, because the firmware cannot sense current.
+// with no series resistance. Every one of those nets has exactly ONE pull-up
+// FET against its pull-downs, so no net is a near-short -- each contended net
+// is the same ~262 mA pair. (An earlier version of this comment said cclk was
+// "33 VCC-side FETs against 31 pulldowns"; that counted FETs *gated by* cclk
+// rather than FETs *on* it. Corrected 2026-08-01, and it is 1 against 1.)
+// A scan that opened at milliseconds would spend its first trials deep in that
+// condition. See the safety block in ../README.md -- and use a current-limited
+// supply, because the firmware cannot sense current.
+//
+// Run this AFTER the eight-site rework, never before: the stall is exactly the
+// condition the rework makes safe, dropping those sites from 262 mA to 0.5 mA.
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>

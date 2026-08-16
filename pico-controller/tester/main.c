@@ -91,21 +91,33 @@ static void load_intel_hex(char *line, int cap) {
 // CC BY-NC-SA, so they are compiled in only behind -DEMBED_FUNCTEST=ON. See
 // common/functest_images.h. Everything here still works via 'L' either way.
 static void load_builtin(char key) {
-    if (!functest_images_available()) {
-        printf("no built-in images in this firmware (Klaus Dormann's suite is\n"
-               "GPLv3 -- see gen/functest/README.md). Either:\n"
-               "  rebuild:  cmake -B build -DEMBED_FUNCTEST=ON .. && make\n"
-               "  or paste: L, then gen/functest/6502_functional_test.hex\n");
+    // 'c' is always available: the counter loop is our own code, it is the
+    // boot default, and it is what the retention scan needs. Without it there
+    // is no way back to the default image after loading a test.
+    if (key == 'c') {
+        retention_load_image();
+        functest_set_image(NULL);
+        functest_disable();
+        printf("loaded the counter loop at $0200 (A increments, stored to $0300\n"
+               "each pass -- watch the A-register LEDs). Watcher off. R then t 40.\n");
         return;
     }
+
     const functest_image_t *img = key ? functest_image(key) : NULL;
     if (!img) {
         printf("built-in images:\n");
+        printf("  T c   counter loop           the boot default; A counts on the LEDs\n");
         for (uint8_t i = 0; i < functest_image_count(); i++) {
             const functest_image_t *e = functest_image_at(i);
             printf("  T %c   %-22s %5u traps, progress at $%04X\n",
                    e->key, e->name, e->trap_count, e->case_addr);
         }
+        if (!functest_images_available())
+            printf("  (the acceptance tests are not compiled in -- they are GPLv3, see\n"
+                   "   gen/functest/README.md. Rebuild with -DEMBED_FUNCTEST=ON, or\n"
+                   "   paste one with L.)\n");
+        else if (key)
+            printf("no such image: '%c'\n", key);
         return;
     }
 
@@ -181,8 +193,8 @@ static void help(void) {
            "  p US       set clock half-period in us (default 50 = 10 kHz)\n"
            "  z          zero cycle counter + trace\n"
            "  L          load an Intel hex image pasted into this terminal\n"
-           "  T [f|d]    load a built-in test image (f=functional, d=decimal;\n"
-           "             bare T lists them). Sets the watcher up too.\n"
+           "  T [c|f|d]  load a built-in image: c=counter loop (the boot default),\n"
+           "             f=functional, d=decimal. Bare T lists them.\n"
            "  k [on|off|ADDR]  functional-test watcher (test_case addr, hex)\n"
            "  g [N]      go: run N cycles (0/omitted = until a self-loop),\n"
            "             printing watcher progress; any key interrupts\n"
