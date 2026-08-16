@@ -14,11 +14,13 @@ if(WIFI_SSID STREQUAL "" OR WIFI_PASSWORD STREQUAL "")
         "set credentials: cmake -B build -DWIFI_SSID=yournet -DWIFI_PASSWORD=secret")
 endif()
 
+include(${CMAKE_CURRENT_LIST_DIR}/../common/embed_functest.cmake)
 add_executable(wifi main.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/bus6502.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/functest.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/ihex.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/retention.c)
+discrete6502_add_functest_images(wifi)
 target_include_directories(wifi PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../common
     ${CMAKE_CURRENT_LIST_DIR})

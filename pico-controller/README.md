@@ -485,6 +485,7 @@ s 5        # step 5 instructions
 x 300 10   # hexdump $0300.. (the counter byte lives here)
 p 100      # slow the clock to 5 kHz (half-period 100 us)
 L          # load an Intel hex image pasted into the terminal
+T f        # or load a built-in test image (needs -DEMBED_FUNCTEST=ON)
 k on       # arm the functional-test watcher (see below)
 g          # free-run with the watcher until a self-loop
 ```
@@ -553,15 +554,61 @@ before any hardware existed.
 | Progress range | 0..43, then `$F0` for the final phase | 0..255, twice |
 | **PASS** | **`$34D8`** | **`$024F`** |
 | FAIL | any other self-loop — look it up in the CSV | `$0252` |
-| Spurious NMI | `$380B` | `$02F3` |
-| Spurious IRQ | `$3819` | `$02F3` |
+| Spurious NMI | `$380B` — a self-loop, so it stops visibly | `$02F3` |
+| Spurious IRQ | `$3819` — **live code, NOT a self-loop** | `$02F3` |
+
+**The IRQ row is the one to read twice** (established 2026-08-16 by reading
+upstream's source against the generated trap map, correcting an earlier claim
+that both were identifiable traps). `nmi_trap` uses the suite's `trap` macro and
+so parks in a `jmp *` — a spurious NMI stops the CPU at `$380B`, which the
+firmware names for you. `irq_trap` at `$3819` is **not a trap at all**: it is the
+BRK-test handler, live code beginning `php / dey / dey / dey`. A spurious IRQ is
+therefore *absorbed*, corrupts Y and the stack pointer, and surfaces later as a
+failure at an unrelated address — a wrong verdict rather than a stopped run.
+
+Since `irq` and `nmi` carry only a 100R and the clamp diodes on this board — no
+pull-up, unlike `rdy` and `so` — **tie both bond pads high before any long run.**
+That is not tidiness; for `irq` it is what separates a trustworthy result from a
+plausible-looking lie. The decimal test is safe either way: our added `int_trap`
+gives both vectors a distinct self-loop of their own.
+
+### Optionally, skip the paste: `-DEMBED_FUNCTEST=ON`
+
+Pasting 37.6 kB of Intel hex through a terminal by hand is the step most likely
+to go wrong at the hour you are least fresh. The firmware can carry both images
+instead:
+
+```sh
+cmake -B build -DEMBED_FUNCTEST=ON ..
+```
+
+Then `T f` (functional) or `T d` (decimal) loads the image, arms the watcher at
+the right progress address, and warns about the IRQ vector above. `T` alone
+lists what is built in. Cost: **+39 KB of flash and 0 bytes of RAM** — the
+images are `const` and stay in XIP flash, and the 16 KB destination buffer
+already existed. Tester text goes 41.6 KB → 81.3 KB, against 4 MB of flash.
+
+It also buys a **named verdict**. Without it the firmware can only say "self-loop
+at `$34D8`" and you go to the CSV; with it, it says which trap that is, its
+listing line, and whether it is the PASS one.
+
+**It is off by default for a licensing reason, not a technical one.** The suite
+is GPLv3 and this project is CC BY-NC-SA 4.0 — incompatible, since GPLv3 forbids
+adding a NonCommercial restriction. Separate files in `gen/functest/` are mere
+aggregation; a binary with the images compiled in is a combined work. So the
+generated `common/functest_images.c` is gitignored, no firmware binary
+containing GPLv3 material is ever produced by default, and one you build with
+the flag on is fine to use but not to redistribute. See
+`gen/functest/README.md` and `common/functest_images.h`.
 
 ### Run it
 
 ```
 p 50          # start at the conservative default clock
-L             # then paste gen/functest/<test>.hex into the terminal
+T f           # built-in image, if compiled with -DEMBED_FUNCTEST=ON;
+              # otherwise: L, then paste gen/functest/<test>.hex
 k 0200        # watcher on at the progress address ($0001 for the decimal test)
+              # (T already does this for you)
 R             # reset
 g             # go: run until a self-loop, print progress
 ```

@@ -27,6 +27,7 @@
 // the run (returns false) on the first trap.
 #pragma once
 #include "bus6502.h"
+#include "functest_images.h"
 
 // First byte of data_segment with the suite's stock configuration.
 #define FUNCTEST_CASE_ADDR_DEFAULT 0x0200u
@@ -44,10 +45,20 @@ typedef struct {
     bool trapped;
     uint16_t trap_addr;
     uint32_t trap_cycle;
+    // Set only when the running image is a built-in one (see functest_images.h)
+    // AND the trap address is in its map. Without it the report is still
+    // correct, just unnamed -- an address you look up in the traps CSV.
+    const functest_trap_t *trap;   // NULL if unknown
+    bool trap_is_pass;
 } functest_state_t;
 
 void functest_enable(uint16_t case_addr);
 void functest_disable(void);
+
+// Tell the watcher which image is loaded, so a trap can be named rather than
+// merely located. NULL (the default) disables naming and changes nothing else.
+void functest_set_image(const functest_image_t *img);
+const functest_image_t *functest_get_image(void);
 // Suppress the printf narration. REQUIRED when the watcher runs on a
 // timing-critical core: pico stdio_usb blocks for up to 500 ms if a terminal
 // is attached but not draining, which would stretch a clock phase by ten

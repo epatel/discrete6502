@@ -57,13 +57,63 @@ static void load_intel_hex(char *line, int cap) {
                "      points at res_trap). Set it with:  m 3FFC 00 04\n");
 }
 
+// Load one of the built-in test images, if this firmware was built with them.
+// A default build has none: the images are GPLv3 and this project is
+// CC BY-NC-SA, so they are compiled in only behind -DEMBED_FUNCTEST=ON. See
+// common/functest_images.h. Everything here still works via 'L' either way.
+static void load_builtin(char key) {
+    if (!functest_images_available()) {
+        printf("no built-in images in this firmware (Klaus Dormann's suite is\n"
+               "GPLv3 -- see gen/functest/README.md). Either:\n"
+               "  rebuild:  cmake -B build -DEMBED_FUNCTEST=ON .. && make\n"
+               "  or paste: L, then gen/functest/6502_functional_test.hex\n");
+        return;
+    }
+    const functest_image_t *img = key ? functest_image(key) : NULL;
+    if (!img) {
+        printf("built-in images:\n");
+        for (uint8_t i = 0; i < functest_image_count(); i++) {
+            const functest_image_t *e = functest_image_at(i);
+            printf("  T %c   %-22s %5u traps, progress at $%04X\n",
+                   e->key, e->name, e->trap_count, e->case_addr);
+        }
+        return;
+    }
+
+    memcpy(bus_mem(), img->image, img->image_len);
+    // The generator patches the reset vector, so unlike 'L' there is no
+    // `m 3FFC 00 04` follow-up step. Print it as proof, not as reassurance.
+    uint16_t vec = (uint16_t)(bus_mem()[0x3FFC] | (bus_mem()[0x3FFD] << 8));
+    functest_set_image(img);
+    functest_enable(img->case_addr);
+    printf("loaded %s (%lu bytes), reset vector $3FFC -> $%04X\n",
+           img->name, (unsigned long)img->image_len, vec);
+    printf("watcher on, progress at $%04X, %u traps known -- R then g to run\n",
+           img->case_addr, img->trap_count);
+    // Say this at load time, not after a wasted multi-hour run. A vector that
+    // does not land on a self-loop means a spurious interrupt is absorbed
+    // silently and shows up later as a failure somewhere unrelated.
+    if (!img->nmi_is_trap || !img->irq_is_trap)
+        printf("WARNING: %s%s%s vector target is live code, not a self-loop.\n"
+               "  A spurious interrupt would be absorbed and misreported as a\n"
+               "  failure elsewhere. Tie irq and nmi high at the bond pads --\n"
+               "  neither has a pull-up on this board.\n",
+               img->nmi_is_trap ? "" : "NMI",
+               (!img->nmi_is_trap && !img->irq_is_trap) ? " and " : "",
+               img->irq_is_trap ? "" : "IRQ");
+}
+
 static void print_functest_status(void) {
     const functest_state_t *f = functest_state();
     printf("functest %s, test_case at $%04X", f->enabled ? "ON" : "off", f->case_addr);
     if (f->have_case)
         printf(", last test $%02X at cycle %lu", f->test_case, (unsigned long)f->case_cycle);
-    if (f->trapped)
+    if (f->trapped) {
         printf(", TRAPPED at $%04X (cycle %lu)", f->trap_addr, (unsigned long)f->trap_cycle);
+        if (f->trap)
+            printf(" = %s %s line %u", f->trap_is_pass ? "PASS" : "FAIL",
+                   functest_kind_name(f->trap->kind), (unsigned)f->trap->line);
+    }
     printf("\n");
 }
 
@@ -102,6 +152,8 @@ static void help(void) {
            "  p US       set clock half-period in us (default 50 = 10 kHz)\n"
            "  z          zero cycle counter + trace\n"
            "  L          load an Intel hex image pasted into this terminal\n"
+           "  T [f|d]    load a built-in test image (f=functional, d=decimal;\n"
+           "             bare T lists them). Sets the watcher up too.\n"
            "  k [on|off|ADDR]  functional-test watcher (test_case addr, hex)\n"
            "  g [N]      go: run N cycles (0/omitted = until a self-loop),\n"
            "             printing watcher progress; any key interrupts\n"
@@ -205,8 +257,14 @@ int main(void) {
             functest_clear();
             break;
         case 'L':
+            functest_set_image(NULL);  // hand-loaded: we cannot name its traps
             load_intel_hex(line, (int)sizeof line);
             break;
+        case 'T': {
+            char *a = strtok(NULL, " ");
+            load_builtin(a ? a[0] : 0);
+            break;
+        }
         case 'w': {
             // MICROSECONDS. Was milliseconds before 2026-07-31; the change is
             // in the safe direction (an old "w 5" now stalls 5 us, not 5 ms).

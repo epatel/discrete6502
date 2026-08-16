@@ -43,9 +43,14 @@ typedef bool (*bus_io_fn)(uint16_t addr, bool is_write, uint8_t *data);
 // something worth stopping for.
 typedef bool (*bus_watch_fn)(const bus_trace_t *t);
 
-// clk_open_drain: drive clk0 low actively but float it high (board pull-up
-// to VCC gives a full-swing clock; slower edges). Push-pull drives 3.3 V
-// highs — see README "Logic levels" before choosing.
+// clk_open_drain: drive clk0 low actively but float it high. Pass FALSE.
+// There is NO pull-up on clk0 on this board — it is a pure input (two FET
+// gates, a 100R series resistor, clamp diodes), so nothing holds it high and
+// open-drain leaves it floating, which a dynamic CPU cannot survive. True is
+// usable only with an external 10k croc-clipped from the PHI0 bond pad to VCC.
+// Push-pull drives 3.3 V highs into the 5 V core, which is safe: clk0 gates
+// only two pull-downs and the internal phases are regenerated on-board at full
+// VCC swing. See README "Logic levels".
 void bus_init(bool clk_open_drain);
 
 void bus_set_half_period_us(uint32_t us);  // default 50 (=> 10 kHz, see bus6502.c)
