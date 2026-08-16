@@ -69,6 +69,31 @@ _(append-only; timestamp and mark locked decisions)_
   `docs/actual-bring-up.html`. A prediction made before measuring (3601 Ω at 0.1 mA) matched the
   20k-range reading within 5%.
 
+- 2026-08-13 **[rev A defect, cosmetic]** **4 of the 36 bond pads are in the wrong slot** — found by
+  the user comparing the board against visual6502's JSSim die view ("A6 seems to be where A0 should
+  be"). Correct comparison, because the two orientations agree: JSSim draws
+  `screen_y = grChipSize − die_y` (`wires.js drawSeg`) and `gen_pcb.py:178` maps
+  `board_y ∝ (maxy − die_y)`. **It is neither mislabelling nor misrouting** — checked against copper,
+  all 36 pads sit on the net their silk names (the pad silked `A6` is on net `ab6`) and the DIP pin
+  numbers are right too. Wrong: **A6, VSS, D7, R/W**, which puts A0–A5 one slot down from where the
+  die says they should be, and makes the right edge read PIN 33, 32, 34. Two independent causes,
+  both in `rim_slot` (`tools/gen_pcb.py:192-201`): (a) the address run projects to a **16.0 mm
+  average pitch against the 19.7 mm** `spacing`, so the greedy first-come allocator (component
+  order TP1…TP36, not die order) accumulates a push — A5 lands +20.5 mm low, then A6 needs ≥ 317.96
+  against a 308.95 corner limit and the outward search **wraps to the first free gap above A0**,
+  −116 mm; D7 fails identically at the bottom-right corner; (b) `R/W` (y 7.61) and `VSS` (x 11.20)
+  project **inside the 13.05 mm corner exclusion** outright, and being late in component order land
+  in whatever gap survives. Root cause is certain rather than inferred: a re-simulation of
+  `rim_slot` reproduces **every one of the 36 placed pads to 0.01 mm**. Fix (respin only, documented
+  with the algorithm in `cards/bond-pad-ring.md`): allocate per edge in **die-coordinate order**
+  with a forward/backward bound sweep, which makes order preservation structural instead of an
+  accident of iteration order — feasible on every edge without changing `spacing` (L needs 137.9 mm
+  of 295.9, B 197.0 of 264.6, R 157.6 of 295.9). **Not applied**: it moves pad positions and so
+  forces the whole pipeline from `gen_pcb.py` onward, and rev A is the fabricated board whose
+  fingerprints are pinned in `gen/fab/RELEASE.md`. Also settled while looking: **`cclk` is not a
+  pad and must not become one** — it is internal node 943, and the shape at the top-right die edge
+  that looks like a pad in JSSim is 76,156 units against ~158k–243k for real pads.
+
 - 2026-08-08 **[M6, hardware finding]** **`irq` and `nmi` float on the assembled board.** Neither
   carries a pull-up — only a 100R input-protect resistor and the two clamp diodes — whereas `rdy` and
   `so` do have 10k (`R48`, `R991`), and the Pico's 26 GPIOs drive neither. A floating gate on a
@@ -91,6 +116,31 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-25: **M6 prep started — Pico firmware scaffolded** in `pico-controller/` (`common/` shared bus engine — clock master, 16KB mirrored memory serving, trace ring, reset ceremony; `tester/` interactive bring-up CLI; `general/` free-runner with `$3F00` char-out port). Builds against pico-sdk 2.x (`PICO_BOARD=pico2_w`), untested until hardware exists. **Open question (resolve before power-up): 3.3V Pico vs 5V core levels** — inputs are practically safe through the 1k series resistors. **Verified: the board has NO pull-up on clk0** (only 100R protection + pico series R), so the clock must be driven push-pull; open-drain would leave clk0 floating unless an external 10k is croc-clipped Φ0→VCC. **Corrected 2026-07-25:** the earlier claim that a 3.3V clock under-drives the pass-pair bootstrap was wrong — clk0 gates only two pull-downs, and the internal phases (cclk/cp1) are regenerated on-board at full VCC swing; simulated, a 3.3V clk0 into a 5V core is functionally identical to a 5V one (1.7mV low, 17ns delay). The external pull-up is optional polish, not a requirement. Recommended first bring-up: whole CPU at VCC=3.3V (single domain, logic smoke test) — SPICE the pass-pair at 3.3V before boards arrive.
 
 ## Current state / handoff
+
+- 2026-08-13: **Four bond pads are in the wrong slot on the delivered boards — cosmetic, and worth
+  knowing before anyone probes by counting positions.** The user spotted it against visual6502's
+  JSSim ("A6 seems to be where A0 should be"), and the comparison was legitimate: our board and
+  JSSim have the same handedness, so position-by-position reading works. **A6, VSS, D7 and R/W sit
+  out of die order**; A6 heads the left-edge address run instead of ending it, which shifts A0–A5
+  one slot down from where the die puts them. **Nothing is miswired and nothing is mislabelled** —
+  every one of the 36 pads was checked against copper and carries the net its silk names, and the
+  DIP pin numbers are correct as well (which is why the right edge honestly reads PIN 33, 32, 34).
+  So the silk is trustworthy and the die photo is not: **locate a pad by its label, never by
+  counting**. Cause is `rim_slot`'s greedy first-come allocation running in component order while
+  the die projects the address pads at a 16.0 mm pitch against a 19.7 mm required spacing — the
+  push accumulates until A6 has nowhere legal below the corner limit and wraps 116 mm back up the
+  edge; R/W and VSS separately project inside the corner exclusion. Confidence is high because a
+  re-simulation of `rim_slot` reproduces all 36 placed pads to 0.01 mm. **New: `cards/bond-pad-ring.md`**
+  — how the ring is derived, the defect, and the order-preserving fix with its feasibility numbers,
+  ready to apply at a respin. **`tools/gen_pcb.py` was deliberately NOT changed**: the fix moves pad
+  positions, so it forces the full pipeline from `gen_pcb.py` onward (placement, power, routing,
+  finishing, silk, fab outputs) and would break parity against the fabricated golden board. It also
+  suggests a cheap permanent gate that would have caught this pre-fab — assert the placed order
+  equals the die-coordinate order on all four edges. Incidental: **`cclk` is internal node 943, not
+  a pin** — the shape at the top-right die edge that looks like a pad in JSSim is a third the area
+  of a real one and is clock distribution running through the R/W driver. **Nothing on the board, in
+  the fab package or in the firmware changed** — documentation only. **Next is unchanged: Step 2** —
+  5 V, unclocked, no Pico, voltage ramped from zero, current recorded at 0.5/1/2/3/4/5 V.
 
 - 2026-08-12: **THE BOARDS ARE HERE, AND STEP 1 IS PASSED — bring-up has actually started.**
   4 assembled + 1 bare, depaneled, visually good. Receiving inspection confirmed on real hardware

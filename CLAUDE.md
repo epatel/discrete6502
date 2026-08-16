@@ -54,4 +54,5 @@ Load the matching card from `cards/` when a trigger fits the current task:
 - `cards/verification.md` — when changing the netlist (must keep equivalence green), running `tools/switchsim.py` or the vendor-model SPICE sims, or reasoning about dynamic-node charge behavior
 - `pico-controller/README.md` — when working on bring-up firmware, the Pico pin map, logic levels
   (3.3 V vs 5 V, the missing clk0 pull-up), or how board and Pico get powered
+- `cards/bond-pad-ring.md` — when working on the 36-pad edge ring, `rim_slot`/pad placement in `tools/gen_pcb.py`, locating a bond pad for probing, or comparing the board against visual6502's die view (records the rev A pad-order defect: A6, VSS, D7, R/W are in the wrong slot)
 - `cards/layout.md` — when working on the PCB (`gen/discrete6502.kicad_pcb`), the routing pipeline (`tools/route_nc.*` + finishing passes), DRC severity rationale, silkscreen (`tools/add_silk.py`), or the fab outputs in `gen/fab/`
