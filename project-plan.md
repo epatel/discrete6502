@@ -69,6 +69,31 @@ _(append-only; timestamp and mark locked decisions)_
   `docs/actual-bring-up.html`. A prediction made before measuring (3601 Ω at 0.1 mA) matched the
   20k-range reading within 5%.
 
+- 2026-08-16 **[M6, correction + firmware]** **A spurious IRQ would produce a wrong verdict, not a
+  stopped run — the 2026-08-08 entry below is half wrong.** That entry says a floating interrupt is
+  survivable because "the functional test traps them at `$380B` (NMI) and `$3819` (IRQ), neither of
+  which is a test trap". The vectors are right; the conclusion is not. Checked against upstream's
+  source rather than inferred: **`nmi_trap` uses the suite's `trap` macro**, so `$380B` really is a
+  `jmp *` and a spurious NMI stops visibly (though its listing text, `jmp * ;failed anyway`, is
+  identical to every failure trap — only the address separates them). **`irq_trap` at `$3819` is not
+  a trap at all**: it is the BRK-test handler, live code beginning `php / dey / dey / dey`. A
+  spurious IRQ is therefore *absorbed*, corrupts Y and SP, and surfaces later as a failure at an
+  unrelated address. So tying `irq` high before a long run is what separates a trustworthy result
+  from a plausible-looking lie, and is no longer merely tidy. The decimal test is safe either way —
+  our added `int_trap` gives both vectors a distinct self-loop. **The firmware now warns at load
+  time**, from the image's own vector block rather than from a hard-coded address.
+  **Also settled: the test images can be compiled into the firmware, behind
+  `-DEMBED_FUNCTEST=ON`, and are OFF by default for a licensing reason** [user decision] — the suite
+  is GPLv3 and this repo is CC BY-NC-SA 4.0, which GPLv3 forbids combining with. Separate files in
+  `gen/functest/` are mere aggregation; a binary with the images linked in is a combined work. So
+  `tools/embed_functest.py` generates `common/functest_images.c` only on request, that file is
+  gitignored, a default build links `functest_images_none.c`, and **no binary containing GPLv3
+  material is ever produced by this repository**. With the flag on: `T f` / `T d` replace pasting
+  37.6 kB of Intel hex by hand, and a self-loop is reported as PASS/FAIL with its listing line
+  instead of as a bare address to look up in a CSV. Measured cost **+39 KB flash, 0 bytes RAM**
+  (const data stays in XIP; bss unchanged at 32,400 confirms it). `gen/functest/README.md` now
+  carries the attribution that was missing entirely.
+
 - 2026-08-13 **[rev A defect, cosmetic]** **4 of the 36 bond pads are in the wrong slot** — found by
   the user comparing the board against visual6502's JSSim die view ("A6 seems to be where A0 should
   be"). Correct comparison, because the two orientations agree: JSSim draws
@@ -116,6 +141,34 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-25: **M6 prep started — Pico firmware scaffolded** in `pico-controller/` (`common/` shared bus engine — clock master, 16KB mirrored memory serving, trace ring, reset ceremony; `tester/` interactive bring-up CLI; `general/` free-runner with `$3F00` char-out port). Builds against pico-sdk 2.x (`PICO_BOARD=pico2_w`), untested until hardware exists. **Open question (resolve before power-up): 3.3V Pico vs 5V core levels** — inputs are practically safe through the 1k series resistors. **Verified: the board has NO pull-up on clk0** (only 100R protection + pico series R), so the clock must be driven push-pull; open-drain would leave clk0 floating unless an external 10k is croc-clipped Φ0→VCC. **Corrected 2026-07-25:** the earlier claim that a 3.3V clock under-drives the pass-pair bootstrap was wrong — clk0 gates only two pull-downs, and the internal phases (cclk/cp1) are regenerated on-board at full VCC swing; simulated, a 3.3V clk0 into a 5V core is functionally identical to a 5V one (1.7mV low, 17ns delay). The external pull-up is optional polish, not a requirement. Recommended first bring-up: whole CPU at VCC=3.3V (single domain, logic smoke test) — SPICE the pass-pair at 3.3V before boards arrive.
 
 ## Current state / handoff
+
+- 2026-08-16: **The tester can now carry the acceptance images itself, and building that found a
+  real error in what this plan said about floating interrupts.** [user decision] the images are
+  compiled in only behind **`-DEMBED_FUNCTEST=ON`, off by default** — not a technical call but a
+  licensing one, since Klaus Dormann's suite is GPLv3 and this repo is CC BY-NC-SA 4.0, which GPLv3
+  forbids combining with. The user's framing is what shaped it: *"separate it to an option, not
+  default — we do not ship it built in but make it simple to add."* So `tools/embed_functest.py`
+  generates `common/functest_images.c` on request only, that file is **gitignored**, a default build
+  links `functest_images_none.c` (so no call site needs an `#ifdef`), and **no binary containing
+  GPLv3 material is ever produced here**. A flag rather than an interactive prompt because CMake is
+  non-interactive by contract — instead every configure prints how to turn it on. With it on, `T f`
+  / `T d` replace the 37.6 kB hand-paste, and a self-loop is reported as **PASS/FAIL with its
+  listing line** rather than as an address to look up in a CSV. Cost measured, not estimated:
+  **+39 KB flash and 0 bytes RAM** (tester text 41,604 → 81,348; **bss unchanged at 32,400**, which
+  is the proof the const data stayed in XIP flash). Both configurations build warning-free and the
+  embedded data was checked on the host against known addresses. **The finding is the more valuable
+  half.** Verifying those addresses showed the 2026-08-08 claim — that a spurious interrupt is
+  benign *because identifiable* — is only half true. `$380B` (NMI) is a genuine self-loop, so the
+  CPU stops where you can see it. **`$3819` (IRQ) is not a trap at all**: it is `irq_trap`, the
+  BRK-test handler, live code starting `php / dey / dey / dey`. A spurious IRQ is absorbed, corrupts
+  Y and SP, and reappears as a failure at an unrelated address — **a wrong verdict that looks like a
+  real CPU defect, which is worse than a stopped run.** Tying `irq` high before any long run is now
+  necessary rather than prudent; the firmware warns at load time, deriving it from the image's own
+  vector block instead of a hard-coded address. Incidental fixes: `gen/functest/README.md` now
+  carries the attribution and licence, which were **absent entirely**, and `bus6502.h`'s `bus_init`
+  comment no longer claims a board pull-up on clk0 (there is none — `README.md` had it right).
+  **Nothing on the board or in the fab package changed.** Next is unchanged: **Step 2** — 5 V,
+  unclocked, ramped from zero, current recorded at 0.5/1/2/3/4/5 V.
 
 - 2026-08-13: **Four bond pads are in the wrong slot on the delivered boards — cosmetic, and worth
   knowing before anyone probes by counting positions.** The user spotted it against visual6502's
