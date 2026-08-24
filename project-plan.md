@@ -201,6 +201,45 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-24 (later, **UNVERIFIED — hypotheses, not findings**): **the bench supply arrangement is
+  suspect, and if it is, several of the day's LED analyses were measuring the Arduino rather than the
+  6502.** Nothing here is confirmed; it is written down so tomorrow starts with the right three
+  measurements instead of more video. **(a) Too much series resistance.** The supply path ran
+  charger → junc1 → junc2 → ammeter → board VCC with a matching return, i.e. **six croc segments
+  carrying ~0.9 A**. The board's own Step 2 I-V curve puts 0.66 A at **V_board ≈ 3.7 V**, so ~1.3 V
+  is being lost in the leads (~2 Ω loop, ~0.33 Ω per segment). **The junc1→junc2 segment is the
+  prime suspect**: it is being used as the on/off switch, so it is a repeatedly made-and-broken croc
+  contact carrying the full 0.9 A, which is exactly where oxide and wear produce the worst and least
+  repeatable resistance. Replace it with a real toggle rated ≥2 A, or switch on the charger side,
+  rather than making and breaking a clip in the high-current path. Note the board has **exactly one VCC
+  pad (TP36) and one VSS pad (TP35)** in the whole 36-pad ring, so the current cannot be split across
+  pads; a soldered connection to the DNP Pico footprint's **pins 38/39 (`vss`/`vcc`)** is the better
+  feed if croc clips prove to be the limit. **(b) The Arduino was browning out.** It was powered from
+  **VIN at ~3 V** with no USB of its own; the NCP1117 needs ~6.5 V in for 5 V out, the ATmega328P
+  needs 4.5 V at 16 MHz, and the brown-out detector trips near 2.7 V. If it was resetting, every
+  reset re-runs `setup()` and therefore **re-asserts RES on the 6502** — which would produce exactly
+  the broad, clock-independent **0.15–0.46 Hz** LED activity measured that afternoon and never
+  explained. There is even a plausible feedback loop: unclocked the board draws 1.4 A → larger drop →
+  Arduino stays dead; clocked it draws 0.87 A → smaller drop → Arduino runs. **(c) An earlier
+  configuration is resolved and closed**: powerbank → USB meter → Arduino → VIN → board read 0.11 A /
+  4.96 V at the powerbank while the board's series ammeter read 0.66 A. Conservation settles it —
+  everything had to pass the USB meter, so the board was getting **~60 mA** and browning out, and the
+  0.66 A was a bad reading on an unfused 10 A range. No damage: the UNO's regulator has thermal
+  shutdown and the USB polyfuse limits near 1 A. **Consequence: treat every LED spectrum from
+  2026-08-24 as provisional**, including the 78.8 s / 120 fps capture — its headline result (no
+  counting signature at 8.79/4.39/2.20/1.10 Hz, activity instead a broad 0.15–0.46 Hz hump with
+  independent per-LED switching, mean pairwise r = 0.002, PC1 47%) may be a portrait of a resetting
+  Arduino. **Also still not done: `irq` and `nmi` were left floating for all of these runs** (user
+  caught this), which alone breaks a NOP free-run — an interrupt pushes 3 bytes, changes S and P, and
+  vectors PC to $EAEA, destroying the PCH ripple being looked for. **Next session, in order, and with
+  the oscilloscope that has been on the bench unused: (1)** separate supplies — Arduino on its own
+  USB, board straight to the 2 A charger with the shortest possible path (a 2 A charger is now
+  adequate *because* the 2.1 A figure was falsified); **(2)** scope on **RES** — is it pulsing every
+  few seconds? That confirms or kills the brown-out hypothesis in one trace; **(3)** scope on **Φ0**
+  for the real clock frequency and on **TP36/TP35** for the real rail under load; **(4)** tie `irq`
+  and `nmi` to VCC; **then** re-run one capture. Only after that is Step 3c (PCL/PCH ripple at 3.3 V,
+  ~3 kHz) worth attempting.
+
 - 2026-08-24: **The board is powered, clocked and free-running — and the driver-contention model
   that has driven planning since 2026-08-01 was falsified by a thermal camera.** Four bring-up steps
   ran in two days and every one of them produced a number this plan did not have. Full log with the
