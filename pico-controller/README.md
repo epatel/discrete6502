@@ -56,9 +56,18 @@ current. Do not switch 5 V on in one step; the reason is below.
 
 **Compare the current against the 0.35 A prediction.** This one number is the
 most informative test in the whole sequence. It finds a bridged rail, a reel
-loaded backwards and missing pull-ups. Expect the current to jump to roughly
-**1.8–2.1 A the moment you start clocking** — see "Driver contention" in
-`project-plan.md`, and size the supply for 3 A.
+loaded backwards and missing pull-ups.
+
+> **⚠ Corrected 2026-08-24 from measurement on board #1.** Both predictions in
+> this file were wrong, and in opposite directions. The board draws **1.4 A
+> unclocked**, not 0.35 A, and clocking brings it **down** to **0.7–1.2 A**, not
+> up to 1.8–2.1 A. Every "≈2.1 A when clocked" figure below is superseded.
+> FLIR imaging found **no hot spot anywhere** (peak ~30 °C), so the excess is
+> spread over thousands of near-threshold FETs rather than concentrated in a few
+> contending pairs — which also means there is no thermal urgency and no further
+> hand rework to do. A 3 A supply is still a fine thing to own, but the current
+> limit is no longer load-bearing. See the 2026-08-24 entries in
+> `project-plan.md` and `docs/actual-bring-up.html`.
 
 | Reading at 5 V | Verdict |
 |---|---|
@@ -168,11 +177,16 @@ press needed. USB may stay connected for serial. Open the terminal — the firmw
 waits for it before touching the CPU — then run the default A-register counter
 image and watch the A LEDs count.
 
-Watch the supply current here. With the rework done it stays in the low hundreds
-of mA. A jump toward 1.8–2.1 A means a rework site did not take.
+Watch the supply current here. Measured on board #1 with the rework done, a
+clocked board sits at **0.7–1.2 A** (not the "low hundreds of mA" this file used
+to predict, and not the 1.8–2.1 A it predicted either). Treat a *change* from
+that as the signal, not an absolute figure.
 
-Then walk the clock up with `p` to find the real ceiling, and measure the
-retention floor with `W`. Measure the floor **after** the rework, never before.
+Then walk the clock up with `p` to find the real ceiling. The retention floor no
+longer needs `W` to establish it: it was **measured at 456–871 Hz** (leakage
+1.9–2.3 nA per FET) from LED decay on board #1 — see `docs/actual-bring-up.html`
+Step 2b. Running `W` is now a confirmation rather than a first measurement, and
+the "never before the rework" warning is retired along with the thermal alarm.
 
 3.3 V is **not** a step in this sequence. It is a diagnostic fallback. See
 "3.3 V operation" below.

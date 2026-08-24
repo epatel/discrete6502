@@ -71,9 +71,12 @@ correction it forced upstream. Everything here is dated and attributed to a spec
 <tr><th>Step</th><th>Date</th><th>Board</th><th>Result</th></tr>
 <tr><td>0 — Receiving inspection</td><td>2026-08-12</td><td>all</td><td class="pass">PASS</td></tr>
 <tr><td>1 — VCC↔VSS resistance, unpowered</td><td>2026-08-12</td><td>#1 (all four, forward)</td><td class="pass">PASS</td></tr>
-<tr><td>2 — 5 V, unclocked, no Pico</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
-<tr><td>3 — External clock, watch the LEDs</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
-<tr><td>4 — Eight-site 10 kΩ rework</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>2 — 5 V, unclocked, no Pico</td><td>2026-08-23</td><td>#1</td><td class="pass">PASS — but 1.4 A, 4× budget</td></tr>
+<tr><td>2b — Charge retention (by video)</td><td>2026-08-23</td><td>#1</td><td class="pass">PASS — 1.9–2.3 nA/FET</td></tr>
+<tr><td>3 — External clock, watch the LEDs</td><td>2026-08-24</td><td>#1</td><td class="pass">PASS — clock regenerates on-board</td></tr>
+<tr><td>3b — Thermal map (FLIR One)</td><td>2026-08-24</td><td>#1</td><td class="pass">no hot spots — model corrected</td></tr>
+<tr><td>3c — Does it compute? (PCH ripple)</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>4 — Eight-site 10 kΩ rework</td><td>2026-08-23</td><td>#1</td><td class="pass">done (out of order)</td></tr>
 <tr><td>5 — Solder the Pico</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 <tr><td>6 — First clocked run</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 <tr><td>7 — Clock window</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
@@ -334,19 +337,255 @@ One 10-second measurement confirms roughly a thousand back-side resistors are pr
 
 
 <div class="step">
-<h2><span class="tag todo">Next</span>Step 2 — 5 V, unclocked, no Pico</h2>
+<h2><span class="tag pass">Pass</span>Step 2 — 5 V, unclocked, no Pico, 2026-08-23</h2>
 
-<p>Not yet run. Bench supply in normal polarity, current limit set, <strong>voltage ramped up from
-zero</strong> — where it folds back is the diagnostic, and the 0.5 A limit sits below the 0.65 A
-legitimate worst case, so a healthy board can trip it.</p>
+<p>Run without a current-limited bench supply, because there wasn't one. A fixed 5 V source, a cheap
+ammeter and a handful of power resistors in series with VCC turn out to be <em>better</em> than a
+bench supply for this particular measurement: the resistor makes the limit physical instead of
+behavioural, and stepping its value down <em>is</em> the voltage ramp, because the board and the
+resistor form a divider that finds its own operating point.</p>
 
-<p>Worth recording the current at <strong>0.5, 1, 2, 3, 4 and 5 V</strong> rather than only at 5 V.
-That turns Step 2 into the board's I-V curve with a known, displayed current at every point, which
-retires the leakage question above with a real instrument instead of an ohmmeter's inferred test
-current.</p>
+<table>
+<tr><th>Series R</th><th class="num">I</th><th class="num">V across R</th><th class="num">V<sub>board</sub></th><th class="num">R<sub>board</sub></th><th class="num">Board power</th></tr>
+<tr><td>100 Ω</td><td class="num">35 mA</td><td class="num">3.50 V</td><td class="num">1.50 V</td><td class="num">42.9 Ω</td><td class="num">0.05 W</td></tr>
+<tr><td>13 Ω</td><td class="num">180 mA</td><td class="num">2.34 V</td><td class="num">2.66 V</td><td class="num">14.8 Ω</td><td class="num">0.48 W</td></tr>
+<tr><td>3.8 Ω</td><td class="num">400 mA</td><td class="num">1.52 V</td><td class="num">3.48 V</td><td class="num">8.7 Ω</td><td class="num">1.39 W</td></tr>
+<tr><td>2.2 Ω</td><td class="num">600 mA</td><td class="num">1.32 V</td><td class="num">3.68 V</td><td class="num">6.1 Ω</td><td class="num">2.21 W</td></tr>
+<tr><td>0 Ω</td><td class="num">1.40 A</td><td class="num">—</td><td class="num">5.00 V</td><td class="num">3.6 Ω</td><td class="num">7.0 W</td></tr>
+</table>
 
-<p class="gate">Gate: ≈0.35 A at 5 V (worst case 0.65 A). A gross deviation is a systematic
-assembly fault — bridged rail, backwards reel, missing pull-ups.</p>
+<h3>There is no short, and the arithmetic proves it</h3>
+
+<p>At V<sub>board</sub> = 1.50 V the board draws 35 mA, so <strong>any ohmic path in parallel must be
+≥ 43 Ω</strong> — which at 5 V could contribute at most 116 mA of the 1.4 A. A short is excluded by
+arithmetic rather than by inspection. Independently, R<sub>board</sub> falling 43 → 3.6 Ω is not
+something a resistor can do; it is a threshold device turning on.</p>
+
+<h3>But the board draws four times what it should</h3>
+
+<p>The passive network has a hard ceiling: 1,018 pull-ups at 10 kΩ is 10.56 Ω in parallel, plus the
+55 LED legs at 2.2 kΩ. Even with <em>every</em> pull-up shorted to ground — which is logically
+impossible — that is 0.548 A at 5 V.</p>
+
+<table>
+<tr><th class="num">V<sub>board</sub></th><th class="num">measured</th><th class="num">passive ceiling</th><th class="num">excess</th><th>verdict</th></tr>
+<tr><td class="num">1.50 V</td><td class="num">35 mA</td><td class="num">142 mA</td><td class="num">—</td><td>within the network</td></tr>
+<tr><td class="num">2.66 V</td><td class="num">180 mA</td><td class="num">268 mA</td><td class="num">—</td><td>within the network</td></tr>
+<tr><td class="num">3.48 V</td><td class="num">400 mA</td><td class="num">367 mA</td><td class="num">+33 mA</td><td>second path opens</td></tr>
+<tr><td class="num">3.68 V</td><td class="num">600 mA</td><td class="num">390 mA</td><td class="num">+210 mA</td><td>second path</td></tr>
+<tr><td class="num">5.00 V</td><td class="num">1400 mA</td><td class="num">548 mA</td><td class="num">+852 mA</td><td>second path</td></tr>
+</table>
+
+<p>Below ~3.5 V everything is explainable by the resistor network. Above it, a second conduction path
+opens and grows steeply. <strong>At 5 V the board passes three times more current than every resistor
+on it could carry.</strong></p>
+
+<div class="warn">
+<strong>This was initially diagnosed as 3–4 fully-contending FET pairs</strong> at 262 mA each — the
+driver-contention defect. <strong>That diagnosis was wrong</strong>, and the thermal imaging in
+Step 3b below is what falsified it. The excess is real; its distribution is not what was assumed.
+</div>
+
+<p class="gate">Gate: the written expectation was ≈0.35 A. The board draws 1.4 A. Not a short, not a
+systematic assembly fault, but four times the budget and unexplained until Step 3b.</p>
+</div>
+
+
+<div class="step">
+<h2><span class="tag pass">Pass</span>Step 2b — Charge retention, measured by accident, 2026-08-23</h2>
+
+<p>While stepping the resistor ramp, two accumulator LEDs were seen to flash and fade at each power
+application, with the Z flag outlasting them. Filmed on a phone in slow-motion, this turned out to be
+the measurement the project had listed as <em>unresolvable by simulation</em> since 2026-07-27.</p>
+
+<h3>Why the LEDs going out is a leakage measurement</h3>
+
+<p>Checked against <code>gen/netlist.json</code>: the nets <code>a1</code>, <code>a2</code> and
+<code>p1</code> have <strong>no pull-up resistor, no VCC-side FET and no pull-down</strong> — only
+pass gates and two gate loads each. <strong>Nothing on the board is capable of turning those LEDs
+off.</strong> They can only leak. And the LED chain is VCC → 2.2 kΩ → LED → driver-FET drain, gate on
+the tapped node, so a lit LED means that node is HIGH.</p>
+
+<h3>The numbers</h3>
+
+<p>The clip carried <code>com.android.capture.fps=120</code>, so each stored frame is 8.33 ms of real
+time. Recovered from the pixels independently of the eyeball count: one dim frame, then seven bright,
+then out — peak at frame 170, dark at frame 177, i.e. <strong>58.3 ms</strong>.</p>
+
+<table>
+<tr><th>rail</th><th>driver V<sub>th</sub></th><th class="num">ΔV</th><th class="num">leakage per FET</th></tr>
+<tr><td>5.0 V</td><td>0.8 V</td><td class="num">4.2 V</td><td class="num">2.30 nA</td></tr>
+<tr><td>5.0 V</td><td>1.5 V</td><td class="num">3.5 V</td><td class="num">1.92 nA</td></tr>
+</table>
+
+<p>The rail was 5 V, so <strong>leakage is 1.9–2.3 nA per FET</strong>, and that is an
+<em>upper</em> bound: the node is charged capacitively by the rising rail so it cannot have started
+above 5 V, and the LED extinguishes a little above V<sub>th</sub> rather than at it. Both errors push
+the true figure down. The model in <code>tools/dynamic_nodes.py</code> assumed 1 nA typical; it was
+right.</p>
+
+<div class="ok">
+<strong>Independent corroboration, unprompted by any fitting.</strong> <code>a1</code>/<code>a2</code>
+have <strong>two</strong> leaking pass-gate channels and <code>p1</code> has <strong>one</strong>, so
+<code>p1</code> should hold about twice as long. That is exactly the order observed by eye: A1 and A2
+fade first, Z outlasts them. The ratio falls out of the netlist and was not tuned to the observation.
+</div>
+
+<h3>What it buys, taking the pessimistic end</h3>
+
+<table>
+<tr><th></th><th class="num">at 1.2 nA</th><th class="num">at 2.3 nA</th></tr>
+<tr><td>Worst node <code>sb6</code> retention</td><td class="num">2.15 ms</td><td class="num">1.13 ms</td></tr>
+<tr><td>Clock floor</td><td class="num">456 Hz</td><td class="num">871 Hz</td></tr>
+<tr><td>Window to the 20 kHz ceiling</td><td class="num">44×</td><td class="num">23×</td></tr>
+<tr><td>Margin on the 53 nA budget</td><td class="num">44×</td><td class="num">23×</td></tr>
+<tr><td>Temperature headroom</td><td class="num">55 °C</td><td class="num">45 °C</td></tr>
+</table>
+
+<p><code>sim/retention.sp</code> could not resolve this — its answer moves 3.5 orders with solver
+tolerances and its temperature control comes out backwards. The written fallback was the tester's
+<code>w</code>/<code>W</code> clock-stall scan, which cannot safely run before the rework. A phone
+camera and a board with no Pico on it settled it instead.</p>
+
+<p class="gate">Gate: leakage ≤ 2.3 nA per FET, ≥ 23× margin on the operating window. The clock floor
+question is closed in the design's favour.</p>
+</div>
+
+
+<div class="step">
+<h2><span class="tag pass">Pass</span>Step 3 — External clock from an Arduino, 2026-08-24</h2>
+
+<p>A 5 V Uno driving Φ0 push-pull at 4500 Hz, RES on D8, IRQ and NMI clipped to VCC, board powered
+from its own supply. Frequency chosen from the <em>measured</em> floor of Step 2b: the window is
+[871 Hz, 20 kHz] and its geometric centre is 4.2 kHz.</p>
+
+<h3>First attempt: the CPU jammed, and the LEDs proved it</h3>
+
+<p>With the data bus floating the CPU fetches random opcodes, and <strong>12 of the 256 opcodes are
+undocumented KIL/JAM</strong> — a 4.7% chance per fetch, so jamming within ~20 instructions is
+near-certain. Two clips, analysed frame by frame, show exactly that: LEDs light in a burst, then the
+lit count <strong>decays monotonically</strong> (7 → 0 in one clip, 8 → 4 in the other) and never
+recovers. Camera exposure was checked and drifts only 1–3%, so the decay is real; the brightness of
+the <em>remaining</em> LEDs stays constant, so the rail is not sagging. A monotonic decay that never
+recovers means nothing is writing registers.</p>
+
+<div class="ok">
+<strong>The clock works, and this is the proof.</strong> Unclocked, those register nodes lost their
+charge in <strong>65 ms</strong> (Step 2b). Clocked, they hold for <strong>seconds</strong>. That
+difference is the recirculating dynamic latches being refreshed every cycle, which means the on-board
+clock phases — <code>cclk</code> (482 gates) and <code>cp1</code> (198 gates) — are being regenerated
+at full swing from the Arduino's edge.
+</div>
+
+<h3>Second attempt: $EA tie-off, and the CPU free-runs</h3>
+
+<p>The data bus tied to <strong>$EA (NOP)</strong> through 10 kΩ — db1/3/5/6/7 high, db0/2/4 low —
+so the CPU cannot jam and walks the whole address space. Resistors, not wires, so the CPU wins if it
+ever drives the bus.</p>
+
+<p>The lit-LED count now <strong>holds at 10–14 for the full run and jitters</strong>, across three
+independent power cycles, instead of decaying to zero. Something is rewriting registers continuously.</p>
+
+<div class="warn">
+<strong>But sequencing was not demonstrated.</strong> On a NOP free-run PCH's low bits must ripple at
+4.4 / 2.2 / 1.1 / 0.55 Hz, all resolvable at 30 fps. After detrending the run's own envelope — which
+was faking a 0.55 Hz peak — <strong>no counting signature is present</strong> and nothing reproduces
+across the three tries. The test is underpowered: it summed all 55 LEDs so PCH is diluted into ten
+other signals, PCL at 1125 Hz aliases into noise, and a handheld camera prevented per-LED tracking.
+So this is <em>not</em> evidence of absence — but "the board computes" is not yet established.
+</div>
+
+<p>Current during free-run, read off the multimeter in the video frame: <strong>1.15 → 1.28 →
+1.33 A over three seconds</strong>, repeating on all three tries, ~0 between them. 32 of the 164
+VCC-side FETs are on the address path (all 16 <code>ab</code>, 8 <code>adh</code>, 8 <code>adl</code>),
+and a NOP free-run increments the address every cycle, so a free-run is close to the worst case for
+exactly those sites.</p>
+
+<p class="gate">Gate: the clock is regenerated on-board and the dynamic latches refresh. Orderly
+instruction sequencing remains unproven — see "still open" below.</p>
+</div>
+
+
+<div class="step">
+<h2><span class="tag risk">Correction</span>Step 3b — Thermal imaging falsifies the contention model, 2026-08-24</h2>
+
+<p>The rising current above was called thermal runaway on 3–4 contending FETs, and a thermal sweep
+was recommended to find them. A FLIR One was used. <strong>There are no hot spots.</strong></p>
+
+<h3>What a concentrated site would have looked like</h3>
+
+<p>A FET dissipating 0.9 W in SOT-323 — even on a 6-layer board with two copper planes, so a generous
+60–150 °C/W — runs <strong>50–150 °C above ambient</strong>. The FLIR One resolves ~1.8 mm per pixel
+across this board, and the heated copper around such a site spreads over several mm. It would be an
+unmissable white blob. Peak observed: <strong>~30 °C against 25 °C ambient</strong>.</p>
+
+<h3>What the images show instead</h3>
+
+<p>A <strong>broad, diffuse warm region over the die area</strong>, a few degrees above the board
+edges. That shape is the diagnosis. Checking the physics: ~0.187 m² of board over both faces, natural
+convection plus radiation ≈ 13 W/m²K, so a few watts spread evenly gives <strong>3–5 °C</strong> —
+which is what was measured. Concentrated and distributed dissipation differ here by a factor of ~30
+in peak temperature, so the images discriminate unambiguously.</p>
+
+<h3>The revised explanation</h3>
+
+<p>The 0.85 A excess is spread across the array, not dumped into a handful of parts:
+<strong>0.85 A ÷ 4,051 FETs ≈ 210 µA each</strong>. That is ordinary for a FET biased <em>near</em>
+threshold rather than fully on — which is exactly what dynamic nodes sitting at undefined
+intermediate voltages produce, whether unclocked or executing garbage.</p>
+
+<p>It also re-explains two earlier observations. The 1.15 → 1.33 A climb is <strong>self-limiting,
+not runaway</strong>: the board warms a few degrees, near-threshold conduction is strongly
+temperature-dependent (V<sub>th</sub> falls ~2 mV/°C), current rises ~16%, and it plateaus — as it
+evidently did, since there was time to frame and shoot two photographs. And it explains why clocking
+moved 1.4 A → 0.7–1.2 A rather than collapsing it to 0.35 A: clocking pins some nodes to defined
+levels, but plenty remain mid-rail while garbage executes.</p>
+
+<div class="stop">
+<strong>Retracted:</strong> the "seconds, not minutes" warning and the thermal-runaway alarm. The
+board is not being damaged at a 5 °C rise and can be run as long as a measurement needs.
+</div>
+
+<div class="note">
+<strong>What this does not change.</strong> The device-ratio defect is still real, and its
+<em>serious</em> half was never thermal: a contended node sits at 1.0–1.9 V against a 1.1–1.5 V
+receiver threshold, so the CPU can read wrong data. Rev B still fixes that. What changes is that
+rev B is not a fix for the current draw, and there is <strong>no urgent hand rework</strong> beyond
+the eight sites already done.
+</div>
+
+<p><code>tools/mark_hotsites.py</code> generates <a href="hotsites-marked.jpg">the site map</a> used
+for the sweep: all 164 VCC-side FETs on the top-face render, grouped by what they drive, with the 8
+reworked sites and the <strong>22 that have no pull-down and therefore cannot be hot</strong> marked
+distinctly. The 142 that can contend independently reproduces the plan's rev B site count.</p>
+
+<p class="gate">Gate: no site above ~30 °C. The concentrated-contention model is falsified on
+hardware; the excess current is distributed.</p>
+</div>
+
+
+<div class="step">
+<h2><span class="tag todo">Next</span>Step 3c — Does it actually compute?</h2>
+
+<p>The open question is no longer "which FET is hot" but whether the CPU sequences correctly. The
+bind is that the measured clock floor (~871 Hz) sits far above human-visible rates, so the low PC bits
+can never be watched directly. At the bottom of the usable window the high bits do become watchable:</p>
+
+<p><strong>3.3 V, clock ~3 kHz, camera fixed on the PCL/PCH columns only.</strong> At 3 kHz a NOP is
+2 cycles, so the PC advances 1500 times a second:</p>
+
+<table>
+<tr><th>LED</th><th class="num">blink rate</th></tr>
+<tr><td>PCL bit 7</td><td class="num">5.9 Hz</td></tr>
+<tr><td><strong>PCH bit 0</strong></td><td class="num"><strong>2.9 Hz</strong></td></tr>
+<tr><td>PCH bit 1</td><td class="num">1.5 Hz</td></tr>
+<tr><td>PCH bit 2</td><td class="num">0.73 Hz</td></tr>
+</table>
+
+<p>A clean binary cascade — each bit half the rate of the one above — needs no analysis to recognise.
+3.3 V also halves the dissipation, so it is both the better test and the quieter one. Use
+<a href="leds-marked.jpg">the LED map</a> to find the columns; <strong>never locate a bond pad by
+counting positions</strong>, since four rev A pads sit in the wrong slot.</p>
 </div>
 
 
@@ -354,7 +593,9 @@ assembly fault — bridged rail, backwards reel, missing pull-ups.</p>
 
 <p>The numbers on this page are generated, not asserted:</p>
 
-<pre><code>python3 tools/step1_model.py</code></pre>
+<pre><code>python3 tools/step1_model.py      # Step 1: the body-diode model and the meter readings
+python3 tools/dynamic_nodes.py    # Step 2b: retention, the 456 dynamic nodes, the clock window
+python3 tools/mark_hotsites.py    # Step 3b: the 164 VCC-side FETs on the board render</code></pre>
 
 <p>It reads <code>gen/netlist.json</code>, proves there is no resistor-only path between the rails,
 counts the body-diode branches, predicts the display against test current, inverts the measured

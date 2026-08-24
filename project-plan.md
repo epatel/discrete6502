@@ -94,6 +94,65 @@ _(append-only; timestamp and mark locked decisions)_
   (const data stays in XIP; bss unchanged at 32,400 confirms it). `gen/functest/README.md` now
   carries the attribution that was missing entirely.
 
+- 2026-08-24 **[M6, hardware finding — CORRECTS 2026-08-01]** **There are no contention hot spots on
+  the board, and a thermal camera is what proved it.** The 2026-08-01 entry below predicts 3–4 nets
+  contending at 262 mA and 0.90 W each, in SOT-323 packages rated ~0.3 W; the "Driver contention"
+  section builds a 2.1 A / 10.4 W board budget on it. **Measured on board #1 with a FLIR One: peak
+  ~30 °C against 25 °C ambient, and a broad diffuse warm region over the die — no localised spot
+  anywhere.** A FET dissipating 0.9 W would run 50–150 °C above ambient even at a generous
+  60–150 °C/W on this copper, and the heated copper around it spreads over several mm against a
+  ~1.8 mm pixel, so it could not be missed. Concentrated and distributed dissipation differ by ~30×
+  in peak temperature here, so the observation discriminates rather than merely failing to confirm.
+  **Revised mechanism: the excess is spread across the array** — 0.85 A over 4,051 FETs is ~210 µA
+  each, ordinary for a FET biased *near* threshold rather than fully on, which is what dynamic nodes
+  sitting at undefined intermediate voltages produce whether unclocked or executing garbage. Three
+  things this re-explains: the board's 1.4 A unclocked (against a 0.548 A passive ceiling); why
+  clocking moved it to 0.7–1.2 A rather than to 0.35 A; and why the current climbs 1.15 → 1.33 A over
+  three seconds and then **plateaus** — a few °C of warming, Vth falling ~2 mV/°C, ~16% more current,
+  self-limiting rather than runaway. **What still stands from 2026-08-01:** the ratio error is real
+  and its serious half was always the *level*, not the heat — a contended node at 1.0–1.9 V against a
+  1.1–1.5 V receiver threshold is a correctness bug, and `sim/revb_driver.sp` still measures rev B
+  fixing it. **What does not:** rev B is not a fix for the current draw, the 2.1 A / 10.4 W figure is
+  not what the hardware does, and **no hand rework beyond the eight sites already done is warranted**.
+  The switchsim duty-cycle table remains the best guide to *which* nets contend, but its assumption
+  that each contended net draws the full 262 mA pair current does not survive the thermal image.
+
+- 2026-08-24 **[M6, hardware finding]** **Charge retention measured at 1.9–2.3 nA per FET — the
+  clock floor is closed in the design's favour.** The open question below recorded this as
+  unresolvable by simulation (`sim/retention.sp` moves 3.5 orders with solver tolerances and gets
+  temperature backwards), with the written fallback being the tester's `w`/`W` clock-stall scan. It
+  was instead measured **with a phone camera and no Pico on the board**. The method is sound because
+  of a netlist fact, not a guess: `a1`, `a2` and `p1` carry **no pull-up resistor, no VCC-side FET and
+  no pull-down** — only pass gates and two gate loads — so nothing on the board is *capable* of
+  turning their LEDs off, and leakage is the only available mechanism. Filmed at
+  `com.android.capture.fps=120`, peak-to-dark is 7 frames = **58.3 ms**; with C = 64 pF and 2 channels
+  that is **1.92 nA at Vth = 1.5 V, 2.30 nA at 0.8 V**, both *upper* bounds since the node is charged
+  capacitively by the rising rail (so cannot start above 5 V) and the LED extinguishes slightly above
+  Vth. **Corroboration that was not fitted:** `p1` has one leaking channel against `a1`/`a2`'s two, so
+  it should hold ~2× longer — exactly the order seen by eye. Consequences at the pessimistic end:
+  worst node `sb6` holds 1.13 ms, floor **871 Hz**, window to the 20 kHz ceiling **23×**, margin on
+  the 53 nA budget **23×**, temperature headroom **45 °C**. This also re-set the recommended external
+  clock from 1–2 kHz to **4–5 kHz** (geometric centre of the real window), and makes 3.3 V operation
+  better-supported than the 2026-07-28 entry assumed — its 27 nA budget now has a measured 2 nA
+  against it.
+
+- 2026-08-24 **[M6, hardware finding]** **A floating data bus jams the CPU; tie it to $EA.** With
+  `db0-7` floating the CPU fetches random opcodes and **12 of the 256 are undocumented KIL/JAM** —
+  4.7% per fetch, so it halts within ~20 instructions. Signature on video: the lit-LED count decays
+  monotonically and never recovers (7 → 0, 8 → 4), which means nothing is writing registers. Camera
+  exposure drifts only 1–3% and the *remaining* LEDs stay equally bright, so neither the camera nor a
+  sagging rail explains it. Tying the bus to **$EA (NOP) through 10 kΩ** — `db1/3/5/6/7` high,
+  `db0/2/4` low, resistors never wires so the CPU wins if it drives — makes it free-run the address
+  space, and the count then holds at 10–14 and jitters across three power cycles. **Also settled: the
+  clock is regenerated on-board**, proven by contrast rather than asserted — the same nodes lose
+  charge in 65 ms unclocked and hold for *seconds* clocked, which only the recirculating dynamic
+  latches can do, and they need `cclk` (482 gates) and `cp1` (198 gates) at full swing. **Not yet
+  settled: orderly sequencing.** PCH must ripple at 4.4/2.2/1.1/0.55 Hz on a NOP free-run; after
+  detrending the run's own envelope (which faked a 0.55 Hz peak) **no counting signature is present**
+  and nothing reproduces across three tries. The test is underpowered — all 55 LEDs summed so PCH is
+  diluted, PCL aliases at 1125 Hz, handheld camera — so it is not evidence of absence. The proper test
+  is Step 3c: 3.3 V, ~3 kHz, camera on the PCL/PCH columns only, looking for 2.9/1.5/0.73 Hz.
+
 - 2026-08-13 **[rev A defect, cosmetic]** **4 of the 36 bond pads are in the wrong slot** — found by
   the user comparing the board against visual6502's JSSim die view ("A6 seems to be where A0 should
   be"). Correct comparison, because the two orientations agree: JSSim draws
@@ -141,6 +200,57 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-25: **M6 prep started — Pico firmware scaffolded** in `pico-controller/` (`common/` shared bus engine — clock master, 16KB mirrored memory serving, trace ring, reset ceremony; `tester/` interactive bring-up CLI; `general/` free-runner with `$3F00` char-out port). Builds against pico-sdk 2.x (`PICO_BOARD=pico2_w`), untested until hardware exists. **Open question (resolve before power-up): 3.3V Pico vs 5V core levels** — inputs are practically safe through the 1k series resistors. **Verified: the board has NO pull-up on clk0** (only 100R protection + pico series R), so the clock must be driven push-pull; open-drain would leave clk0 floating unless an external 10k is croc-clipped Φ0→VCC. **Corrected 2026-07-25:** the earlier claim that a 3.3V clock under-drives the pass-pair bootstrap was wrong — clk0 gates only two pull-downs, and the internal phases (cclk/cp1) are regenerated on-board at full VCC swing; simulated, a 3.3V clk0 into a 5V core is functionally identical to a 5V one (1.7mV low, 17ns delay). The external pull-up is optional polish, not a requirement. Recommended first bring-up: whole CPU at VCC=3.3V (single domain, logic smoke test) — SPICE the pass-pair at 3.3V before boards arrive.
 
 ## Current state / handoff
+
+- 2026-08-24: **The board is powered, clocked and free-running — and the driver-contention model
+  that has driven planning since 2026-08-01 was falsified by a thermal camera.** Four bring-up steps
+  ran in two days and every one of them produced a number this plan did not have. Full log with the
+  reasoning: `docs/actual-bring-up.html`. **(a) Step 2, without a bench supply** — there wasn't one,
+  so a fixed 5 V source, a cheap ammeter and series power resistors were used instead, which is
+  arguably better: the resistor makes the limit physical rather than behavioural, and stepping it
+  down *is* the voltage ramp. **The board draws 1.4 A at 5 V against a written expectation of
+  0.35 A** — 7 W, four times budget. A short is excluded *arithmetically*: at 1.50 V the board draws
+  35 mA, so any parallel ohmic path is ≥ 43 Ω and could contribute at most 116 mA. Below ~3.5 V
+  everything sits inside the passive network's hard ceiling (10.56 Ω of pull-ups + LED legs =
+  0.548 A at 5 V); above it a second path opens, reaching **+852 mA of unexplained excess**.
+  **(b) Step 2b, the retention measurement, made by accident and worth the most.** Two accumulator
+  LEDs flash and fade at power-up; `a1`, `a2` and `p1` have **no pull-up, no VCC-side FET and no
+  pull-down**, so *nothing on the board can turn them off* — they can only leak. Filmed at 120 fps,
+  peak-to-dark is **58.3 ms**, giving **1.9–2.3 nA per FET**, and that is an upper bound. The model
+  assumed 1 nA typical and was right. Corroboration nobody fitted: `p1` has one leaking channel to
+  `a1`/`a2`'s two, so it should hold twice as long — exactly the order observed. **This closes the
+  clock-floor open question in the design's favour** (floor 456–871 Hz, **23–44× window**, 45–55 °C
+  headroom) — the thing `sim/retention.sp` explicitly could not resolve, settled by a phone camera
+  with no Pico on the board. **(c) Step 3, the Arduino clock.** 4500 Hz push-pull on Φ0, frequency
+  chosen from the *measured* floor. First try, data bus floating: the CPU **jammed** — 12 of 256
+  opcodes are undocumented KIL, so it halts within ~20 instructions, and the LED count decays
+  monotonically to a frozen state (exposure checked, and the remaining LEDs stay equally bright, so
+  neither camera nor rail is responsible). **The clock is proven working by the contrast**: those
+  same nodes lose charge in 65 ms unclocked but hold for *seconds* clocked, which is the recirculating
+  latches refreshing and therefore `cclk`/`cp1` being regenerated on-board. Tying the bus to **$EA
+  through 10k** stops the jamming and the count holds at 10–14, jittering, across three power cycles.
+  **Sequencing is still NOT demonstrated** — the PCH ripple at 4.4/2.2/1.1/0.55 Hz is absent from the
+  spectra, though the test is underpowered (all 55 LEDs summed, PCL aliasing at 1125 Hz, handheld
+  camera), so it is not evidence of absence either. **(d) Step 3b — the correction.** The rising
+  current (1.15 → 1.33 A over 3 s) was called thermal runaway on 3–4 contending pairs and a thermal
+  sweep was recommended to find them. **A FLIR One found no hot spot at all**: peak ~30 °C against
+  25 °C ambient, and a broad diffuse warm region over the die. A 0.9 W SOT-323 would run 50–150 °C
+  above ambient and be unmissable; distributed and concentrated dissipation differ by ~30× in peak
+  temperature here, so the images discriminate cleanly. **The excess is distributed — 0.85 A over
+  4,051 FETs is ~210 µA each**, ordinary for a FET biased *near* threshold, which is exactly what
+  undefined dynamic nodes produce. That also re-explains the current climb as **self-limiting**
+  (board warms a few °C, Vth falls ~2 mV/°C, current rises 16%, plateaus) and why clocking moved
+  1.4 A → 0.7–1.2 A instead of to 0.35 A. **Retracted: the runaway alarm and "seconds, not minutes".**
+  What survives is that rev B's *serious* half was never thermal — the invalid 1.0–1.9 V low against
+  a 1.1–1.5 V threshold is a correctness bug and still needs fixing — but **rev B is not a fix for
+  the current draw and no further hand rework is warranted**. New: `tools/mark_hotsites.py` →
+  `docs/hotsites-marked.jpg` (all 164 sites grouped by what they drive; the 22 with no pull-down that
+  *cannot* be hot are marked distinctly, and the 142 that can independently reproduces rev B's site
+  count). `docs/bring-up.html` corrected in two places — the clock frequency (1–2 kHz → 4–5 kHz,
+  against the measured floor) and the expected current *direction*, which the page had backwards.
+  **Nothing on the board, in the fab package or in the firmware changed.** **Next: Step 3c — does it
+  compute?** 3.3 V, ~3 kHz, camera fixed on the PCL/PCH columns, looking for a binary cascade at
+  2.9 / 1.5 / 0.73 Hz. That is the lowest clock the measured floor allows, and therefore the only rate
+  at which a human can watch the program counter at all.
 
 - 2026-08-16: **The tester can now carry the acceptance images itself, and building that found a
   real error in what this plan said about floating interrupts.** [user decision] the images are
@@ -709,6 +819,15 @@ power-up, 3–4 after rework.
 
 ## Driver contention: the power budget is wrong by 6x, and it is a ratio bug (2026-08-01)
 
+> **⚠ PARTLY FALSIFIED 2026-08-24 — read the Decisions entry of that date before using any number
+> here.** Thermal imaging of the real board found **no hot spot anywhere** (peak ~30 °C against
+> 25 °C ambient), which a 0.9 W SOT-323 could not hide. The **mechanism and the level problem below
+> stand** — the ratio error is real and a contended node at 1.0–1.9 V against a 1.1–1.5 V threshold
+> is a genuine correctness bug. The **power figures do not**: the board draws 1.4 A unclocked and
+> 0.7–1.2 A clocked, not 2.1 A, and the excess is distributed across thousands of near-threshold
+> FETs (~210 µA each) rather than concentrated in a few fully-contending pairs. Consequently rev B
+> is a fix for *levels*, not for current, and no further hand rework is warranted.
+
 Found by asking whether the MOnSter has a clock floor, reading its designer's answer, and then
 re-deriving our own exposure instead of assuming the designs were equivalent.
 
@@ -900,8 +1019,15 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   comparison in `cards/monster6502-lessons.md`) — a discrete rebuild of this logic style runs
   entirely below the band the real chip was specified for, and the MOnSter's ~50 kHz ceiling
   sits on the original's *minimum*.
-- **Clock floor / charge retention** (opened 2026-07-27; **failure mode revised 2026-07-31 —
-  it may be damage, not just data loss**): the worst dynamic node (`sb1..sb7`,
+- ~~**Clock floor / charge retention**~~ **RESOLVED 2026-08-24 by measurement on board #1 —
+  leakage is 1.9–2.3 nA per FET, giving a floor of 456–871 Hz and a 23–44× operating window** (see
+  the Decisions entry of that date). Measured from the decay of two accumulator LEDs on nets that
+  have no path to either rail, filmed at 120 fps — not from the `w`/`W` clock-stall scan, which is
+  still unrun. **The damage worry is also retired**: FLIR imaging found no hot spot anywhere on the
+  board (peak ~30 °C), so the shoot-through concern below, while topologically real, does not produce
+  concentrated dissipation in practice. The stall commands are therefore safe to run when wanted.
+  Original text kept below for the reasoning.
+  The worst dynamic node (`sb1..sb7`,
   32 pF against 12 leaking FET channels) must leak **< 53 nA per FET at 5 V** or the floor
   rises above the 20 kHz ceiling and nothing runs. Typical parts are ~1 nA, so ~50x margin is
   expected — but SPICE cannot resolve leakage at this level (see `cards/pass-pair-validation.md`)

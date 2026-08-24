@@ -372,11 +372,17 @@ things at once: the internal clock phases (<code>cclk</code>, 482 gates; <code>c
 gates) are being regenerated on-board at full VCC swing, and the dynamic logic is holding charge
 between edges.</p>
 
-<div class="warn">
-Keep this brief and keep the current limit on. Clocking is what makes the driver-contention defect
-thermal, and the rework has not been done yet. Seconds, not minutes — and watch the supply current
-while you do it. A jump toward ~2&nbsp;A is contention becoming real on copper, which is
-information, but it is not something to sit in.
+<div class="note">
+<strong>Corrected 2026-08-24, from measurement.</strong> This block used to say "seconds, not
+minutes", and to expect the current to <em>jump</em> toward ~2&nbsp;A when the clock started. Both
+were wrong, and in opposite directions. Measured on board&nbsp;#1: the board draws
+<strong>1.4&nbsp;A unclocked</strong> and clocking brings it <em>down</em> to 0.7–1.2&nbsp;A, so the
+expected change is a <strong>fall, not a jump</strong>. And FLIR imaging found <strong>no hot spot
+anywhere</strong> — peak ~30&nbsp;°C against 25&nbsp;°C ambient — because the excess current is
+spread over thousands of near-threshold FETs rather than concentrated in a few contending pairs. The
+board is not being damaged and can be run as long as a measurement needs. Keep a current limit on if
+you have one, but the urgency was an error. See
+<a href="actual-bring-up.html">the measurement log</a>, Steps 2 and 3b.
 </div>
 
 <div class="note">
@@ -403,22 +409,36 @@ that.</p>
       (<code>R48</code>, <code>R991</code>).</td></tr>
 </table>
 
-<p><strong>Do not power the board from the Arduino.</strong> The board draws ~0.35&nbsp;A, past what
-the Uno's regulator should supply and well past USB-only sanity for this design. Bench supply for
-the board, USB for the Arduino, grounds commoned through the table above.</p>
+<p><strong>Do not power the board from the Arduino.</strong> The board draws
+<strong>1.4&nbsp;A</strong> unclocked and 0.7–1.2&nbsp;A clocked (measured, board&nbsp;#1) — far past
+what the Uno's regulator can supply and well past USB-only sanity. Bench supply for the board, USB
+for the Arduino, grounds commoned through the table above.</p>
 
 <pre><code>void setup() {
   pinMode(8, OUTPUT); digitalWrite(8, LOW);   // RES asserted low
-  tone(9, 2000);                              // clock running FIRST
-  delay(20);                                  // >> 2 clocks at 2 kHz
+  tone(9, 4500);                              // clock running FIRST
+  delay(20);                                  // ~90 clocks at 4.5 kHz
   digitalWrite(8, HIGH);                      // release reset
 }
 void loop() {}                                // tone() is timer-driven</code></pre>
 
-<p><strong>1–2&nbsp;kHz</strong> is the frequency to pick: comfortably above the predicted
-worst-node retention floor (~378&nbsp;Hz) and far below the ~20&nbsp;kHz ceiling. Jitter is
-irrelevant — dynamic logic cares only about the maximum period, not about stability — so
-<code>tone()</code> is entirely adequate and no timer configuration is needed.</p>
+<p><strong>4–5&nbsp;kHz</strong> is the frequency to pick. This used to say 1–2&nbsp;kHz, against a
+<em>predicted</em> retention floor of ~378&nbsp;Hz; the floor has since been
+<a href="actual-bring-up.html">measured</a> at <strong>456–871&nbsp;Hz</strong> (leakage 1.9–2.3&nbsp;nA
+per FET), which left 2&nbsp;kHz only 2.3× clear of it. The usable window is [871&nbsp;Hz,
+20&nbsp;kHz] and its geometric centre is <strong>4.2&nbsp;kHz</strong> — 4.8× clear of the floor and
+4.8× below the fanout ceiling. Jitter is irrelevant — dynamic logic cares only about the maximum
+period, not about stability — so <code>tone()</code> is entirely adequate and no timer configuration
+is needed.</p>
+
+<p><strong>Tie the data bus off, or the CPU will jam.</strong> With it floating the CPU fetches
+random opcodes, and <strong>12 of the 256 are undocumented KIL/JAM</strong> — a 4.7% chance per fetch,
+so it halts within ~20 instructions and the register LEDs simply decay to a frozen state. Tie the bus
+to <strong>$EA (NOP)</strong> through 10&nbsp;kΩ — <code>db1, db3, db5, db6, db7</code> high to VCC,
+<code>db0, db2, db4</code> low to VSS — and it free-runs the whole address space instead. Resistors,
+never wires, so the CPU wins if it ever drives the bus. Locate those pads
+<strong>by silk label, never by counting</strong>: four rev&nbsp;A pads sit in the wrong slot
+(<code>cards/bond-pad-ring.md</code>).</p>
 
 <p>Tying RES straight to VCC is enough for a smoke test, but the sequence above gives the CPU a
 defined entry: clock first, then release reset. Note the ordering. Releasing reset into a stopped

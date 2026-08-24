@@ -369,9 +369,13 @@
       ceiling. The weakest node on the board holds 32 pF against twelve leaking transistors.
       If each transistor leaks the typical 1 nA, the floor sits near 380 Hz, far below the
       ceiling. At the worst leakage the datasheet permits, 500 nA, the floor would rise to
-      187 kHz and cross the ceiling. No clock speed would work at all. Real parts leak about
-      50 times less than that limit, but simulation cannot resolve currents that small. The
-      firmware therefore measures the true figure at bring-up. It stops the clock, restarts
+      187 kHz and cross the ceiling. No clock speed would work at all. Simulation cannot
+      resolve currents that small, so this had to be measured — and on 2026-08-23 it was:
+      <b>1.9–2.3 nA per transistor</b>, from filming two accumulator LEDs fade at 120 frames a
+      second on nets that have no connection to either supply rail, so leaking is the only thing
+      that can turn them off. The floor is <b>456–871 Hz</b> against a 20 kHz ceiling — a usable
+      window of 23 to 44 times, with about 45 °C of temperature headroom. The
+      firmware can also measure it the deliberate way. It stops the clock, restarts
       it, and finds the point where the CPU forgets itself.
     </p>
   </div>
@@ -547,9 +551,11 @@
     <p class="note">
       <b>What could still go wrong:</b> the dynamic logic holds charge on long board traces
       instead of microscopic silicon nodes. It also depends on a bootstrap effect that we have
-      simulated but never soldered. If the transistors leak more than about 53 nA each, the
-      clock floor rises above the ceiling and nothing runs at any speed. The first power-up is
-      the real test.
+      simulated but never soldered. The leakage worry is now settled — measured at 1.9–2.3 nA
+      per transistor against a 53 nA budget, so the clock window is real. What is still open is
+      whether the CPU <em>sequences correctly</em>: it is powered, clocked and free-running, but
+      an orderly program counter has not yet been demonstrated. See
+      <a href="actual-bring-up.html">the measurement log</a>.
     </p>
     <p class="note">
       <b>The first power-up has a written procedure.</b> Receiving inspection, the two
