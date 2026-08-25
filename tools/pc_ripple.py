@@ -11,14 +11,23 @@ blink at an exactly predictable rate:
 That is the whole test. If those frequencies are present, the CPU sequences; if
 they are not, it does not. No LED needs to be identified by name.
 
-**The aliased bits are what make this conclusive.** A phone films at ~30 fps, so
-the fast PCL bits fold back into the visible band at frequencies that are not
-"natural" for anything -- PCL4 at 35.16 Hz appears at 5.26 Hz, PCL2 at 140.6 Hz
-appears at 8.87 Hz. Those numbers fall out of the clock rate and the frame rate
-and nothing else, so finding LEDs sitting on them cannot be drift, mains flicker,
-camera exposure hunting or a browning-out clock source. That is the argument the
-earlier attempts lacked: they looked only for the direct low-frequency bits,
-which live in the same part of the spectrum as every slow artifact.
+**The fast bits cannot be recovered by aliasing. That claim, made on 2026-08-25,
+was wrong and --labels falsified it the same day.** Aliasing needs point sampling;
+a camera INTEGRATES over its exposure, which is a low-pass filter. A 562 Hz LED
+averaged over even a 1/500 s exposure spans ~1.1 cycles and comes out a constant
+half-brightness glow -- there is nothing left to fold back. So PCL0..PCL5 are
+physically unmeasurable this way, and apparent detections at their "aliased"
+frequencies were drift artifacts: 76 px of camera motion manufactures spurious
+blobs and modulations in a max projection.
+
+What the aliasing table below is still good for is knowing which bits are
+hopeless before you spend time marking them.
+
+**Use --labels.** The anonymous test cannot fail in an interesting way: it asks
+only whether a set of frequencies exists somewhere among many LEDs, and with
+enough LEDs and enough drift something always lands. Naming the LEDs makes the
+test falsifiable, and confirming that each named bit runs at half the rate of the
+one above it is the actual proof.
 
 Two traps this tool avoids, both of which produced false negatives in August 2026:
 
@@ -204,14 +213,22 @@ def analyse_labelled(frame_dir, fps, label_file, clock, cyc, thr):
     res = fps / n
     print("\n=== named-LED check: %d labels, %.1f s at %.2f fps (resolution %.3f Hz)"
           % (len(names), n / fps, fps, res))
-    print("\n  LED     predicted        measured      err     SNR   verdict")
+    print("\n  LED     predicted        measured      err     SNR  duty  peak  verdict")
     rows = {}
+    dead = []
     for j, nm in enumerate(names):
         b = None
         if nm.startswith("PCL"):
             b = int(nm[3])
         elif nm.startswith("PCH"):
             b = 8 + int(nm[3])
+        peak = float(series[:, j].max())
+        duty = float((series[:, j] > thr).mean())
+        if peak < thr or duty < 0.02 or duty > 0.98:
+            dead.append(nm)
+            print("  %-6s  %-14s  NO MODULATION -- marker is not on a lit, blinking LED"
+                  "  (peak %.0f, duty %.2f)" % (nm, "", peak, duty))
+            continue
         x = (series[:, j] > thr).astype(float)
         x = x - x.mean()
         x = x - np.polyval(np.polyfit(t, x, 3), t)
@@ -229,29 +246,36 @@ def analyse_labelled(frame_dir, fps, label_file, clock, cyc, thr):
         ftrue = inst / 2 ** (b + 1)
         k = round(ftrue / fps)
         fpred = abs(ftrue - k * fps)
-        rows[nm] = (b, ftrue, fmeas, snr)
+        rows[nm] = [b, ftrue, fmeas, snr, False]
         if not (0.22 < fpred < fps / 2):
             print("  %-6s  %7.3f Hz too slow/fast to appear in this clip" % (nm, ftrue))
             continue
         err = abs(fmeas - fpred) / fpred * 100
         ok = "MATCH" if (abs(fmeas - fpred) <= 2 * res and snr > 4) else "no"
+        rows[nm][4] = (ok == "MATCH")
         alias = "" if abs(ftrue - fpred) < 0.01 else " (alias of %.1f Hz)" % ftrue
-        print("  %-6s  %7.3f Hz%-18s %7.3f Hz  %5.1f%%  %5.1fx  %s"
-              % (nm, fpred, alias, fmeas, err, snr, ok))
+        print("  %-6s  %7.3f Hz%-18s %7.3f Hz  %5.1f%%  %5.1fx %5.2f %5.0f  %s"
+              % (nm, fpred, alias, fmeas, err, snr, duty, peak, ok))
 
     # the ladder: every bit must run at half the rate of the one above it
-    order = [nm for nm in ("PCL%d" % i for i in range(8)) if nm in rows] + \
-            [nm for nm in ("PCH%d" % i for i in range(8)) if nm in rows]
+    order = [nm for nm in (["PCL%d" % i for i in range(8)] + ["PCH%d" % i for i in range(8)])
+             if nm in rows and rows[nm][4]]
+    if dead:
+        print("\n  %d marker(s) with no usable signal: %s" % (len(dead), ", ".join(dead)))
+        print("  -> re-place those in led_picker.py, or they are bits this clip cannot show")
     if len(order) >= 2:
-        print("\n  ladder check -- consecutive bits halve; a skipped bit doubles the step:")
+        print("\n  ladder check -- MEASURED rates, confirmed bits only:")
         for a, bnm in zip(order, order[1:]):
-            ba, ra = rows[a][0], rows[a][1]
-            bb, rb = rows[bnm][0], rows[bnm][1]
+            ba, ma = rows[a][0], rows[a][2]
+            bb, mb = rows[bnm][0], rows[bnm][2]
             want = 2.0 ** (bb - ba)
-            gap = "" if bb - ba == 1 else "  (%d bits not labelled between)" % (bb - ba - 1)
-            print("    %-6s -> %-6s  ratio %6.3f, expected %6.3f  %s%s"
-                  % (a, bnm, ra / rb, want,
-                     "ok" if abs(ra / rb - want) < 0.01 * want else "MISMATCH", gap))
+            gap = "" if bb - ba == 1 else "  (%d unconfirmed between)" % (bb - ba - 1)
+            got = ma / mb
+            print("    %-6s -> %-6s  measured ratio %6.3f, expected %6.3f  %s%s"
+                  % (a, bnm, got, want,
+                     "ok" if abs(got - want) < 0.06 * want else "MISMATCH", gap))
+    else:
+        print("\n  ladder needs at least two confirmed bits")
 
 
 def main():

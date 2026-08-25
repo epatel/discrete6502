@@ -584,32 +584,44 @@ PC bit b toggles at  1125 / 2^(b+1)</code></pre>
 
 <p>Either those frequencies are present or they are not. No LED has to be located, named or mapped.</p>
 
-<h3>What makes it conclusive: the aliased bits</h3>
+<h3>What makes it conclusive: named bits in a measured ladder</h3>
 
-<p>The phone films at 29.9 fps, so the fast PCL bits fold back into the visible band at frequencies
-that are <strong>not natural for anything</strong>. They are a joint consequence of the clock rate and
-the frame rate and nothing else — so they cannot be drift, mains flicker, exposure hunting, or a
-browning-out clock source, which is what every earlier ambiguous result turned out to be.</p>
+<div class="warn">
+<strong>Corrected later the same day.</strong> This section first argued that the <em>aliased</em>
+fast bits were the decisive evidence — that PCL4's 35.2 Hz folding to 5.256 Hz was a number nothing
+else could produce. <strong>That argument is wrong.</strong> Aliasing requires point sampling, and a
+camera <em>integrates</em> over its exposure, which low-passes the signal: a 562 Hz LED averaged over
+even a 1/500 s exposure spans ~1.1 cycles and comes out a constant glow. PCL0–PCL5 are physically
+unmeasurable from video, and the apparent detections at their aliased frequencies were drift
+artifacts — the board wanders <strong>76 px</strong> through this clip, which manufactures spurious
+blobs and modulations in a max projection. Named-LED analysis
+(<code>tools/led_picker.py</code> + <code>--labels</code>) falsified it. The conclusion stands on
+better evidence instead.
+</div>
+
+<p>The real proof is four LEDs <strong>identified by name</strong>, each measured against its own
+predicted rate — a test that can fail, unlike the anonymous one:</p>
 
 <table>
-<tr><th>PC bit</th><th class="num">true rate</th><th class="num">appears at</th><th class="num">LEDs found</th></tr>
-<tr><td>PCL2</td><td class="num">140.6 Hz</td><td class="num"><strong>8.875 Hz</strong></td><td class="num">6</td></tr>
-<tr><td>PCL4</td><td class="num">35.2 Hz</td><td class="num"><strong>5.256 Hz</strong></td><td class="num">5</td></tr>
-<tr><td>PCL5</td><td class="num">17.6 Hz</td><td class="num"><strong>12.322 Hz</strong></td><td class="num">1</td></tr>
-<tr><td>PCL6</td><td class="num">8.79 Hz</td><td class="num">8.789 Hz (direct)</td><td class="num">6</td></tr>
-<tr><td>PCL7</td><td class="num">4.40 Hz</td><td class="num">4.395 Hz (direct)</td><td class="num">4</td></tr>
-<tr><td>PCH0</td><td class="num">2.20 Hz</td><td class="num">2.197 Hz (direct)</td><td class="num">2</td></tr>
-<tr><td>PCH2</td><td class="num">0.55 Hz</td><td class="num">0.549 Hz (direct)</td><td class="num">20</td></tr>
-<tr><td>PCH3</td><td class="num">0.27 Hz</td><td class="num">0.275 Hz (direct)</td><td class="num">48</td></tr>
+<tr><th>LED</th><th class="num">predicted</th><th class="num">measured</th><th class="num">error</th><th class="num">SNR</th></tr>
+<tr><td>PCL7</td><td class="num">4.395 Hz</td><td class="num">4.407 Hz</td><td class="num">0.3%</td><td class="num">13.9×</td></tr>
+<tr><td>PCH0</td><td class="num">2.197 Hz</td><td class="num">2.170 Hz</td><td class="num">1.3%</td><td class="num">12.8×</td></tr>
+<tr><td>PCH2</td><td class="num">0.549 Hz</td><td class="num">0.542 Hz</td><td class="num">1.3%</td><td class="num">10.2×</td></tr>
+<tr><td>PCH3</td><td class="num">0.275 Hz</td><td class="num">0.271 Hz</td><td class="num">1.3%</td><td class="num">21.7×</td></tr>
 </table>
 
-<p><strong>92 LEDs land on a predicted PC frequency and not one strong peak matches anything else.</strong>
-Matches are within 0.15–1.8%, mostly inside a single FFT bin. <strong>5.256 Hz is the decisive number</strong>
-— it exists only because a 35.16 Hz signal is undersampled at 29.9 fps, and five LEDs sit on it.</p>
+<p>And the ladder, on <strong>measured</strong> rates — each bit half the one above:</p>
 
-<p class="warn">Honest caveat: the two lowest bins (0.275 and 0.549 Hz) are generous, because the
-0.136 Hz tolerance also swallows a ~0.203 Hz cluster that is probably detrending residual. Discount
-them. The aliased and direct high-frequency matches carry the result unaided.</p>
+<pre><code>PCL7 -> PCH0   measured ratio 2.031, expected 2.000  ok
+PCH0 -> PCH2   measured ratio 4.000, expected 4.000  ok   (PCH1 unconfirmed)
+PCH2 -> PCH3   measured ratio 2.000, expected 2.000  ok</code></pre>
+
+<p>The remaining eight marked bits all reported <strong>the same 0.475 Hz</strong> — one artifact,
+not eight signals. Their markers sit on genuinely lit LEDs (peak redness 186–202, duty 0.22–0.58),
+so it is not misplacement; 0.475 Hz is a 2.1 s period, i.e. camera sway showing through as residual
+tracking error. Where a bit has a real visible signal it dominates; where it does not, the residual
+wins. <strong>PCL6 at 8.789 Hz is below Nyquist and should have worked — that it did not is
+unresolved.</strong></p>
 
 <h3>Two traps that caused four sessions of false negatives</h3>
 

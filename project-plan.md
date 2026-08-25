@@ -99,12 +99,18 @@ _(append-only; timestamp and mark locked decisions)_
   to $EA through 10k, `irq`/`nmi` clipped to VCC, supply rewired. On a NOP free-run the CPU only
   fetches and increments, so PC bit *b* must toggle at `(clock/2) / 2^(b+1)` Hz — a prediction that
   needs no LED to be identified, mapped or named. Measured: **92 LEDs on a predicted PC frequency,
-  zero unexplained strong peaks**, matches within 0.15–1.8%. **The aliased bits are the proof**, not
-  the direct ones: at 29.9 fps the fast PCL bits fold back to frequencies natural for nothing —
-  PCL4 (35.16 Hz) → **5.256 Hz**, PCL2 (140.6 Hz) → **8.875 Hz**, PCL5 (17.6 Hz) → **12.322 Hz** —
-  and LEDs sit on all three. Being a joint consequence of clock rate *and* frame rate, they cannot be
-  produced by drift, mains flicker, camera exposure or an unstable clock source, which is what every
-  earlier ambiguous result was. **Two method errors are recorded because both gave confident false
+  zero unexplained strong peaks**, matches within 0.15–1.8%. **The proof is four bits identified BY
+  NAME**, each matching its own predicted rate and forming a measured factor-of-two ladder (PCL7
+  4.407, PCH0 2.170, PCH2 0.542, PCH3 0.271 Hz; measured ratios 2.031, 4.000, 2.000). An earlier
+  version of this entry credited *aliased* fast bits instead — **that was wrong and was falsified
+  within hours** by naming the LEDs. Aliasing needs *point* sampling and a camera **integrates over
+  its exposure**, so a 562 Hz LED averaged over even 1/500 s spans ~1.1 cycles and comes out a
+  constant glow; PCL0–PCL5 cannot be recovered from video at all, and the apparent detections were
+  drift artifacts (the board moves **76 px** through the clip, measured by phase correlation).
+  **Lesson worth keeping: the anonymous test cannot fail in an interesting way** — it asks only
+  whether a set of frequencies exists *somewhere* among many LEDs, and with enough LEDs and enough
+  drift something always lands. Naming them makes it falsifiable, which is the whole point.
+  **Two method errors are recorded because both gave confident false
   negatives on 2026-08-24:** (a) aggregating spectra across all 55 LEDs buries the 16 PC bits under
   the other 39 — count LEDs whose *own* dominant peak matches instead; (b) failing to detrend the
   record's own start/stop envelope, which put a spurious 0.55 Hz peak at 11.9× the noise floor.
@@ -231,15 +237,22 @@ _(append-only; timestamp and mark locked decisions)_
   `docs/actual-bring-up.html` Step 3c; reproduce with `tools/pc_ripple.py --clock 2250 --frames DIR`.
   **The test needs no LED to be identified**: on a NOP free-run the CPU only fetches and increments,
   so PC bit *b* must toggle at `1125 / 2^(b+1)` Hz and either those frequencies are there or they are
-  not. **What makes it conclusive is the aliased bits.** Filming at 29.9 fps folds the fast PCL bits
-  back into the visible band at frequencies that are natural for nothing — PCL4's 35.16 Hz appears at
-  **5.256 Hz**, PCL2's 140.6 Hz at **8.875 Hz**, PCL5's 17.6 Hz at **12.322 Hz** — and LEDs sit on all
-  three. Those numbers are a joint consequence of the clock rate and the frame rate, so they cannot be
-  drift, mains flicker, exposure hunting or a browning-out clock source, which is what every earlier
-  ambiguous result turned out to be. Direct bits match too (PCL6 8.789, PCL7 4.395, PCH0 2.197,
-  PCH2 0.549, PCH3 0.275 Hz), all within 0.15–1.8%. **Honest caveat: the two lowest bins are
-  generous** — the 0.136 Hz tolerance also swallows a ~0.203 Hz cluster that is probably detrending
-  residual, so discount them; the high-frequency matches carry the result unaided. **This resolves the
+  not. **CORRECTED the same day.** This entry first claimed the decisive evidence was *aliased* fast
+  PCL bits — 35.16 Hz appearing at 5.256 Hz and so on. **That argument is wrong.** Aliasing requires
+  *point* sampling; a camera **integrates over its exposure**, which low-passes the signal, so a
+  562 Hz LED averaged over even a 1/500 s exposure spans ~1.1 cycles and comes out a constant
+  half-brightness glow. **PCL0–PCL5 are physically unmeasurable from video**, and the apparent
+  detections at their aliased frequencies were **drift artifacts** — the board wanders **76 px**
+  through the clip (phase correlation), which manufactures spurious blobs and modulations in a max
+  projection. **The real proof is four bits identified BY NAME**: PCL7 4.407 vs 4.395, PCH0 2.170 vs
+  2.197, PCH2 0.542 vs 0.549, PCH3 0.271 vs 0.275 Hz, with a ladder on *measured* rates confirming
+  each runs at half the one above (2.031, 4.000, 2.000 against 2, 4, 2). The other eight marked bits
+  all returned **the same 0.475 Hz** — one artifact, not eight signals; their markers sit on genuinely
+  lit LEDs (peak 186–202, duty 0.22–0.58), and 0.475 Hz is a 2.1 s period, i.e. camera sway surviving
+  as residual tracking error. **PCL6 at 8.789 Hz is below Nyquist and should have worked; that it did
+  not is unresolved.** Two of my own bugs surfaced here and are fixed: the ladder compared *predicted*
+  rates, exact by construction, so it always printed "ok"; and a marker on dark board reported
+  whatever the detrending residual peaked at instead of "no signal". **This resolves the
   previous entry's warning**: the 2026-08-24 spectra really were measuring an artifact, and the
   reasons are now known — a browning-out Arduino, floating `irq`/`nmi` vectoring PC to $EAEA, and two
   method errors recorded in the log (aggregating 55 LEDs so the 16 PC bits are diluted, and failing to

@@ -553,10 +553,9 @@
       instead of microscopic silicon nodes. It also depends on a bootstrap effect that we have
       simulated but never soldered. Both worries are now settled on hardware. Leakage measured
       1.9–2.3 nA per transistor against a 53 nA budget, so the clock window is real. And on
-      2026-08-25 the <b>program counter was found counting</b> — filmed at 30 frames a second, the
-      LEDs carry the PC's bits at exactly the frequencies arithmetic demands, including three fast
-      bits that fold back to frequencies nothing else could produce. <b>The board executes
-      instructions.</b> What remains is whether it executes them all <em>correctly</em>: a free-run
+      2026-08-25 the <b>program counter was found counting</b> — filmed at 30 frames a second, four
+      LEDs identified by name blink at exactly the frequencies arithmetic demands, each at half the
+      rate of the one above it. <b>The board executes instructions.</b> What remains is whether it executes them all <em>correctly</em>: a free-run
       of NOPs never touches the ALU, the registers, the stack or the flags. See
       <a href="actual-bring-up.html">the measurement log</a>.
     </p>
