@@ -646,6 +646,25 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
             return;
         }
     }
+    else if (!strcmp(op, "wifireset")) {
+        // Forget the network and come back up in setup mode. Deliberately a
+        // reboot rather than tearing the station down in place: the reply still
+        // has to reach the browser that asked for it, and that browser is on
+        // the very link being dropped. So save, answer, and reboot 1.2 s later
+        // -- the same ceremony /wifi/save uses, for the same reason.
+        settings()->wifi_ssid[0] = 0;
+        settings()->wifi_pass[0] = 0;
+        if (!settings_save()) {
+            reply(pcb, c, "500 Server Error", "application/json",
+                  "{\"err\":\"flash write refused; the network is unchanged\"}");
+            return;
+        }
+        s_reboot_at = make_timeout_time_ms(1200);
+        reply(pcb, c, "200 OK", "application/json",
+              "{\"ok\":1,\"warn\":\"network forgotten -- rebooting into setup mode. "
+              "Join \\\"" AP_SSID "\\\" and open http://192.168.4.1/\"}");
+        return;
+    }
     else if (!strcmp(op, "con")) {
         // Touches neither memory nor flash, so it needs no stop.
         console_enable(val != 0);

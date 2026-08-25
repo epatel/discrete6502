@@ -80,7 +80,7 @@ static const char PAGE_HTML[] =
     "#log,#con{font-family:var(--m);font-size:12.5px;line-height:1.7;background:rgba(0,0,0,.24);"
     "border-radius:7px;padding:11px 13px;max-height:180px;overflow:auto;white-space:pre-wrap}"
     "#con{min-height:52px}"
-    ".g{color:var(--ok)}.r{color:var(--bad)}.d{color:var(--dim)}"
+    ".g{color:var(--ok)}.warn{color:var(--acc)}.r{color:var(--bad)}.d{color:var(--dim)}"
     "table{width:100%;border-collapse:collapse;font-family:var(--m);font-size:12.5px;"
     "font-variant-numeric:tabular-nums}"
     "th{text-align:left;color:var(--dim);font-weight:400;font-size:11px;letter-spacing:.07em;"
@@ -160,6 +160,22 @@ static const char PAGE_HTML[] =
     "read the recording. History does not decay.</p>"
     "<div class=sc><table id=tr></table></div></div></details>"
 
+    "<details><summary>Network<span class=hint id=neth></span></summary>"
+    "<div class=in>"
+    "<p class=kv>Reachable at <b id=nip>&mdash;</b>, and at <b>discrete6502.local</b> "
+    "whichever address the router hands out. The link is watched: a drop is retried, "
+    "and if it cannot be recovered the board falls back to its own setup access "
+    "point rather than going quiet.</p>"
+    "<p class=kv style='margin:12px 0 7px'>Forgetting the network reboots the board into "
+    "setup mode. You will lose this page, and reach it again by joining "
+    "<b>discrete6502-setup</b> and opening http://192.168.4.1/. The CPU keeps running "
+    "throughout &mdash; only the way you talk to it changes.</p><div class=chips>"
+    "<button class=chip onclick=\"if(confirm('Forget this network?\\n\\nThe board reboots "
+    "into setup mode and this page will stop responding. To get back, join the "
+    "discrete6502-setup network and open http://192.168.4.1/'))cmd('wifireset')\">"
+    "Forget this network</button></div>"
+    "</div></details>"
+
     "<details><summary>Diagnostics<span class=hint>retention &middot; watcher</span></summary>"
     "<div class=in>"
     "<p class=kv>Charge retention finds the clock's lower bound. It takes minutes and replaces "
@@ -188,8 +204,12 @@ static const char PAGE_HTML[] =
     "const L=(s,c)=>{const d=E('log'),t=new Date().toTimeString().slice(0,8);"
     "d.innerHTML+='<span class=d>'+t+'</span> <span class='+(c||'d')+'>'+s+'</span>\\n';"
     "d.scrollTop=1e9;news++;E('lh').textContent=news+' new'};"
+    // warn was already being returned (the console's functional-test caution)
+    // and nothing ever displayed it. A reply the UI silently drops is worse
+    // than no reply, because the caller believes the command was unremarkable.
     "const cmd=(o,v)=>fetch('/cmd?op='+o+(v!==undefined?'&v='+v:''))"
-    ".then(r=>r.json()).then(j=>{if(j.err)L(j.err,'r');poll()});"
+    ".then(r=>r.json()).then(j=>{if(j.err)L(j.err,'r');if(j.warn)L(j.warn,'warn');poll()})"
+    ".catch(()=>L('no reply &mdash; the board may be rebooting','warn'));"
     "function primary(){cmd(E('go').dataset.run=='1'?'stop':'run')}"
     "function up(){const f=E('f').files[0];if(!f)return;E('ul').textContent='uploading...';"
     "f.text().then(t=>fetch('/load',{method:'POST',body:t}).then(r=>r.json()).then(j=>{"
@@ -197,7 +217,7 @@ static const char PAGE_HTML[] =
     "if(!j.err)L('Loaded '+j.bytes+' bytes','g')}))}"
 
     "function poll(){fetch('/status').then(r=>r.json()).then(j=>{"
-    "E('ip').textContent=j.ip;"
+    "E('ip').textContent=j.ip;E('nip').textContent=j.ip;E('neth').textContent=j.ip;"
     "const nm=j.pname||(j.img?'stored image':'counter loop');"
     // A finished run outranks a running one: the verdict is the answer you came
     // for. j.tk says whether the trap table knows this address; without
