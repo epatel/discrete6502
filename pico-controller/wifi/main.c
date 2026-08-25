@@ -1166,6 +1166,11 @@ int main(void) {
         strncpy(settings()->wifi_ssid, WIFI_SSID, SETTINGS_SSID_MAX - 1);
         strncpy(settings()->wifi_pass, WIFI_PASSWORD, SETTINGS_PASS_MAX - 1);
         settings_save();
+        // That erase parked core 1 for tens of milliseconds against a ~1.1 ms
+        // retention floor, so the CPU autorun just started is now executing
+        // decayed state. Nothing else would ever reset it, so it would free-run
+        // garbage until someone noticed. Put it back where it was.
+        if (settings()->autorun) push(CMD_RESETRUN, 0);
     }
 
     TRACE("cyw43 ready; trying station mode");

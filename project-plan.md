@@ -230,6 +230,62 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-25 (later): **The firmware was audited, hardened against the network
+  and the terminal both going away, and flashed — and asking "what happens if wifi
+  does not connect?" found three real faults.** Nothing on the board, in the fab
+  package or in the netlist changed; this is firmware and documentation only.
+  **Measured first, because the audit turned up a claim worth checking:** the panel
+  displays the clock as `1e6/(2*half)`, i.e. **nominal, never measured**. Timed over
+  serial, the real rate at the 50 µs default is **9,878 Hz against 10,000 nominal —
+  1.2 µs of loop overhead per cycle**, confirmed independently a second time at
+  9,876 Hz. That is 1.2% at 10 kHz and ~2.4% at the 20 kHz ceiling, so **the concern
+  was real but small** — I had implied it was significant and it is not, and it
+  would not have corrupted the PC-ripple work (under 0.5% at 2–5 kHz). Worth
+  surfacing on the panel eventually; not a blocker. **The three faults:** (a) *the
+  verdict existed only in `/status`*, so a nearly-three-hour functional-test run was
+  readable only over the network — core 1 clocks straight through an outage, so the
+  run survives one and the result now does too, printed on the serial banner with
+  its trap address and listing line; (b) *nothing watched the station link* — zero
+  references to `cyw43_wifi_link_status` or any reconnect, so a dropped link cost
+  the panel until a power cycle. `link_watch()` polls `cyw43_tcpip_link_status`
+  every 5 s (associated-but-no-address is still unreachable), allows 20 s of grace
+  so roaming and rekeying do not tear down a working setup, then retries and falls
+  back to the setup AP — which is itself no longer terminal, re-trying the stored
+  network every 5 min but never while the portal is open; (c) **the one that was
+  actually biting, found by the user deliberately entering a wrong password**: the
+  portal came up stuck on `scanning…` with no AP list. `try_sta()` enables station
+  mode and nothing turned it off on failure, so the AP came up on a radio still
+  retrying an association, which **starves the scan** — it stays "active" forever,
+  `busy` never clears, and the page never replaces its placeholder. **A virgin board
+  never hit this** because `try_sta()` returns before enabling station mode when no
+  SSID is stored, which is exactly why setup worked the first time and broke after
+  one wrong password. `start_ap()` now disables station mode first, and a scan that
+  has not finished in 15 s is treated as finished. **Verified end to end by the
+  user: AP list appears, correct password joins, and the new panel control
+  (Network → Forget this network) reboots to setup mode and reprovisions cleanly.**
+  Also: **no firmware blocks waiting for a terminal any more** [user directive] —
+  the tester's `autorun off` path sat in `while (!stdio_usb_connected())` with clk0
+  parked LOW, which is the **1.4 A peak-draw state its own comment warns about**,
+  potentially forever. It now has one non-blocking wait, `read_line()` returns −1 on
+  disconnect so a dropped terminal mid-paste unwinds instead of wedging, and the
+  banner reprints on every attach. Verified on hardware: 317,508 cycles free-ran
+  before first attach, commands still work, and a detach/reattach clocked 119,100
+  cycles in 12 s. **Two bugs of my own caught before they shipped**, both from the
+  same class — an edit whose blast radius was wider than the line I was looking at:
+  `next_ap_retry` started at zero, so the board tore its own AP down for 40 s of
+  retrying *the instant* setup mode came up, killing the in-flight scan (that was
+  the first `scan stalled` in my own test); and the warning colour was first added
+  as `.w`, which is **already the page-wrapper class** — every element is inside
+  `<div class=w>`, so it would have tinted the whole panel. Incidental: `cmd()`
+  displayed `j.err` but **silently dropped `j.warn`**, which the console op had been
+  returning all along. **Flashed and running** (wifi build, `EMBED_FUNCTEST=ON`,
+  430,088 B text / 99,712 B bss). **Next is unchanged: Step 5 — solder a Pico.**
+  Still unexercised: the link-drop and rejoin paths, which need a real AP outage;
+  and `pico-controller/README.md`'s bring-up steps 1/2/2b remain stale against
+  `docs/bring-up.html` (Step 1 still states the falsified "must read high" gate,
+  Step 2 still leads with 0.35 A, Step 2b still reads as pending) — a documentation
+  sweep nobody has done yet.
+
 - 2026-08-25: **THE CPU EXECUTES. The program counter was found in a video of the LEDs, bit by bit,
   at exactly the frequencies arithmetic demands.** After rewiring the supply, tying `irq`/`nmi` high
   and halving the clock to 2250 Hz, a 14.7 s clip contains the 6502's PC — **92 LEDs land on a

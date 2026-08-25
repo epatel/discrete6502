@@ -480,6 +480,49 @@ flash.
 network is unreachable, and it is a bench tool, but do not leave it in that
 state on a network you do not control.
 
+**To change networks later**, open the panel's **Network** section and use
+*Forget this network*. It clears the stored credentials and reboots into setup
+mode. That is a reboot rather than a teardown in place on purpose: the reply has
+to reach the browser that asked for it, and that browser is on the link being
+dropped, so the board answers first and reboots 1.2 s later. The CPU keeps
+running throughout — only the way you talk to it changes.
+
+### The link is watched, in both directions
+
+Joining once at boot is not enough. Nothing in the SDK reconnects a dropped
+station link, so an AP reboot, a lapsed DHCP lease or a walk out of range used to
+cost the panel until someone power-cycled the board. That matters here because a
+functional-test run is nearly three hours and **core 1 keeps clocking straight
+through a network outage** — the run survives one, so the observability has to as
+well.
+
+`link_watch()` polls `cyw43_tcpip_link_status` every 5 s (not
+`cyw43_wifi_link_status`: associated-but-no-address is still unreachable, and a
+lapsed lease fails exactly that way). It allows **20 s of grace** before acting,
+because roaming and rekeying both look like a brief outage and tearing down a
+working setup for those is worse than the problem. Then it retries, and falls
+back to the setup AP.
+
+Setup mode is not terminal either: it **re-tries the stored network every 5
+minutes**, but never while someone has the portal open. Without that, a board
+whose network merely happened to be *down* at boot would sit in setup mode
+forever after the network came back.
+
+**Belt and braces: the verdict also prints on the serial banner.** It used to
+exist only in `/status`, so a completed three-hour run was readable only over the
+network. USB now reports PASS/FAIL with the trap address and its listing line, so
+a network outage can cost you the live progress but never the result.
+
+> **A trap worth remembering, fixed 2026-08-25.** A *wrong* stored password left
+> the portal stuck on `scanning…` with no network list, while a virgin board
+> worked fine. `try_sta()` enables station mode and nothing turned it off when it
+> failed, so the AP came up on a radio still retrying an association — which
+> starves the scan: it stays "active" forever, `busy` never clears, and the page
+> never replaces its placeholder. A virgin board never hit it because `try_sta()`
+> returns *before* enabling station mode when no SSID is stored. `start_ap()` now
+> disables station mode first, and a scan that has not finished in 15 s is
+> treated as finished, so the portal cannot hang on a spinner whatever the cause.
+
 ### Persistent settings and a stored boot image
 
 The top **64 KB of flash** holds a settings record and a 16 KB 6502 image, so the
@@ -514,8 +557,25 @@ and thousands of FETs sit biased near threshold. Not damaging -- FLIR imaging
 found no hot spot anywhere -- but the wrong state to walk away from.
 
 With `autorun` on, which is the default, the tester runs the reset ceremony and
-free-runs the stored or built-in image until a terminal attaches, then stops and
-reports the cycle count. `g` resumes; `S autorun off` restores the old behaviour.
+free-runs the stored or built-in image while nobody is attached, then stops and
+reports the cycle count when a terminal appears. `g` resumes.
+
+**No firmware here ever blocks waiting for a terminal.** That was fixed on
+2026-08-25, and the `autorun off` path was the reason: it sat in
+`while (!stdio_usb_connected()) sleep_ms(100)` with clk0 parked LOW — the 1.4 A
+state described above — for as long as nobody attached, which might be forever.
+The tester now has one wait, in its main loop, and it does not block: with
+autorun on the CPU free-runs in 500-cycle chunks, otherwise it polls cheaply.
+`read_line()` polls rather than calling `getchar()` and returns −1 when the
+terminal goes away, so a disconnect mid-line — or mid-paste during a 37.6 kB
+Intel hex load — unwinds instead of wedging.
+
+The banner also **reprints every time a terminal appears**, not just the first.
+You cannot attach before the board boots, so a greeting emitted once into the
+void tells nobody anything. The `wifi` firmware does the same on the DTR rising
+edge. Its only blocking wait is under `-DBOOT_TRACE=ON`, which is off by default
+precisely because a headless board must never wait for a terminal; `general`
+never had one.
 
 ### Optional modification: bridge VBUS to VSYS (demo boards only)
 
