@@ -40,6 +40,7 @@ Extract frames first with, e.g.:
 
 import argparse
 import glob
+import json
 import os
 import sys
 
@@ -138,9 +139,91 @@ def analyse(frame_dir, fps, preds, lo, hi, thr, snr_min):
                                "inconclusive; see the traps in this file's docstring"))
 
 
+def analyse_labelled(frame_dir, fps, label_file, clock, cyc, thr):
+    """Check named LEDs one at a time: does PCL7 really toggle at PCL7's rate?
+
+    Stronger than the anonymous test, because it can be WRONG. The anonymous test
+    asks only whether a set of frequencies exists somewhere; this asks whether a
+    specific LED a human pointed at carries the specific bit they named, and
+    whether each bit runs at half the rate of the one above it.
+    """
+    import numpy as np
+    from PIL import Image
+
+    labels = json.load(open(label_file))
+    fs = sorted(glob.glob(os.path.join(frame_dir, "*.png")) +
+                glob.glob(os.path.join(frame_dir, "*.jpg")))
+    n = len(fs)
+    names = list(labels)
+    series = np.empty((n, len(names)), np.float32)
+    for i, f in enumerate(fs):
+        a = np.asarray(Image.open(f).convert("RGB")).astype(np.float32)
+        s = np.clip(a[..., 0] - np.maximum(a[..., 1], a[..., 2]), 0, None)
+        for j, nm in enumerate(names):
+            y, x = labels[nm]
+            series[i, j] = s[max(0, y - 3):y + 4, max(0, x - 3):x + 4].max()
+
+    inst = clock / float(cyc)
+    fr = np.fft.rfftfreq(n, 1 / fps)
+    w = np.hanning(n)
+    t = np.arange(n)
+    res = fps / n
+    print("\n=== named-LED check: %d labels, %.1f s at %.2f fps (resolution %.3f Hz)"
+          % (len(names), n / fps, fps, res))
+    print("\n  LED     predicted        measured      err     SNR   verdict")
+    rows = {}
+    for j, nm in enumerate(names):
+        b = None
+        if nm.startswith("PCL"):
+            b = int(nm[3])
+        elif nm.startswith("PCH"):
+            b = 8 + int(nm[3])
+        x = (series[:, j] > thr).astype(float)
+        x = x - x.mean()
+        x = x - np.polyval(np.polyfit(t, x, 3), t)
+        X = np.abs(np.fft.rfft(x * w))
+        band = (fr > 0.22) & (fr < fps / 2)
+        if not band.any() or X[band].max() == 0:
+            print("  %-6s  (no signal)" % nm)
+            continue
+        floor = np.median(X[band])
+        i = int(np.argmax(X[band]))
+        fmeas, snr = fr[band][i], X[band][i] / (floor or 1)
+        if b is None:
+            print("  %-6s  %-14s  %7.3f Hz          %5.1fx  (not a PC bit)" % (nm, "-", fmeas, snr))
+            continue
+        ftrue = inst / 2 ** (b + 1)
+        k = round(ftrue / fps)
+        fpred = abs(ftrue - k * fps)
+        rows[nm] = (b, ftrue, fmeas, snr)
+        if not (0.22 < fpred < fps / 2):
+            print("  %-6s  %7.3f Hz too slow/fast to appear in this clip" % (nm, ftrue))
+            continue
+        err = abs(fmeas - fpred) / fpred * 100
+        ok = "MATCH" if (abs(fmeas - fpred) <= 2 * res and snr > 4) else "no"
+        alias = "" if abs(ftrue - fpred) < 0.01 else " (alias of %.1f Hz)" % ftrue
+        print("  %-6s  %7.3f Hz%-18s %7.3f Hz  %5.1f%%  %5.1fx  %s"
+              % (nm, fpred, alias, fmeas, err, snr, ok))
+
+    # the ladder: every bit must run at half the rate of the one above it
+    order = [nm for nm in ("PCL%d" % i for i in range(8)) if nm in rows] + \
+            [nm for nm in ("PCH%d" % i for i in range(8)) if nm in rows]
+    if len(order) >= 2:
+        print("\n  ladder check -- consecutive bits halve; a skipped bit doubles the step:")
+        for a, bnm in zip(order, order[1:]):
+            ba, ra = rows[a][0], rows[a][1]
+            bb, rb = rows[bnm][0], rows[bnm][1]
+            want = 2.0 ** (bb - ba)
+            gap = "" if bb - ba == 1 else "  (%d bits not labelled between)" % (bb - ba - 1)
+            print("    %-6s -> %-6s  ratio %6.3f, expected %6.3f  %s%s"
+                  % (a, bnm, ra / rb, want,
+                     "ok" if abs(ra / rb - want) < 0.01 * want else "MISMATCH", gap))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--clock", type=float, required=True, help="Phi0 in Hz")
+    ap.add_argument("--labels", help="JSON from tools/led_picker.py: {name: [y,x]}")
     ap.add_argument("--fps", type=float, default=29.9, help="video frame rate")
     ap.add_argument("--cycles", type=float, default=2, help="cycles per instruction (NOP=2)")
     ap.add_argument("--frames", help="directory of extracted frames; omit for predictions only")
@@ -158,8 +241,11 @@ def main():
         vis = "" if args.low < fo < hi else "   (outside usable band)"
         print("  %-6s %10.2f Hz  %8.3f Hz%s" % (name(b), f, fo, vis))
 
-    if args.frames:
+    if args.frames and not args.labels:
         analyse(args.frames, args.fps, preds, args.low, hi, args.threshold, args.snr)
+    if args.frames and args.labels:
+        analyse_labelled(args.frames, args.fps, args.labels, args.clock,
+                         args.cycles, args.threshold * 0.75)
 
 
 if __name__ == "__main__":
