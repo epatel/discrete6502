@@ -31,6 +31,17 @@
 #define TCP_SND_BUF (8 * TCP_MSS)
 #define TCP_SND_QUEUELEN ((4 * (TCP_SND_BUF) + (TCP_MSS - 1)) / (TCP_MSS))
 
+// mDNS, so the board answers to discrete6502.local instead of an address you
+// have to hunt for in the router's admin page. Needs IGMP (it is multicast) and
+// one netif client-data slot for the responder's per-interface state.
+#define LWIP_IGMP 1
+#define LWIP_MDNS_RESPONDER 1
+#define LWIP_NUM_NETIF_CLIENT_DATA 1
+#define MDNS_MAX_SERVICES 1
+// DHCP client, our DHCP server, our DNS hijack and mDNS can all want one at
+// once; the default of 4 is uncomfortably close.
+#define MEMP_NUM_UDP_PCB 8
+
 #define LWIP_NETIF_STATUS_CALLBACK 1
 #define LWIP_NETIF_LINK_CALLBACK 1
 #define LWIP_NETIF_HOSTNAME 1

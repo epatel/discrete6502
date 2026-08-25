@@ -26,6 +26,7 @@
 #include "page.h"
 #include "retention.h"
 
+#include "lwip/apps/mdns.h"
 #include "lwip/tcp.h"
 #include "pico/cyw43_arch.h"
 #include "netsrv.h"
@@ -198,6 +199,7 @@ static void push(uint8_t op, uint32_t arg) {
 // there is no internet at all, which is exactly when the page is needed.
 
 #define AP_SSID "discrete6502-setup"
+#define MDNS_NAME "discrete6502"   // -> discrete6502.local
 #define MAX_SCAN 16
 
 static bool ap_mode;
@@ -273,6 +275,25 @@ static bool try_sta(void) {
             return true;
     }
     return false;
+}
+
+// Announce ourselves as MDNS_NAME.local, and advertise the panel over DNS-SD so
+// it also shows up in network browsers. Only on the station interface: in setup
+// mode the DNS hijack in netsrv.c already sends every name here, so mDNS there
+// would be answering a question nobody asks.
+static void mdns_txt(struct mdns_service *svc, void *arg) {
+    (void)arg;
+    mdns_resp_add_service_txtitem(svc, "path=/", 6);
+}
+
+static void start_mdns(void) {
+    mdns_resp_init();
+    if (mdns_resp_add_netif(netif_default, MDNS_NAME) != ERR_OK) {
+        printf("[wifi] mDNS failed; use the address\n");
+        return;
+    }
+    mdns_resp_add_service(netif_default, MDNS_NAME, "_http", DNSSD_PROTO_TCP,
+                          HTTP_PORT, mdns_txt, NULL);
 }
 
 static void start_ap(void) {
@@ -705,7 +726,9 @@ int main(void) {
 
     if (try_sta()) {
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-        printf("[wifi] http://%s/\n", ip4addr_ntoa(netif_ip4_addr(netif_default)));
+        start_mdns();
+        printf("[wifi] http://%s/  or  http://" MDNS_NAME ".local/\n",
+               ip4addr_ntoa(netif_ip4_addr(netif_default)));
     } else {
         // No credentials, or they did not work. Raise the setup portal rather
         // than retrying forever with nobody able to tell it what to try.

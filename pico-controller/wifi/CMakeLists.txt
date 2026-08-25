@@ -36,6 +36,7 @@ target_link_libraries(wifi
     pico_stdlib
     pico_multicore
     pico_cyw43_arch_lwip_poll
+    pico_lwip_mdns
     pico_flash)
 pico_enable_stdio_usb(wifi 1)
 pico_enable_stdio_uart(wifi 0)

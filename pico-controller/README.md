@@ -296,6 +296,25 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### Finding the board: discrete6502.local
+
+Once it joins your network the board answers to **`http://discrete6502.local/`**, so you
+never have to hunt for its address in the router's admin page. It also advertises the
+panel over DNS-SD, so it shows up in network browsers.
+
+mDNS runs on the station interface only. In setup mode the DNS hijack already
+sends every name to us, so a responder there would be answering a question
+nobody asks — use `http://192.168.4.1/`.
+
+**Resolution is not universal.** macOS, iOS, Windows 10 (1703+) and Linux with
+`avahi-daemon` all resolve `.local` natively. **Android is the gap** — system
+`.local` resolution only arrived in Android 12 and Chrome on Android still often
+fails. From an Android phone, expect to use the IP address, which the serial
+console prints at boot and the panel shows in its heading.
+
+Costs `LWIP_IGMP` (mDNS is multicast) and one netif client-data slot;
+**+18 KB flash**.
+
 ### Storing a program as the boot image
 
 A 6502 image saved to flash becomes what runs at power-up, on all three
