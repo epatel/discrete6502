@@ -32,10 +32,56 @@
 //
 // echo=false is for pasted Intel hex ('L'), where echoing 37.6 kB back down the
 // same link would double the traffic for no benefit.
+// Whatever this firmware is waiting for, it must never be a terminal. A board
+// on a shelf with nobody attached still has a CPU on it, and bus_init leaves
+// clk0 an output driven LOW -- an unclocked board sits at its PEAK draw (1.4 A
+// measured on board #1, against 0.87 A clocked) because the dynamic nodes drift
+// to undefined levels and thousands of FETs end up biased near threshold. So
+// "waiting" must not mean "parked".
+static bool s_ran;
+static bool s_stored;   // a boot image came out of flash, not the built-in counter
+
+// Printed when a terminal appears, and again every time one reappears. You
+// cannot attach before the board boots, so a banner emitted once into the void
+// tells nobody anything -- the same reason the wifi firmware reprints its own.
+static void greet(void) {
+    printf("\ndiscrete6502 tester ready. h for help.\n");
+    if (s_stored && settings_program_seconds()) {
+        char d[24];
+        settings_fmt_duration(d, sizeof d, settings_program_seconds());
+        printf("boot image: %s -- about %s at this clock\n",
+               settings()->program_name[0] ? settings()->program_name : "stored", d);
+    }
+    printf("settings: %s, clock %lu us half-period, autorun %s, image %s\n",
+           settings_were_stored() ? "from flash" : "defaults (nothing stored)",
+           (unsigned long)settings()->half_period_us,
+           settings()->autorun ? "on" : "off",
+           s_stored ? "stored in flash" : "built-in counter");
+    if (s_ran)
+        printf("CPU free-ran %lu cycles while waiting; stopped now. 'g' to resume.\n",
+               (unsigned long)bus_cycle_count);
+}
+
+static void idle_work(void) {
+    if (!stdio_usb_connected() && settings()->autorun) {
+        bus_run(500);   // small chunks so a terminal appearing is noticed fast
+        s_ran = true;
+    } else {
+        sleep_us(200);  // at a prompt, or autorun off: just poll cheaply
+    }
+}
+
+// Returns the length, or -1 if the terminal went away mid-line -- which the
+// caller must treat as "no command", not as an empty one.
 static int read_line(char *buf, int cap, bool echo) {
     int n = 0;
     for (;;) {
-        int ch = getchar();
+        int ch = getchar_timeout_us(0);
+        if (ch < 0) {
+            if (!stdio_usb_connected()) return -1;
+            idle_work();
+            continue;
+        }
         if (ch == '\r' || ch == '\n') {
             if (echo) { putchar('\n'); fflush(stdout); }
             break;
@@ -73,7 +119,9 @@ static void load_intel_hex(char *line, int cap) {
     ihex_begin(&hx);
     printf("paste Intel hex; ends at the EOF record or a blank line\n");
     for (;;) {
-        if (read_line(line, cap, false) == 0) { printf("(blank line)\n"); break; }
+        int r = read_line(line, cap, false);
+        if (r < 0) { printf("(terminal disconnected)\n"); break; }
+        if (r == 0) { printf("(blank line)\n"); break; }
         if (!ihex_line(&hx, line, bus_mem(), BUS_MEM_SIZE - 1)) {
             printf("(EOF record)\n");
             break;
@@ -234,44 +282,29 @@ int main(void) {
     bool stored = settings_program_load_into_ram();
     if (!stored) retention_load_image();
 
-    // Free-run until a terminal shows up, rather than parking the clock low.
-    // bus_init leaves clk0 an output driven LOW, and an unclocked board sits at
-    // its PEAK draw -- 1.4 A measured on board #1, against 0.87 A clocked --
-    // because the dynamic nodes drift to undefined levels and thousands of FETs
-    // end up biased near threshold. Not damaging (FLIR found no hot spot), but
-    // it is the wrong state to leave a board in unattended.
-    bool ran = false;
-    if (settings()->autorun) {
-        bus_reset_sequence();
-        while (!stdio_usb_connected()) {
-            bus_run(2000);  // chunked so USB is polled often; sleep_us yields
-            ran = true;
-        }
-    } else {
-        while (!stdio_usb_connected()) sleep_ms(100);
-    }
+    if (settings()->autorun) bus_reset_sequence();
 
-    printf("\ndiscrete6502 tester ready. h for help.\n");
-    if (stored && settings_program_seconds()) {
-        char d[24];
-        settings_fmt_duration(d, sizeof d, settings_program_seconds());
-        printf("boot image: %s -- about %s at this clock\n",
-               settings()->program_name[0] ? settings()->program_name : "stored", d);
-    }
-    printf("settings: %s, clock %lu us half-period, autorun %s, image %s\n",
-           settings_were_stored() ? "from flash" : "defaults (nothing stored)",
-           (unsigned long)settings()->half_period_us,
-           settings()->autorun ? "on" : "off",
-           stored ? "stored in flash" : "built-in counter");
-    if (ran)
-        printf("CPU free-ran %lu cycles while waiting; stopped now. 'g' to resume.\n",
-               (unsigned long)bus_cycle_count);
+    s_stored = stored;
 
     char line[128];
+    bool attached = false;
     for (;;) {
+        // The only wait in this firmware, and it does not block: with autorun on
+        // the CPU free-runs while nobody is looking, which is both the useful
+        // state and the cooler one.
+        if (!stdio_usb_connected()) {
+            attached = false;
+            idle_work();
+            continue;
+        }
+        if (!attached) {
+            attached = true;
+            sleep_ms(200);   // let the host finish opening the port
+            greet();
+        }
         printf("> ");
-        fflush(stdout);  // the prompt must appear before we block on input
-        read_line(line, (int)sizeof line, true);  // echoes as you type
+        fflush(stdout);
+        if (read_line(line, (int)sizeof line, true) < 0) continue;  // terminal left
 
         // strtok writes NULs over the delimiters, so a command whose argument
         // is free text (C) cannot put the words back together afterwards. Keep
