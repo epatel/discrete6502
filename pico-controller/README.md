@@ -296,6 +296,32 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### Storing a program as the boot image
+
+A 6502 image saved to flash becomes what runs at power-up, on all three
+firmwares. Load it however you like, then store it:
+
+| Firmware | Store | Forget |
+|---|---|---|
+| `tester` | `S store` after `L`, `T f`/`T d` or `m` | `S forget` |
+| `wifi` | **store as boot image** button, after uploading the hex | **forget stored image** |
+| `general` | — (runs whatever is stored) | — |
+
+The panel's status line says whether an image is stored and how large it is.
+
+**Storing refuses while the CPU is running, and that is deliberate.** A flash
+erase parks the bus engine's core for tens of milliseconds against a measured
+~1.1 ms retention floor, so the 6502's state cannot survive one. Refusing is
+better than silently corrupting a run that looked healthy a moment earlier. Both
+firmwares reset the CPU after a successful store, so what runs next is what is
+now stored.
+
+`general` changed more than the others: it no longer waits for a USB terminal
+before starting. It exists to free-run, and waiting meant a demo board with no
+computer attached sat with its clock **parked** indefinitely — the board's peak
+current state. It now resets and runs at boot, and prints a line if and when
+somebody plugs a terminal in.
+
 ### WiFi setup: no credentials in the build
 
 The `wifi` firmware no longer needs credentials at compile time. On boot it

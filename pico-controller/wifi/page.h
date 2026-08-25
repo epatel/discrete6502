@@ -38,7 +38,11 @@ static const char PAGE_HTML[] =
     "</section>"
 
     "<section>load Intel hex: <input type=file id=f>"
-    "<button onclick=up()>upload</button> <span id=ul class=d></span></section>"
+    "<button onclick=up()>upload</button> <span id=ul class=d></span><br>"
+"<button onclick=\"if(confirm('Store the current 16 KB of memory as the boot image?'))cmd('store')\">"
+"store as boot image</button>"
+"<button onclick=\"cmd('forget')\">forget stored image</button>"
+" <span id=img class=d></span></section>"
 
     "<section><b>charge retention</b> <span class=d>&mdash; the clock's lower "
     "bound; freezes the clock and checks the CPU still knows itself. "
@@ -69,6 +73,8 @@ static const char PAGE_HTML[] =
     "const hx=(n,w)=>n.toString(16).toUpperCase().padStart(w,'0');"
     "function poll(){fetch('/status').then(r=>r.json()).then(j=>{"
     "document.getElementById('ip').textContent=j.ip;"
+    "document.getElementById('img').textContent=j.img?('boot image stored, '+j.img+' bytes'):"
+    "'no boot image \\u2014 the counter loop runs at power-up';"
     "document.getElementById('st').innerHTML="
     "'<b>'+(j.run?'<span class=g>RUNNING</span>':'stopped')+'</b>'+"
     "' &middot; cycle <b>'+j.cyc+'</b> &middot; '+(1e6/(2*j.half)).toFixed(0)+' Hz'+"

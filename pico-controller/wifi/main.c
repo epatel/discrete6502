@@ -412,12 +412,13 @@ static void status_json(char *b, size_t cap) {
              "{\"run\":%u,\"cyc\":%lu,\"half\":%lu,\"a\":%u,\"d\":%u,\"f\":%u,"
              "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,"
              "\"rb\":%u,\"rv\":%u,\"rs\":%lu,\"rms\":%lu,\"rok\":%u,"
-             "\"rg\":%lu,\"rbad\":%lu,\"ip\":\"%s\"}",
+             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"ip\":\"%s\"}",
              s_running ? 1u : 0u, (unsigned long)s_cycle, (unsigned long)s_half, s_addr,
              s_data, s_flags, s_ft_on, s_test_case, s_trapped, s_trap_addr,
              s_ret_busy, s_ret_verdict, (unsigned long)s_ret_seq,
              (unsigned long)s_ret_last_ms, s_ret_last_ok,
              (unsigned long)s_ret_good, (unsigned long)s_ret_bad,
+             (unsigned long)settings_program_len(),
              ip4addr_ntoa(netif_ip4_addr(netif_default)));
 }
 
@@ -456,6 +457,26 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
             return;
         }
         push(op[3] == 's' ? CMD_RETSCAN : CMD_RET, val);
+    }
+    else if (!strcmp(op, "store") || !strcmp(op, "forget")) {
+        // Flash writes park core 1 for tens of milliseconds against a ~1.1 ms
+        // retention floor, so the CPU's state cannot survive one. Refuse rather
+        // than silently corrupting a run that looked fine a moment ago.
+        if (s_running) {
+            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
+            return;
+        }
+        bool ok = (op[0] == 's') ? settings_program_save(bus_mem(), BUS_MEM_SIZE)
+                                 : settings_program_clear();
+        if (!ok) {
+            reply(pcb, c, "500 Server Error", "application/json",
+                  "{\"err\":\"flash write refused\"}");
+            return;
+        }
+        // The image is gone from RAM as far as the CPU is concerned -- reload
+        // and reset so what runs next is what is now stored.
+        if (op[0] == 'f') retention_load_image();
+        push(CMD_RESET, 0);
     }
     else if (!strcmp(op, "vector")) {
         // The functional test's own RES vector points at res_trap; it must be
@@ -664,7 +685,9 @@ int main(void) {
     bus_set_half_period_us(settings()->half_period_us);
     bus_set_watch(publish);
     functest_set_quiet(true);  // core 1 must never block on stdio
-    retention_load_image();  // counter loop: something visible before any upload
+    // Prefer a stored boot image; fall back to the counter so there is always
+    // something visible before any upload.
+    if (!settings_program_load_into_ram()) retention_load_image();
     queue_init(&cmd_q, sizeof(cmd_t), 16);
     multicore_launch_core1(core1_main);
 

@@ -7,6 +7,7 @@
 // Default image prints "HELLO 6502" forever — proof of life you can read
 // in a terminal while the register LEDs flicker.
 #include "bus6502.h"
+#include "settings.h"
 
 #include "pico/stdlib.h"
 #include <stdio.h>
@@ -43,13 +44,32 @@ static void load_default_image(void) {
 
 int main(void) {
     stdio_init_all();
-    bus_init(false);  // push-pull 3.3V clock; see README "Logic levels"
+    settings_load();
+    bus_init(settings()->clk_open_drain);  // push-pull; see README "Logic levels"
+    bus_set_half_period_us(settings()->half_period_us);
     bus_set_io(io);
-    load_default_image();
 
-    while (!stdio_usb_connected()) sleep_ms(100);
-    printf("discrete6502 general: releasing reset, free-running.\n");
+    // A stored image if one was saved, otherwise the built-in demo.
+    bool stored = settings_program_load_into_ram();
+    if (!stored) load_default_image();
 
+    // Start immediately. This firmware exists to free-run, and the old sequence
+    // waited for a USB terminal first -- which on a demo board with no computer
+    // attached meant the clock stayed parked forever. That is the board's PEAK
+    // current state (1.4 A unclocked against 0.87 A clocked, measured) because
+    // undefined dynamic nodes leave thousands of FETs biased near threshold.
     bus_reset_sequence();
-    for (;;) bus_step_cycle();
+
+    bool announced = false;
+    for (;;) {
+        bus_step_cycle();
+        // Say hello once, if and when somebody plugs a terminal in. Checking
+        // every 4096 cycles keeps it off the critical path of a dynamic clock.
+        if (!announced && (bus_cycle_count & 0xFFFu) == 0 && stdio_usb_connected()) {
+            printf("discrete6502 general: free-running since boot, %s image, "
+                   "%lu us half-period.\n", stored ? "stored" : "built-in",
+                   (unsigned long)settings()->half_period_us);
+            announced = true;
+        }
+    }
 }
