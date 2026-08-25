@@ -296,6 +296,40 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### WiFi setup: no credentials in the build
+
+The `wifi` firmware no longer needs credentials at compile time. On boot it
+tries what is stored in flash; with nothing stored, or if two attempts fail, it
+raises its own access point and serves a setup page.
+
+1. Join **`discrete6502-setup`** (open, no password).
+2. The phone should offer "Sign in to network". If not, open **http://192.168.4.1/**.
+3. Pick a network from the scan list, type the password, Save.
+4. It stores them and reboots onto your network.
+
+`common/netsrv.c` provides the two servers this needs, written from the
+protocols rather than vendored. **DHCP is mandatory** — join an access point
+that hands out no address and nothing can talk at all. **DNS is what makes it
+*captive*:** answering every lookup with our own address means the phone's
+connectivity probe reaches us instead of its expected reply, which is what
+raises the sign-in prompt.
+
+`-DWIFI_SSID=` / `-DWIFI_PASSWORD=` still exist, but only as a **one-time seed**
+for a board you want to arrive pre-provisioned. They are copied into flash on
+first boot and never used again. They still have no defaults, so nothing can be
+committed by accident.
+
+**The page is served from the Pico deliberately, and hosting it elsewhere is
+impossible rather than merely worse.** GitHub Pages is HTTPS, and an HTTPS page
+may not call an `http://` address on a private network — browsers block it as
+mixed content and no CORS header changes that. And in setup mode there is no
+internet at all, which is precisely when the page is needed. It costs 1.5% of
+flash.
+
+**The setup AP is open.** It only runs when the board is unprovisioned or its
+network is unreachable, and it is a bench tool, but do not leave it in that
+state on a network you do not control.
+
 ### Persistent settings and a stored boot image
 
 The top **64 KB of flash** holds a settings record and a 16 KB 6502 image, so the

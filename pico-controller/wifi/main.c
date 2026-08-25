@@ -28,14 +28,23 @@
 
 #include "lwip/tcp.h"
 #include "pico/cyw43_arch.h"
+#include "netsrv.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "pico/util/queue.h"
+#include "hardware/watchdog.h"
+#include "settings.h"
 #include <stdio.h>
 #include <string.h>
 
+// Credentials now live in flash (common/settings.c) and are set through the
+// captive portal. These remain only as optional build-time seeds for a board
+// you want to arrive pre-provisioned; a plain build has neither.
 #ifndef WIFI_SSID
-#error "set WIFI_SSID and WIFI_PASSWORD: cmake -DWIFI_SSID=... -DWIFI_PASSWORD=..."
+#define WIFI_SSID ""
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD ""
 #endif
 
 #define HTTP_PORT 80
@@ -172,6 +181,152 @@ static void __not_in_flash_func(core1_main)(void) {
 static void push(uint8_t op, uint32_t arg) {
     cmd_t c = {op, arg};
     queue_try_add(&cmd_q, &c);
+}
+
+
+// ---- WiFi provisioning ----------------------------------------------------
+//
+// Credentials live in flash, not in the build. With none stored (or if the
+// stored ones fail) the Pico raises its own open access point and serves a
+// setup page; a phone joining it is pushed at that page by the DNS hijack in
+// common/netsrv.c. Pick a network, type the password, save, reboot.
+//
+// The page is served FROM the Pico, deliberately. Hosting it elsewhere is
+// impossible rather than merely undesirable: GitHub Pages is HTTPS, and a
+// HTTPS page may not call an http:// address on a private network -- browsers
+// block it as mixed content and no CORS header changes that. And in AP mode
+// there is no internet at all, which is exactly when the page is needed.
+
+#define AP_SSID "discrete6502-setup"
+#define MAX_SCAN 16
+
+static bool ap_mode;
+static absolute_time_t s_reboot_at;  // nil until /wifi/save succeeds
+static struct {
+    char ssid[33];
+    int16_t rssi;
+    uint8_t auth;
+} scan_res[MAX_SCAN];
+static volatile uint8_t scan_n;
+static volatile bool scan_busy;
+
+static int scan_cb(void *env, const cyw43_ev_scan_result_t *r) {
+    (void)env;
+    if (!r || !r->ssid_len) return 0;
+    char ssid[33];
+    size_t n = r->ssid_len < 32 ? r->ssid_len : 32;
+    memcpy(ssid, r->ssid, n);
+    ssid[n] = 0;
+    for (uint8_t i = 0; i < scan_n; i++)          // one row per network
+        if (!strcmp(scan_res[i].ssid, ssid)) {
+            if (r->rssi > scan_res[i].rssi) scan_res[i].rssi = r->rssi;
+            return 0;
+        }
+    if (scan_n >= MAX_SCAN) return 0;
+    strcpy(scan_res[scan_n].ssid, ssid);
+    scan_res[scan_n].rssi = r->rssi;
+    scan_res[scan_n].auth = r->auth_mode;
+    scan_n++;
+    return 0;
+}
+
+static void scan_start(void) {
+    if (scan_busy) return;
+    scan_n = 0;
+    cyw43_wifi_scan_options_t o = {0};
+    if (cyw43_wifi_scan(&cyw43_state, &o, NULL, scan_cb) == 0) scan_busy = true;
+}
+
+static void scan_poll(void) {
+    if (scan_busy && !cyw43_wifi_scan_active(&cyw43_state)) scan_busy = false;
+}
+
+// %XX and + decoding, in place. Query strings carry passwords, and a password
+// with a space or a '#' in it is otherwise silently mangled.
+static void url_decode(char *s) {
+    char *w = s;
+    for (; *s; s++) {
+        if (*s == '+') *w++ = ' ';
+        else if (*s == '%' && s[1] && s[2]) {
+            char h[3] = {s[1], s[2], 0};
+            *w++ = (char)strtol(h, NULL, 16);
+            s += 2;
+        } else *w++ = *s;
+    }
+    *w = 0;
+}
+
+static uint32_t auth_for(const char *pass) {
+    return pass[0] ? CYW43_AUTH_WPA2_AES_PSK : CYW43_AUTH_OPEN;
+}
+
+// Two attempts: an access point that is merely slow to answer should not push
+// a correctly-provisioned board into setup mode.
+static bool try_sta(void) {
+    const settings_t *st = settings();
+    if (!st->wifi_ssid[0]) return false;
+    cyw43_arch_enable_sta_mode();
+    for (int i = 0; i < 2; i++) {
+        printf("[wifi] connecting to %s (attempt %d)\n", st->wifi_ssid, i + 1);
+        if (!cyw43_arch_wifi_connect_timeout_ms(st->wifi_ssid, st->wifi_pass,
+                                                auth_for(st->wifi_pass), 20000))
+            return true;
+    }
+    return false;
+}
+
+static void start_ap(void) {
+    ap_mode = true;
+    cyw43_arch_enable_ap_mode(AP_SSID, NULL, CYW43_AUTH_OPEN);
+
+    ip4_addr_t ip, mask;
+    IP4_ADDR(&ip, 192, 168, 4, 1);
+    IP4_ADDR(&mask, 255, 255, 255, 0);
+    struct netif *nif = &cyw43_state.netif[CYW43_ITF_AP];
+    netif_set_addr(nif, &ip, &mask, &ip);
+
+    if (!dhcpsrv_start(&ip, &mask)) printf("[wifi] DHCP server failed\n");
+    if (!dnssrv_start(&ip)) printf("[wifi] DNS server failed\n");
+    printf("[wifi] setup mode: join \"%s\", then http://192.168.4.1/\n", AP_SSID);
+    scan_start();
+}
+
+static const char PORTAL_HTML[] =
+    "<!doctype html><meta charset=utf-8><title>discrete6502 setup</title>"
+    "<meta name=viewport content='width=device-width,initial-scale=1'>"
+    "<style>body{font:16px system-ui;margin:0;padding:18px;background:#111;color:#eee}"
+    "h1{font-size:1.2rem}input,button{font:inherit;width:100%;padding:10px;margin:5px 0;"
+    "background:#222;color:#eee;border:1px solid #444;border-radius:5px}"
+    "button{background:#2a5;color:#fff;border:0;font-weight:600}"
+    "li{list-style:none;padding:9px;border-bottom:1px solid #333;cursor:pointer}"
+    "ul{padding:0;margin:8px 0}small{color:#999}</style>"
+    "<h1>discrete6502 &mdash; WiFi setup</h1>"
+    "<p><small>Pick a network, or type its name.</small></p>"
+    "<ul id=l><li>scanning&hellip;</li></ul>"
+    "<input id=s placeholder='network name'>"
+    "<input id=p type=password placeholder='password (blank if open)'>"
+    "<button onclick=save()>Save and reboot</button>"
+    "<p id=m><small></small></p>"
+    "<script>"
+    "function go(){fetch('/wifi/scan').then(r=>r.json()).then(j=>{"
+    "if(j.busy){setTimeout(go,900);return}"
+    "document.getElementById('l').innerHTML=j.nets.map(n=>"
+    "'<li onclick=\"pick(this)\" data-s=\"'+n.ssid+'\">'+n.ssid+' <small>'+n.rssi+' dBm'"
+    "+(n.open?' &middot; open':'')+'</small></li>').join('')||'<li>none found</li>'})}"
+    "function pick(e){document.getElementById('s').value=e.dataset.s}"
+    "function save(){var s=document.getElementById('s').value,p=document.getElementById('p').value;"
+    "if(!s){alert('pick a network');return}"
+    "fetch('/wifi/save?ssid='+encodeURIComponent(s)+'&pass='+encodeURIComponent(p))"
+    ".then(r=>r.text()).then(t=>{document.getElementById('m').innerHTML='<small>'+t+'</small>'})}"
+    "go();</script>";
+
+static void wifi_scan_json(char *b, size_t n) {
+    size_t k = (size_t)snprintf(b, n, "{\"busy\":%s,\"nets\":[", scan_busy ? "true" : "false");
+    for (uint8_t i = 0; i < scan_n && k < n - 90; i++)
+        k += (size_t)snprintf(b + k, n - k, "%s{\"ssid\":\"%s\",\"rssi\":%d,\"open\":%s}",
+                              i ? "," : "", scan_res[i].ssid, scan_res[i].rssi,
+                              scan_res[i].auth == 0 ? "true" : "false");
+    snprintf(b + k, n - k, "]}");
 }
 
 // ---- core 0: HTTP ---------------------------------------------------------
@@ -330,11 +485,46 @@ static void dispatch(struct tcp_pcb *pcb, conn_t *c) {
         reply(pcb, c, "200 OK", "application/json", scratch);
     } else if (!strncmp(c->path, "/cmd", 4)) {
         do_cmd(pcb, c);
+    } else if (!strncmp(c->path, "/wifi/scan", 10)) {
+        scan_poll();
+        if (!scan_busy && scan_n == 0) scan_start();
+        wifi_scan_json(scratch, sizeof scratch);
+        reply(pcb, c, "200 OK", "application/json", scratch);
+    } else if (!strncmp(c->path, "/wifi/save", 10)) {
+        char ss[SETTINGS_SSID_MAX], pw[SETTINGS_PASS_MAX];
+        if (!qparam(c->path, "ssid", ss, sizeof ss) || !ss[0]) {
+            reply(pcb, c, "400 Bad Request", "text/plain", "need ssid");
+        } else {
+            if (!qparam(c->path, "pass", pw, sizeof pw)) pw[0] = 0;
+            url_decode(ss);
+            url_decode(pw);
+            // Stop the CPU first. A flash erase parks core 1 for tens of
+            // milliseconds and the worst dynamic node holds charge for about
+            // 1.1 ms, so the 6502's state does not survive this either way --
+            // but a program left mid-run would look like it crashed.
+            push(CMD_STOP, 0);
+            sleep_ms(20);
+            strncpy(settings()->wifi_ssid, ss, SETTINGS_SSID_MAX - 1);
+            strncpy(settings()->wifi_pass, pw, SETTINGS_PASS_MAX - 1);
+            if (settings_save()) {
+                reply(pcb, c, "200 OK", "text/plain",
+                      "saved. rebooting -- rejoin your own network and find the board there.");
+                s_reboot_at = make_timeout_time_ms(1200);   // let the reply flush
+            } else {
+                reply(pcb, c, "500 Server Error", "text/plain", "flash write refused");
+            }
+        }
     } else if (!strcmp(c->path, "/") || !strncmp(c->path, "/index", 6)) {
+        if (ap_mode) {
+            reply(pcb, c, "200 OK", "text/html", PORTAL_HTML);
+            return;
+        }
         c->out = PAGE_HTML;                       // already includes its headers
         c->out_len = (uint32_t)(sizeof PAGE_HTML - 1);
         c->state = ST_SEND;
         pump(pcb, c);
+    } else if (ap_mode) {
+        reply(pcb, c, "200 OK", "text/html", PORTAL_HTML);
     } else {
         reply(pcb, c, "404 Not Found", "text/plain", "no");
     }
@@ -469,7 +659,9 @@ static err_t on_accept(void *arg, struct tcp_pcb *pcb, err_t err) {
 int main(void) {
     stdio_init_all();
 
-    bus_init(false);  // push-pull clock: the board has no pull-up on clk0
+    settings_load();
+    bus_init(settings()->clk_open_drain);  // push-pull: no board pull-up on clk0
+    bus_set_half_period_us(settings()->half_period_us);
     bus_set_watch(publish);
     functest_set_quiet(true);  // core 1 must never block on stdio
     retention_load_image();  // counter loop: something visible before any upload
@@ -480,14 +672,22 @@ int main(void) {
         printf("[wifi] cyw43 init failed\n");
         return 1;
     }
-    cyw43_arch_enable_sta_mode();
-    printf("[wifi] connecting to %s ...\n", WIFI_SSID);
-    while (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD,
-                                              CYW43_AUTH_WPA2_AES_PSK, 30000)) {
-        printf("[wifi] connect failed, retrying\n");
+    // Seed flash from the build-time credentials once, if any were given and
+    // nothing is stored. That is the only thing -DWIFI_SSID still does.
+    if (!settings()->wifi_ssid[0] && WIFI_SSID[0]) {
+        strncpy(settings()->wifi_ssid, WIFI_SSID, SETTINGS_SSID_MAX - 1);
+        strncpy(settings()->wifi_pass, WIFI_PASSWORD, SETTINGS_PASS_MAX - 1);
+        settings_save();
     }
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-    printf("[wifi] http://%s/\n", ip4addr_ntoa(netif_ip4_addr(netif_default)));
+
+    if (try_sta()) {
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+        printf("[wifi] http://%s/\n", ip4addr_ntoa(netif_ip4_addr(netif_default)));
+    } else {
+        // No credentials, or they did not work. Raise the setup portal rather
+        // than retrying forever with nobody able to tell it what to try.
+        start_ap();
+    }
 
     struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
     if (!pcb || tcp_bind(pcb, NULL, HTTP_PORT) != ERR_OK) {
@@ -500,5 +700,11 @@ int main(void) {
     for (;;) {
         cyw43_arch_poll();
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(10));
+        if (ap_mode) scan_poll();
+        if (!is_nil_time(s_reboot_at) && absolute_time_diff_us(get_absolute_time(),
+                                                               s_reboot_at) < 0) {
+            printf("[wifi] rebooting to apply new credentials\n");
+            watchdog_reboot(0, 0, 0);
+        }
     }
 }
