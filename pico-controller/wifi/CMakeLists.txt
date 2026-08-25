@@ -24,7 +24,8 @@ add_executable(wifi main.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/ihex.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/retention.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/settings.c
-    ${CMAKE_CURRENT_LIST_DIR}/../common/netsrv.c)
+    ${CMAKE_CURRENT_LIST_DIR}/../common/netsrv.c
+    ${CMAKE_CURRENT_LIST_DIR}/../common/console.c)
 discrete6502_add_functest_images(wifi)
 target_include_directories(wifi PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../common

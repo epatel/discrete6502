@@ -296,6 +296,39 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### Talking to the CPU: a memory-mapped console
+
+Three addresses, shared by all three firmwares (`common/console.c`):
+
+| Address | Access | Meaning |
+|---|---|---|
+| `$3F00` | write | a character the CPU is printing |
+| `$3F01` | read | the character waiting for the CPU, or 0 if none |
+| `$3F01` | write | **acknowledge** — discards it, the next one appears |
+| `$3F02` | read | bit0 = input waiting, bit1 = output has room |
+
+The read at `$3F01` is **non-destructive**, and acknowledging is a separate
+write. Consume-on-read is the usual design but it punishes ordinary 6502 code:
+`LDA $3F01` then `CMP $3F01` reads twice and would silently eat a character.
+Read as often as you like; say when you are done.
+
+    wait:   LDA $3F01       ; character waiting?
+            BEQ wait
+            PHA
+            STA $3F01       ; acknowledge; the next one appears
+            PLA
+
+Panel: a **Console** section with the CPU's output and a field to send text.
+Tester: `C` shows it, `C on` / `C off`, and `C <text>` sends. `general` enables
+it at boot and mirrors output to USB serial as well.
+
+> **Off by default, and turn it off for the acceptance suite.** This board
+> decodes 14 address bits, so every address is inside the 16 KB window, and the
+> functional test checksums RAM up to `$3FFF` with `ram_top = $40`. An
+> intercepted address never reaches memory, so the readback differs and the
+> suite fails a RAM-integrity check that has nothing to do with the CPU. Both
+> firmwares warn if you enable it with a test image loaded.
+
 ### There is no single-step, and the panel no longer pretends otherwise
 
 This is dynamic logic. `bus_step_cycle()` rests the clock **LOW**, and the worst

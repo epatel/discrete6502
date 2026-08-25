@@ -21,6 +21,7 @@
 //
 // Build: cmake -DWIFI_SSID=... -DWIFI_PASSWORD=... (never committed)
 #include "bus6502.h"
+#include "console.h"
 #include "functest.h"
 #include "ihex.h"
 #include "page.h"
@@ -538,6 +539,16 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
         if (op[0] == 'f') retention_load_image();
         push(CMD_RESET, 0);
     }
+    else if (!strcmp(op, "con")) {
+        console_enable(val != 0);
+        if (val && functest_get_image()) {
+            reply(pcb, c, "200 OK", "application/json",
+                  "{\"ok\":1,\"warn\":\"a functional-test image is loaded; the suite "
+                  "checksums RAM up to $3FFF and the console intercepts three addresses "
+                  "inside it, so it will fail a RAM check unrelated to the CPU\"}");
+            return;
+        }
+    }
     else if (!strcmp(op, "vector")) {
         // The functional test's own RES vector points at res_trap; it must be
         // repointed at code_segment ($0400) to start. Memory is shared, so
@@ -566,6 +577,35 @@ static void dispatch(struct tcp_pcb *pcb, conn_t *c) {
         reply(pcb, c, "200 OK", "application/json", scratch);
     } else if (!strncmp(c->path, "/cmd", 4)) {
         do_cmd(pcb, c);
+    } else if (!strncmp(c->path, "/con", 4)) {
+        char text[192];
+        if (qparam(c->path, "send", text, sizeof text)) {
+            url_decode(text);
+            uint32_t k = console_push_input(text);
+            snprintf(scratch, sizeof scratch, "{\"queued\":%lu,\"pending\":%lu}",
+                     (unsigned long)k, (unsigned long)console_input_pending());
+            reply(pcb, c, "200 OK", "application/json", scratch);
+        } else {
+            // Drain what the CPU has printed since the last poll. JSON-escaped,
+            // because a 6502 program prints whatever it likes.
+            char out[512];
+            console_take_output(out, sizeof out);
+            size_t n = (size_t)snprintf(scratch, sizeof scratch,
+                                        "{\"on\":%u,\"pending\":%lu,\"total\":%lu,\"s\":\"",
+                                        console_enabled() ? 1u : 0u,
+                                        (unsigned long)console_input_pending(),
+                                        (unsigned long)console_output_total());
+            for (const char *q = out; *q && n < sizeof scratch - 8; q++) {
+                unsigned char ch = (unsigned char)*q;
+                if (ch == '"' || ch == '\\') { scratch[n++] = '\\'; scratch[n++] = (char)ch; }
+                else if (ch == '\n') { scratch[n++] = '\\'; scratch[n++] = 'n'; }
+                else if (ch < 0x20 || ch > 0x7E) n += (size_t)snprintf(scratch + n,
+                        sizeof scratch - n, "\\u%04X", ch);
+                else scratch[n++] = (char)ch;
+            }
+            snprintf(scratch + n, sizeof scratch - n, "\"}");
+            reply(pcb, c, "200 OK", "application/json", scratch);
+        }
     } else if (!strncmp(c->path, "/wifi/scan", 10)) {
         scan_poll();
         if (!scan_busy && scan_n == 0) scan_start();
@@ -744,6 +784,7 @@ int main(void) {
     bus_init(settings()->clk_open_drain);  // push-pull: no board pull-up on clk0
     bus_set_half_period_us(settings()->half_period_us);
     bus_set_watch(publish);
+    bus_set_io(console_io);   // dormant until the panel turns it on
     functest_set_quiet(true);  // core 1 must never block on stdio
     // Prefer a stored boot image; fall back to the counter so there is always
     // something visible before any upload.

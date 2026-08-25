@@ -7,6 +7,7 @@
 // Default image prints "HELLO 6502" forever — proof of life you can read
 // in a terminal while the register LEDs flicker.
 #include "bus6502.h"
+#include "console.h"
 #include "settings.h"
 
 #include "pico/stdlib.h"
@@ -15,12 +16,12 @@
 
 #define IO_CHAROUT 0x3F00u
 
+// The console owns $3F00-$3F02 now; this just mirrors what the CPU prints out
+// to USB serial as it appears, which is what this firmware is for.
 static bool io(uint16_t addr, bool is_write, uint8_t *data) {
-    if (addr == IO_CHAROUT && is_write) {
-        putchar(*data);
-        return true;
-    }
-    return false;
+    bool handled = console_io(addr, is_write, data);
+    if (handled && is_write && addr == CONSOLE_OUT_ADDR) putchar(*data);
+    return handled;
 }
 
 static void load_default_image(void) {
@@ -47,6 +48,7 @@ int main(void) {
     settings_load();
     bus_init(settings()->clk_open_drain);  // push-pull; see README "Logic levels"
     bus_set_half_period_us(settings()->half_period_us);
+    console_enable(true);   // this firmware exists to run programs that talk
     bus_set_io(io);
 
     // A stored image if one was saved, otherwise the built-in demo.

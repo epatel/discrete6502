@@ -15,6 +15,7 @@
 #include "functest.h"
 #include "ihex.h"
 #include "retention.h"
+#include "console.h"
 #include "settings.h"
 
 #include "pico/stdlib.h"
@@ -208,6 +209,9 @@ static void help(void) {
            "             both reload the counter image and need it to run\n"
            "  h          this help\n"
            "columns: cycle  addr(14-bit)  data  r/W  SYNC\n"
+           "C [on|off|TEXT]   console: show output, enable, or send TEXT to the\n"
+           "                  CPU. $3F00 out, $3F01 in (read, then write to ack),\n"
+           "                  $3F02 status. OFF during the functional test.\n"
            "S                 show settings; S autorun on|off, S clock US,\n"
            "                  S store (memory -> boot image), S forget, S save\n");
 }
@@ -224,6 +228,7 @@ int main(void) {
     bus_init(settings()->clk_open_drain);
     bus_set_half_period_us(settings()->half_period_us);
     bus_set_watch(functest_watch);  // dormant until 'k on'
+    bus_set_io(console_io);         // dormant until 'C on'
 
     bool stored = settings_program_load_into_ram();
     if (!stored) retention_load_image();
@@ -267,10 +272,52 @@ int main(void) {
         fflush(stdout);  // the prompt must appear before we block on input
         read_line(line, (int)sizeof line, true);  // echoes as you type
 
+        // strtok writes NULs over the delimiters, so a command whose argument
+        // is free text (C) cannot put the words back together afterwards. Keep
+        // the line as typed.
+        char raw[sizeof line];
+        memcpy(raw, line, sizeof raw);
+
         char *tok = strtok(line, " ");
         if (!tok) continue;
         switch (tok[0]) {
         case 'h': help(); break;
+        case 'C': {
+            char *a = strtok(NULL, " ");
+            if (!a) {
+                char buf[256];
+                uint32_t n = console_take_output(buf, sizeof buf);
+                printf("console %s at $%04X out / $%04X in / $%04X status\n",
+                       console_enabled() ? "ON" : "off", CONSOLE_OUT_ADDR,
+                       CONSOLE_IN_ADDR, CONSOLE_STATUS_ADDR);
+                printf("%lu chars printed since reset, %lu queued for the CPU\n",
+                       (unsigned long)console_output_total(),
+                       (unsigned long)console_input_pending());
+                if (n) printf("--- output ---\n%s\n--------------\n", buf);
+                printf("usage: C on|off | C <text to send the CPU>\n");
+                break;
+            }
+            if (!strcmp(a, "on") || !strcmp(a, "off")) {
+                bool on = a[1] == 'n';
+                console_enable(on);
+                printf("console %s\n", on ? "on" : "off");
+                // Worth saying every time rather than once in a manual: this is
+                // a silent, confusing failure if you hit it during a long run.
+                if (on && functest_get_image())
+                    printf("WARNING: a functional-test image is loaded. The suite\n"
+                           "  checksums RAM up to $3FFF, and the console intercepts\n"
+                           "  three addresses inside that range, so it will fail a\n"
+                           "  RAM check that has nothing to do with the CPU.\n");
+                break;
+            }
+            // Everything after "C " is text for the CPU, spaces included.
+            const char *text = raw + 1;
+            while (*text == ' ') text++;
+            uint32_t k = console_push_input(text);
+            printf("queued %lu chars (%lu waiting)\n", (unsigned long)k,
+                   (unsigned long)console_input_pending());
+            break;
+        }
         case 'S': {
             char *a = strtok(NULL, " "), *b = strtok(NULL, " ");
             if (!a) {

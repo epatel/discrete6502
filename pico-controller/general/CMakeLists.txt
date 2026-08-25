@@ -6,7 +6,8 @@ set(CMAKE_C_STANDARD 11)
 pico_sdk_init()
 add_executable(general main.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/bus6502.c
-    ${CMAKE_CURRENT_LIST_DIR}/../common/settings.c)
+    ${CMAKE_CURRENT_LIST_DIR}/../common/settings.c
+    ${CMAKE_CURRENT_LIST_DIR}/../common/console.c)
 target_include_directories(general PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../common)
 target_link_libraries(general pico_stdlib pico_flash)
 pico_enable_stdio_usb(general 1)

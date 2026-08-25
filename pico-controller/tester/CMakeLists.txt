@@ -10,7 +10,8 @@ add_executable(tester main.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/functest.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/ihex.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/retention.c
-    ${CMAKE_CURRENT_LIST_DIR}/../common/settings.c)
+    ${CMAKE_CURRENT_LIST_DIR}/../common/settings.c
+    ${CMAKE_CURRENT_LIST_DIR}/../common/console.c)
 discrete6502_add_functest_images(tester)
 target_include_directories(tester PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../common)
 target_link_libraries(tester pico_stdlib pico_flash)
