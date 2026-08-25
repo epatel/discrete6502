@@ -215,6 +215,11 @@
     section{padding:48px 0}
     .hero{padding:56px 0 46px}
   }
+  .vid { margin: 1.6rem 0 0; }
+  .vid .frame { position: relative; width: 100%; max-width: 19rem; aspect-ratio: 9 / 16;
+               border-radius: 6px; overflow: hidden; background: #000; }
+  .vid iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .vid figcaption { font-size: .9rem; margin-top: .5rem; opacity: .8; }
 </style>
 </head>
 <body>
@@ -572,6 +577,21 @@
       that looked like a short and turned out to be 1,899 body diodes &mdash;
       <a href="actual-bring-up.html">bring-up as it actually happened</a>.
     </p>
+    <p class="note">
+      <b>On 2026-08-25 it ran a program from its own Pico.</b> 4,051 discrete transistors fetching,
+      decoding and executing, with the accumulator counting in LEDs &mdash; no microcontroller
+      pretending to be a 6502, just one serving it memory and a clock.
+    </p>
+    <figure class="vid">
+      <div class="frame">
+        <iframe src="https://www.youtube-nocookie.com/embed/aEewXFJFT0Q"
+                title="discrete6502 running from Pico"
+                loading="lazy" allowfullscreen
+                referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+      <figcaption>discrete6502 running from Pico
+      (<a href="https://www.youtube.com/shorts/aEewXFJFT0Q">on YouTube</a>)</figcaption>
+    </figure>
   </div>
 </section>
 
