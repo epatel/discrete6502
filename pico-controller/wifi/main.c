@@ -433,13 +433,14 @@ static void status_json(char *b, size_t cap) {
              "{\"run\":%u,\"cyc\":%lu,\"half\":%lu,\"a\":%u,\"d\":%u,\"f\":%u,"
              "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,"
              "\"rb\":%u,\"rv\":%u,\"rs\":%lu,\"rms\":%lu,\"rok\":%u,"
-             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"ip\":\"%s\"}",
+             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"pname\":\"%s\",\"ip\":\"%s\"}",
              s_running ? 1u : 0u, (unsigned long)s_cycle, (unsigned long)s_half, s_addr,
              s_data, s_flags, s_ft_on, s_test_case, s_trapped, s_trap_addr,
              s_ret_busy, s_ret_verdict, (unsigned long)s_ret_seq,
              (unsigned long)s_ret_last_ms, s_ret_last_ok,
              (unsigned long)s_ret_good, (unsigned long)s_ret_bad,
              (unsigned long)settings_program_len(),
+             (unsigned long)settings_program_seconds(), settings()->program_name,
              ip4addr_ntoa(netif_ip4_addr(netif_default)));
 }
 
@@ -487,8 +488,12 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
             reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
             return;
         }
-        bool ok = (op[0] == 's') ? settings_program_save(bus_mem(), BUS_MEM_SIZE)
-                                 : settings_program_clear();
+        const functest_image_t *im = functest_get_image();
+        bool ok = (op[0] == 's')
+                      ? settings_program_save(bus_mem(), BUS_MEM_SIZE,
+                                              im ? im->name : NULL,
+                                              im ? im->cycles : 0)
+                      : settings_program_clear();
         if (!ok) {
             reply(pcb, c, "500 Server Error", "application/json",
                   "{\"err\":\"flash write refused\"}");

@@ -63,6 +63,9 @@ typedef struct {
     // unrelated. That is why tying irq high is necessary and not merely tidy.
     bool nmi_is_trap;
     bool irq_is_trap;
+    // Cycles to completion, measured in an emulator. 0 = unknown. Divide by the
+    // clock rate for a runtime the operator can plan around.
+    uint32_t cycles;
 } functest_image_t;
 
 // False in a default build. Everything below returns empty in that case, so

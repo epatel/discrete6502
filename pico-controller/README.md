@@ -296,6 +296,38 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### Storing a program also stores the clock
+
+`S store` (and the panel's **store as boot image**) writes the whole settings
+record, so **whichever clock is set at that moment becomes the clock the stored
+program boots at**. That is deliberate — a program and the speed it should run at
+belong together — but it is worth stating, because getting it wrong is quiet and
+expensive:
+
+| clock | 6502 functional test |
+|---|---|
+| 20 kHz | 1 h 20 m |
+| 10 kHz | **2 h 41 m** |
+| 3 kHz | 8 h 58 m |
+| 1 kHz | **26 h 52 m** |
+
+Store the acceptance suite while the clock happens to sit at 1 kHz — perfectly
+reasonable if you had been watching LEDs — and the board boots into a 27-hour run
+instead of a 3-hour one, with nothing to tell you until it hasn't finished
+overnight.
+
+So the board now says so. Storing prints the image, the clock and the runtime;
+`S` shows it; the panel's status line carries it:
+
+    > S store
+    stored 16 KB as the boot image, with the clock now set
+      6502_functional_test at 50 us half-period (10000 Hz) -- runs for about 2 h 41 m
+
+The estimate needs a known cycle count, which comes from the emulator runs that
+validated the images (`tools/build_functest.py`, measured 2026-08-08: 96,779,996
+cycles functional, 46,089,513 decimal). An image you upload yourself has no such
+number and simply shows no estimate rather than a wrong one.
+
 ### Finding the board: discrete6502.local
 
 Once it joins your network the board answers to **`http://discrete6502.local/`**, so you

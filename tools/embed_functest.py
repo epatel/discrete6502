@@ -193,7 +193,8 @@ def main():
           f"(uint16_t)(sizeof traps_{b['key']} / sizeof traps_{b['key']}[0]),")
         w(f"     0x{addr:04X}, 0x{nmi:04X}, 0x{irq:04X},")
         w(f"     {'true' if nmi in trap_addrs else 'false'}, "
-          f"{'true' if irq in trap_addrs else 'false'}}},")
+          f"{'true' if irq in trap_addrs else 'false'},")
+        w(f"     {t.cycles}u}},")
     w("};")
     w("")
     w("bool functest_images_available(void) { return true; }")

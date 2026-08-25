@@ -1,6 +1,7 @@
 #include "settings.h"
 
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "bus6502.h"
@@ -129,7 +130,8 @@ const uint8_t *settings_program(void) {
 
 uint32_t settings_program_len(void) { return settings_program() ? live.program_len : 0; }
 
-bool settings_program_save(const uint8_t *image, uint32_t len) {
+bool settings_program_save(const uint8_t *image, uint32_t len,
+                           const char *name, uint32_t cycles) {
     if (!image || !len || len > PROG_MAX) return false;
 
     // Programmed a sector at a time out of the staging buffer, because the
@@ -145,6 +147,10 @@ bool settings_program_save(const uint8_t *image, uint32_t len) {
     live.have_program = 1;
     live.program_len = len;
     live.program_crc = crc32(image, len);
+    live.program_cycles = cycles;
+    memset(live.program_name, 0, sizeof live.program_name);
+    if (name) strncpy(live.program_name, name, sizeof live.program_name - 1);
+    // Writes the whole record, so the clock in force right now is stored too.
     return settings_save();
 }
 
@@ -152,7 +158,25 @@ bool settings_program_clear(void) {
     live.have_program = 0;
     live.program_len = 0;
     live.program_crc = 0;
+    live.program_cycles = 0;
+    live.program_name[0] = 0;
     return settings_save();
+}
+
+uint32_t settings_program_seconds(void) {
+    if (!live.program_cycles || !live.half_period_us) return 0;
+    // A cycle is two half-periods. 64-bit intermediate: 96.8 M cycles times
+    // 100 us overflows 32 bits by four orders of magnitude.
+    uint64_t us = (uint64_t)live.program_cycles * 2u * live.half_period_us;
+    return (uint32_t)(us / 1000000u);
+}
+
+void settings_fmt_duration(char *buf, size_t n, uint32_t s) {
+    if (!s) snprintf(buf, n, "unknown");
+    else if (s < 90) snprintf(buf, n, "%lu s", (unsigned long)s);
+    else if (s < 5400) snprintf(buf, n, "%lu min", (unsigned long)((s + 30) / 60));
+    else snprintf(buf, n, "%lu h %02lu m", (unsigned long)(s / 3600),
+                  (unsigned long)((s % 3600) / 60));
 }
 
 bool settings_program_load_into_ram(void) {

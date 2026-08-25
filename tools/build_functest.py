@@ -56,8 +56,14 @@ BRANCH_OPCODES = {
 class Test:
     """One buildable test: its source, config edits, and entry point."""
 
-    def __init__(self, name, source, entry_label, edits, progress, notes):
+    def __init__(self, name, source, entry_label, edits, progress, notes,
+                 cycles=0):
         self.name = name
+        # Cycles to completion, MEASURED by running the built image in an
+        # emulator against a mirrored 16 KB memory (2026-08-08). It is what
+        # turns "running" into "about 2 h 41 m left" on the panel, so it is
+        # worth carrying rather than re-deriving.
+        self.cycles = cycles
         self.source = source
         self.entry_label = entry_label
         self.edits = edits          # list of (old, new, required_count)
@@ -103,6 +109,7 @@ TESTS = {
             ("\nram_top = -1", "\nram_top = $40", 1),
         ],
         progress=(0x0200, "test_case -- the current test number, 1..N"),
+        cycles=96_779_996,
         notes="report=0 is forced: report=1 needs 3.5 kB we do not have "
               "(measured: it ends at $466b, past the $3ffa ceiling).",
     ),
@@ -110,6 +117,7 @@ TESTS = {
         name="6502_decimal_test",
         source="6502_decimal_test.a65",
         entry_label="TEST",
+        cycles=46_089_513,
         edits=[
             ("""end_of_test macro
                 db  $db     ;execute 65C02 stop instruction

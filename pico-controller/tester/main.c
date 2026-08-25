@@ -242,6 +242,12 @@ int main(void) {
     }
 
     printf("\ndiscrete6502 tester ready. h for help.\n");
+    if (stored && settings_program_seconds()) {
+        char d[24];
+        settings_fmt_duration(d, sizeof d, settings_program_seconds());
+        printf("boot image: %s -- about %s at this clock\n",
+               settings()->program_name[0] ? settings()->program_name : "stored", d);
+    }
     printf("settings: %s, clock %lu us half-period, autorun %s, image %s\n",
            settings_were_stored() ? "from flash" : "defaults (nothing stored)",
            (unsigned long)settings()->half_period_us,
@@ -269,8 +275,16 @@ int main(void) {
                        (unsigned long)settings()->half_period_us,
                        (unsigned long)(500000UL / (settings()->half_period_us ?: 1)));
                 printf("  autorun  %s\n", settings()->autorun ? "on" : "off");
-                printf("  image    %s\n",
-                       settings_program_len() ? "stored in flash" : "built-in counter");
+                if (settings_program_len()) {
+                    char d[24];
+                    settings_fmt_duration(d, sizeof d, settings_program_seconds());
+                    printf("  image    %s, %lu bytes\n",
+                           settings()->program_name[0] ? settings()->program_name : "stored",
+                           (unsigned long)settings_program_len());
+                    printf("  runtime  about %s at this clock\n", d);
+                } else {
+                    printf("  image    built-in counter\n");
+                }
                 printf("  wifi     %s\n",
                        settings()->wifi_ssid[0] ? settings()->wifi_ssid : "(not set)");
                 printf("usage: S autorun on|off | S clock US | S store | S forget | S save\n");
@@ -281,9 +295,21 @@ int main(void) {
                 uint32_t us = (uint32_t)strtoul(b, NULL, 0);
                 if (us) { settings()->half_period_us = us; bus_set_half_period_us(us); }
             } else if (!strcmp(a, "store")) {
-                // Whatever is in emulated memory becomes the boot image.
-                printf(settings_program_save(bus_mem(), BUS_MEM_SIZE)
-                       ? "stored 16 KB as the boot image\n" : "flash write refused\n");
+                // Whatever is in emulated memory becomes the boot image. If a
+                // built-in test is loaded we know its name and how long it runs,
+                // which is what makes the estimate below possible.
+                const functest_image_t *im = functest_get_image();
+                bool ok = settings_program_save(bus_mem(), BUS_MEM_SIZE,
+                                                im ? im->name : NULL,
+                                                im ? im->cycles : 0);
+                if (!ok) { printf("flash write refused\n"); break; }
+                char d[24];
+                settings_fmt_duration(d, sizeof d, settings_program_seconds());
+                printf("stored 16 KB as the boot image, with the clock now set\n");
+                printf("  %s at %lu us half-period (%lu Hz) -- runs for about %s\n",
+                       im ? im->name : "unknown image",
+                       (unsigned long)settings()->half_period_us,
+                       (unsigned long)(500000UL / (settings()->half_period_us ?: 1)), d);
                 break;
             } else if (!strcmp(a, "forget")) {
                 printf(settings_program_clear() ? "boot image cleared\n" : "flash write refused\n");

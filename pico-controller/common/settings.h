@@ -26,10 +26,11 @@
 //     timer IRQ; starve it and the same reset path is lost.
 #pragma once
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define SETTINGS_MAGIC 0x36353032u  // '6502'
-#define SETTINGS_VERSION 1
+#define SETTINGS_VERSION 2
 
 #define SETTINGS_SSID_MAX 33
 #define SETTINGS_PASS_MAX 65
@@ -47,6 +48,11 @@ typedef struct {
     uint8_t reserved;
     uint32_t program_len;
     uint32_t program_crc;
+    // What the stored image IS, so the board can say "about 2 h 41 m at this
+    // clock" instead of leaving you to notice overnight that the clock was
+    // wrong. 0 cycles = unknown, which an uploaded image usually is.
+    uint32_t program_cycles;
+    char program_name[24];
 
     char wifi_ssid[SETTINGS_SSID_MAX];
     char wifi_pass[SETTINGS_PASS_MAX];
@@ -77,8 +83,22 @@ bool settings_erase(void);
 const uint8_t *settings_program(void);
 uint32_t settings_program_len(void);
 
-// Store an image (at most 16 KB) and mark it as the boot default.
-bool settings_program_save(const uint8_t *image, uint32_t len);
+// Store an image (at most 16 KB) and mark it as the boot default. `name` and
+// `cycles` may be NULL/0 for an image whose identity is not known.
+//
+// This also persists the REST of the record, so the clock currently set becomes
+// the one the stored program boots at. That is deliberate -- a program and the
+// clock it should run at belong together -- but it is a side effect worth
+// knowing: store the acceptance suite while the clock happens to sit at 1 kHz
+// and the board will boot into a 27-hour run instead of a 3-hour one.
+bool settings_program_save(const uint8_t *image, uint32_t len,
+                           const char *name, uint32_t cycles);
+
+// Seconds the stored program needs at the stored clock. 0 if either is unknown.
+uint32_t settings_program_seconds(void);
+
+// "2 h 41 m" / "9 min" / "unknown" into buf.
+void settings_fmt_duration(char *buf, size_t n, uint32_t seconds);
 
 // Drop the stored image; the built-in counter becomes the boot default again.
 bool settings_program_clear(void);
