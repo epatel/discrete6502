@@ -115,6 +115,8 @@ static const char PAGE_HTML[] =
     "<p class=kv>Runs at power-up. Storing also stores the clock now set, so the runtime "
     "shown above is what the board will do unattended.</p>"
     "<input type=file id=f><button onclick=up()>Upload hex</button> <span class=d id=ul></span>"
+    "<div class=chips id=imgs style=margin-top:11px></div>"
+    "<p class=kv id=imgw style='margin:10px 0 0;color:var(--bad);display:none'></p>"
     "<div class=chips style=margin-top:11px>"
     "<button class=chip onclick=\"if(confirm('Store the current memory as the boot image?'))"
     "cmd('store')\">Store as boot image</button>"
@@ -257,5 +259,19 @@ static const char PAGE_HTML[] =
     "E('conh').textContent=j.on?(j.total+' chars'+(j.pending?', '+j.pending+' queued in':'')):'off';"
     "if(j.s){const d=E('con');d.textContent+=j.s;d.scrollTop=1e9;"
     "if(!E('cond').open)E('cond').open=true}})}"
+    // Built-in images, listed once at load: they cannot change while running.
+    "fetch('/images').then(r=>r.json()).then(j=>{"
+    "E('imgs').innerHTML=j.l.map(i=>'<button class=chip onclick=\"loadimg(\\''+i.k+"
+    "'\\','+i.w+')\">'+i.n+(i.s?' <span class=d>'+(i.s<5400?Math.round(i.s/60)+' min':"
+    "Math.floor(i.s/3600)+' h '+String(Math.round(i.s%3600/60)).padStart(2,'0')+' m')"
+    "+'</span>':'')+'</button>').join('')"
+    "+(j.have?'':'<span class=d>the acceptance tests are not compiled in \\u2014 they are "
+    "GPLv3, see gen/functest/README.md. Rebuild with -DEMBED_FUNCTEST=ON.</span>')});"
+    // The warning belongs at load time, not after a wasted multi-hour run.
+    "function loadimg(k,w){cmd('img&k='+k);E('imgw').style.display=w?'':'none';"
+    "if(w)E('imgw').textContent='This image\\u2019s interrupt vector is live code, not a "
+    "self-loop. Tie irq and nmi high at the bond pads before a long run \\u2014 neither has a "
+    "pull-up on this board, and a spurious interrupt would be absorbed and reappear as a "
+    "failure somewhere unrelated.'}"
     "poll();trace();con();setInterval(poll,500);setInterval(trace,1500);setInterval(con,600);"
     "</script>";

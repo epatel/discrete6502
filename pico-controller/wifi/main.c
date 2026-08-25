@@ -23,6 +23,7 @@
 #include "bus6502.h"
 #include "console.h"
 #include "functest.h"
+#include "functest_images.h"
 #include "ihex.h"
 #include "page.h"
 #include "retention.h"
@@ -549,6 +550,36 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
             return;
         }
     }
+    else if (!strcmp(op, "img")) {
+        // Memory is shared with core 1, so it may only be rewritten while the
+        // bus engine is idle -- same rule as the vector patch below.
+        if (s_running) {
+            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
+            return;
+        }
+        char k[4];
+        if (!qparam(c->path, "k", k, sizeof k)) {
+            reply(pcb, c, "400 Bad Request", "application/json", "{\"err\":\"no image\"}");
+            return;
+        }
+        if (k[0] == 'c') {                 // the counter loop is always available
+            retention_load_image();
+            functest_set_image(NULL);
+            functest_disable();
+        } else {
+            const functest_image_t *im = functest_image(k[0]);
+            if (!im) {
+                reply(pcb, c, "404 Not Found", "application/json",
+                      "{\"err\":\"no such image; build with -DEMBED_FUNCTEST=ON\"}");
+                return;
+            }
+            memcpy(bus_mem(), im->image, im->image_len);
+            functest_set_image(im);
+            functest_enable(im->case_addr);
+            console_enable(false);         // it would fail the suite's RAM check
+        }
+        push(CMD_RESET, 0);
+    }
     else if (!strcmp(op, "vector")) {
         // The functional test's own RES vector points at res_trap; it must be
         // repointed at code_segment ($0400) to start. Memory is shared, so
@@ -577,6 +608,25 @@ static void dispatch(struct tcp_pcb *pcb, conn_t *c) {
         reply(pcb, c, "200 OK", "application/json", scratch);
     } else if (!strncmp(c->path, "/cmd", 4)) {
         do_cmd(pcb, c);
+    } else if (!strncmp(c->path, "/images", 7)) {
+        size_t n = (size_t)snprintf(scratch, sizeof scratch,
+                                    "{\"have\":%u,\"l\":[{\"k\":\"c\",\"n\":\"counter loop\","
+                                    "\"w\":0,\"s\":0}",
+                                    functest_images_available() ? 1u : 0u);
+        for (uint8_t i = 0; i < functest_image_count() && n < sizeof scratch - 140; i++) {
+            const functest_image_t *e = functest_image_at(i);
+            // w: the vector target is live code rather than a self-loop, so a
+            // spurious interrupt is absorbed and resurfaces as a bogus failure
+            // somewhere unrelated. Worth saying before an hours-long run.
+            n += (size_t)snprintf(scratch + n, sizeof scratch - n,
+                                  ",{\"k\":\"%c\",\"n\":\"%s\",\"w\":%u,\"s\":%lu}",
+                                  e->key, e->name,
+                                  (!e->nmi_is_trap || !e->irq_is_trap) ? 1u : 0u,
+                                  (unsigned long)(e->cycles ?
+                                      (uint32_t)((uint64_t)e->cycles * 2u * s_half / 1000000u) : 0u));
+        }
+        snprintf(scratch + n, sizeof scratch - n, "]}");
+        reply(pcb, c, "200 OK", "application/json", scratch);
     } else if (!strncmp(c->path, "/con", 4)) {
         char text[192];
         if (qparam(c->path, "send", text, sizeof text)) {
@@ -775,6 +825,36 @@ static err_t on_accept(void *arg, struct tcp_pcb *pcb, err_t err) {
     return ERR_OK;
 }
 
+// Everything worth knowing, printed whenever a terminal turns up.
+//
+// This firmware must run headless, so it cannot block on stdio_usb_connected()
+// the way the tester does -- but printing the banner once at boot means nobody
+// ever sees it, because you cannot be attached before the board boots. Reprint
+// on the rising edge instead.
+static void banner(void) {
+    char d[24];
+    settings_fmt_duration(d, sizeof d, settings_program_seconds());
+    printf("\n=== discrete6502 ===\n");
+    if (ap_mode)
+        printf("setup mode: join \"%s\", then http://192.168.4.1/\n", AP_SSID);
+    else
+        printf("http://%s/  or  http://" MDNS_NAME ".local/\n",
+               ip4addr_ntoa(netif_ip4_addr(netif_default)));
+    printf("image   : %s%s\n",
+           settings()->program_name[0] ? settings()->program_name
+                                       : (settings_program_len() ? "stored" : "built-in counter"),
+           settings_program_seconds() ? "" : " (runtime unknown)");
+    if (settings_program_seconds()) printf("runtime : about %s at this clock\n", d);
+    printf("clock   : %lu us half-period (%lu Hz)\n",
+           (unsigned long)s_half, (unsigned long)(500000UL / (s_half ? s_half : 1)));
+    printf("tests   : %s\n", functest_images_available()
+           ? "compiled in" : "not compiled in (build -DEMBED_FUNCTEST=ON)");
+    printf("console : %s\n", console_enabled() ? "on" : "off");
+    printf("CPU     : %s at cycle %lu\n", s_running ? "running" : "stopped",
+           (unsigned long)s_cycle);
+    printf("====================\n");
+}
+
 // ---- boot -----------------------------------------------------------------
 
 int main(void) {
@@ -823,10 +903,17 @@ int main(void) {
     pcb = tcp_listen_with_backlog(pcb, MAX_CONN);
     tcp_accept(pcb, on_accept);
 
+    bool was_connected = false;
     for (;;) {
         cyw43_arch_poll();
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(10));
         if (ap_mode) scan_poll();
+
+        // A terminal just appeared: say who we are, where to reach us, and what
+        // is loaded. Costs nothing when nobody is watching.
+        bool now = stdio_usb_connected();
+        if (now && !was_connected) banner();
+        was_connected = now;
         if (!is_nil_time(s_reboot_at) && absolute_time_diff_us(get_absolute_time(),
                                                                s_reboot_at) < 0) {
             printf("[wifi] rebooting to apply new credentials\n");
