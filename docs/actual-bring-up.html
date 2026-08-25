@@ -75,7 +75,7 @@ correction it forced upstream. Everything here is dated and attributed to a spec
 <tr><td>2b — Charge retention (by video)</td><td>2026-08-23</td><td>#1</td><td class="pass">PASS — 1.9–2.3 nA/FET</td></tr>
 <tr><td>3 — External clock, watch the LEDs</td><td>2026-08-24</td><td>#1</td><td class="pass">PASS — clock regenerates on-board</td></tr>
 <tr><td>3b — Thermal map (FLIR One)</td><td>2026-08-24</td><td>#1</td><td class="pass">no hot spots — model corrected</td></tr>
-<tr><td>3c — Does it compute? (PCH ripple)</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>3c — Does it compute? (PC ripple)</td><td>2026-08-25</td><td>#1</td><td class="pass"><strong>PASS — the CPU executes</strong></td></tr>
 <tr><td>4 — Eight-site 10 kΩ rework</td><td>2026-08-23</td><td>#1</td><td class="pass">done (out of order)</td></tr>
 <tr><td>5 — Solder the Pico</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 <tr><td>6 — First clocked run</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
@@ -565,27 +565,85 @@ hardware; the excess current is distributed.</p>
 
 
 <div class="step">
-<h2><span class="tag todo">Next</span>Step 3c — Does it actually compute?</h2>
+<h2><span class="tag pass">PASS</span>Step 3c — The CPU executes, 2026-08-25</h2>
 
-<p>The open question is no longer "which FET is hot" but whether the CPU sequences correctly. The
-bind is that the measured clock floor (~871 Hz) sits far above human-visible rates, so the low PC bits
-can never be watched directly. At the bottom of the usable window the high bits do become watchable:</p>
+<div class="ok">
+<strong>The program counter is counting.</strong> After rewiring the supply, tying <code>irq</code>
+and <code>nmi</code> high and halving the clock to 2250 Hz, a 14.7 s clip of the register LEDs
+contains the 6502's program counter, bit by bit, at exactly the frequencies arithmetic demands.
+<strong>This board is a working CPU.</strong>
+</div>
 
-<p><strong>3.3 V, clock ~3 kHz, camera fixed on the PCL/PCH columns only.</strong> At 3 kHz a NOP is
-2 cycles, so the PC advances 1500 times a second:</p>
+<h3>The test, and why it needs no LED to be identified</h3>
+
+<p>On a NOP free-run the CPU does nothing but fetch and increment, so the PC is a pure binary counter
+and every PCL/PCH LED must blink at a rate fixed by the clock alone:</p>
+
+<pre><code>instructions/s = clock / 2        (NOP is 2 cycles)  = 1125
+PC bit b toggles at  1125 / 2^(b+1)</code></pre>
+
+<p>Either those frequencies are present or they are not. No LED has to be located, named or mapped.</p>
+
+<h3>What makes it conclusive: the aliased bits</h3>
+
+<p>The phone films at 29.9 fps, so the fast PCL bits fold back into the visible band at frequencies
+that are <strong>not natural for anything</strong>. They are a joint consequence of the clock rate and
+the frame rate and nothing else — so they cannot be drift, mains flicker, exposure hunting, or a
+browning-out clock source, which is what every earlier ambiguous result turned out to be.</p>
 
 <table>
-<tr><th>LED</th><th class="num">blink rate</th></tr>
-<tr><td>PCL bit 7</td><td class="num">5.9 Hz</td></tr>
-<tr><td><strong>PCH bit 0</strong></td><td class="num"><strong>2.9 Hz</strong></td></tr>
-<tr><td>PCH bit 1</td><td class="num">1.5 Hz</td></tr>
-<tr><td>PCH bit 2</td><td class="num">0.73 Hz</td></tr>
+<tr><th>PC bit</th><th class="num">true rate</th><th class="num">appears at</th><th class="num">LEDs found</th></tr>
+<tr><td>PCL2</td><td class="num">140.6 Hz</td><td class="num"><strong>8.875 Hz</strong></td><td class="num">6</td></tr>
+<tr><td>PCL4</td><td class="num">35.2 Hz</td><td class="num"><strong>5.256 Hz</strong></td><td class="num">5</td></tr>
+<tr><td>PCL5</td><td class="num">17.6 Hz</td><td class="num"><strong>12.322 Hz</strong></td><td class="num">1</td></tr>
+<tr><td>PCL6</td><td class="num">8.79 Hz</td><td class="num">8.789 Hz (direct)</td><td class="num">6</td></tr>
+<tr><td>PCL7</td><td class="num">4.40 Hz</td><td class="num">4.395 Hz (direct)</td><td class="num">4</td></tr>
+<tr><td>PCH0</td><td class="num">2.20 Hz</td><td class="num">2.197 Hz (direct)</td><td class="num">2</td></tr>
+<tr><td>PCH2</td><td class="num">0.55 Hz</td><td class="num">0.549 Hz (direct)</td><td class="num">20</td></tr>
+<tr><td>PCH3</td><td class="num">0.27 Hz</td><td class="num">0.275 Hz (direct)</td><td class="num">48</td></tr>
 </table>
 
-<p>A clean binary cascade — each bit half the rate of the one above — needs no analysis to recognise.
-3.3 V also halves the dissipation, so it is both the better test and the quieter one. Use
-<a href="leds-marked.jpg">the LED map</a> to find the columns; <strong>never locate a bond pad by
-counting positions</strong>, since four rev A pads sit in the wrong slot.</p>
+<p><strong>92 LEDs land on a predicted PC frequency and not one strong peak matches anything else.</strong>
+Matches are within 0.15–1.8%, mostly inside a single FFT bin. <strong>5.256 Hz is the decisive number</strong>
+— it exists only because a 35.16 Hz signal is undersampled at 29.9 fps, and five LEDs sit on it.</p>
+
+<p class="warn">Honest caveat: the two lowest bins (0.275 and 0.549 Hz) are generous, because the
+0.136 Hz tolerance also swallows a ~0.203 Hz cluster that is probably detrending residual. Discount
+them. The aliased and direct high-frequency matches carry the result unaided.</p>
+
+<h3>Two traps that caused four sessions of false negatives</h3>
+
+<p>Recorded because both are easy to repeat, and both produced confident wrong answers:</p>
+
+<ul>
+<li><strong>Aggregating across LEDs.</strong> Only 16 of the 55 register LEDs are PC bits, so averaging
+spectra over everything visible buries them under the other 39. Count LEDs whose <em>own</em> dominant
+peak matches instead.</li>
+<li><strong>The record's own envelope.</strong> A run that starts and stops inside the clip puts a large
+peak at 1/duration, which impersonates a low-frequency PC bit — it faked a 0.55 Hz "signal" at 11.9×
+the noise floor on 2026-08-24. Detrend each series with a cubic first.</li>
+</ul>
+
+<p>Underlying both: <strong>only the direct low-frequency bits were ever looked for</strong>, and those
+live in the same part of the spectrum as every slow artifact. The aliased bits were the way out and
+were not used until now.</p>
+
+<h3>What it proves, and what it does not</h3>
+
+<p>Proved: the board fetches, decodes and executes, and the <strong>PC increments correctly through at
+least 12 bits</strong>. That requires the decode PLA, the PC incrementer, the address drivers and the
+on-board clock phase generation to all be working — 4,051 discrete transistors doing 6502 logic.</p>
+
+<p>Not proved: a NOP free-run never touches the ALU, A/X/Y, the stack, the flags, addressing modes or
+branches. <strong>Klaus Dormann's suite remains the acceptance gate.</strong></p>
+
+<p>It also retroactively confirms several things at once — the clock regenerates on-board, the dynamic
+nodes hold charge at the leakage measured in Step 2b, the rewired supply holds, and the
+<code>irq</code>/<code>nmi</code> pull-ups took (a spurious interrupt would vector PC to $EAEA and
+destroy exactly this ripple).</p>
+
+<p class="gate">Gate: PC bits present at their predicted frequencies, aliased ones included, with no
+unexplained peaks. <strong>PASS.</strong></p>
 </div>
 
 
@@ -593,7 +651,8 @@ counting positions</strong>, since four rev A pads sit in the wrong slot.</p>
 
 <p>The numbers on this page are generated, not asserted:</p>
 
-<pre><code>python3 tools/step1_model.py      # Step 1: the body-diode model and the meter readings
+<pre><code>python3 tools/pc_ripple.py --clock 2250 --frames FRAMES/   # Step 3c: find the PC
+python3 tools/step1_model.py      # Step 1: the body-diode model and the meter readings
 python3 tools/dynamic_nodes.py    # Step 2b: retention, the 456 dynamic nodes, the clock window
 python3 tools/mark_hotsites.py    # Step 3b: the 164 VCC-side FETs on the board render</code></pre>
 

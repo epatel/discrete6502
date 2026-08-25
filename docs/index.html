@@ -551,10 +551,13 @@
     <p class="note">
       <b>What could still go wrong:</b> the dynamic logic holds charge on long board traces
       instead of microscopic silicon nodes. It also depends on a bootstrap effect that we have
-      simulated but never soldered. The leakage worry is now settled — measured at 1.9–2.3 nA
-      per transistor against a 53 nA budget, so the clock window is real. What is still open is
-      whether the CPU <em>sequences correctly</em>: it is powered, clocked and free-running, but
-      an orderly program counter has not yet been demonstrated. See
+      simulated but never soldered. Both worries are now settled on hardware. Leakage measured
+      1.9–2.3 nA per transistor against a 53 nA budget, so the clock window is real. And on
+      2026-08-25 the <b>program counter was found counting</b> — filmed at 30 frames a second, the
+      LEDs carry the PC's bits at exactly the frequencies arithmetic demands, including three fast
+      bits that fold back to frequencies nothing else could produce. <b>The board executes
+      instructions.</b> What remains is whether it executes them all <em>correctly</em>: a free-run
+      of NOPs never touches the ALU, the registers, the stack or the flags. See
       <a href="actual-bring-up.html">the measurement log</a>.
     </p>
     <p class="note">

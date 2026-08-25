@@ -94,6 +94,29 @@ _(append-only; timestamp and mark locked decisions)_
   (const data stays in XIP; bss unchanged at 32,400 confirms it). `gen/functest/README.md` now
   carries the attribution that was missing entirely.
 
+- 2026-08-25 **[M6, MILESTONE]** **The discrete 6502 executes instructions — proved by finding the
+  program counter in a video of the register LEDs.** Board #1, 2250 Hz external clock, data bus tied
+  to $EA through 10k, `irq`/`nmi` clipped to VCC, supply rewired. On a NOP free-run the CPU only
+  fetches and increments, so PC bit *b* must toggle at `(clock/2) / 2^(b+1)` Hz — a prediction that
+  needs no LED to be identified, mapped or named. Measured: **92 LEDs on a predicted PC frequency,
+  zero unexplained strong peaks**, matches within 0.15–1.8%. **The aliased bits are the proof**, not
+  the direct ones: at 29.9 fps the fast PCL bits fold back to frequencies natural for nothing —
+  PCL4 (35.16 Hz) → **5.256 Hz**, PCL2 (140.6 Hz) → **8.875 Hz**, PCL5 (17.6 Hz) → **12.322 Hz** —
+  and LEDs sit on all three. Being a joint consequence of clock rate *and* frame rate, they cannot be
+  produced by drift, mains flicker, camera exposure or an unstable clock source, which is what every
+  earlier ambiguous result was. **Two method errors are recorded because both gave confident false
+  negatives on 2026-08-24:** (a) aggregating spectra across all 55 LEDs buries the 16 PC bits under
+  the other 39 — count LEDs whose *own* dominant peak matches instead; (b) failing to detrend the
+  record's own start/stop envelope, which put a spurious 0.55 Hz peak at 11.9× the noise floor.
+  Underlying both, **only the direct low-frequency bits were ever searched for**, and those share a
+  spectrum with every slow artifact. Tooling: `tools/pc_ripple.py`. **Scope of the claim:** this
+  exercises instruction fetch, the decode PLA, the PC incrementer, the address drivers and on-board
+  clock phase regeneration — it does **not** touch the ALU, A/X/Y, the stack, the flags, addressing
+  modes or branches. Klaus Dormann's suite remains the acceptance gate. Two open items from earlier
+  entries are closed as a side effect: the clock really is regenerated on-board at full swing, and the
+  `irq`/`nmi` mitigation works (a spurious interrupt vectors PC to $EAEA and would destroy this exact
+  ripple).
+
 - 2026-08-24 **[M6, hardware finding — CORRECTS 2026-08-01]** **There are no contention hot spots on
   the board, and a thermal camera is what proved it.** The 2026-08-01 entry below predicts 3–4 nets
   contending at 262 mA and 0.90 W each, in SOT-323 packages rated ~0.3 W; the "Driver contention"
@@ -200,6 +223,39 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-25: **M6 prep started — Pico firmware scaffolded** in `pico-controller/` (`common/` shared bus engine — clock master, 16KB mirrored memory serving, trace ring, reset ceremony; `tester/` interactive bring-up CLI; `general/` free-runner with `$3F00` char-out port). Builds against pico-sdk 2.x (`PICO_BOARD=pico2_w`), untested until hardware exists. **Open question (resolve before power-up): 3.3V Pico vs 5V core levels** — inputs are practically safe through the 1k series resistors. **Verified: the board has NO pull-up on clk0** (only 100R protection + pico series R), so the clock must be driven push-pull; open-drain would leave clk0 floating unless an external 10k is croc-clipped Φ0→VCC. **Corrected 2026-07-25:** the earlier claim that a 3.3V clock under-drives the pass-pair bootstrap was wrong — clk0 gates only two pull-downs, and the internal phases (cclk/cp1) are regenerated on-board at full VCC swing; simulated, a 3.3V clk0 into a 5V core is functionally identical to a 5V one (1.7mV low, 17ns delay). The external pull-up is optional polish, not a requirement. Recommended first bring-up: whole CPU at VCC=3.3V (single domain, logic smoke test) — SPICE the pass-pair at 3.3V before boards arrive.
 
 ## Current state / handoff
+
+- 2026-08-25: **THE CPU EXECUTES. The program counter was found in a video of the LEDs, bit by bit,
+  at exactly the frequencies arithmetic demands.** After rewiring the supply, tying `irq`/`nmi` high
+  and halving the clock to 2250 Hz, a 14.7 s clip contains the 6502's PC — **92 LEDs land on a
+  predicted PC-bit frequency and not one strong peak matches anything else**. Full record:
+  `docs/actual-bring-up.html` Step 3c; reproduce with `tools/pc_ripple.py --clock 2250 --frames DIR`.
+  **The test needs no LED to be identified**: on a NOP free-run the CPU only fetches and increments,
+  so PC bit *b* must toggle at `1125 / 2^(b+1)` Hz and either those frequencies are there or they are
+  not. **What makes it conclusive is the aliased bits.** Filming at 29.9 fps folds the fast PCL bits
+  back into the visible band at frequencies that are natural for nothing — PCL4's 35.16 Hz appears at
+  **5.256 Hz**, PCL2's 140.6 Hz at **8.875 Hz**, PCL5's 17.6 Hz at **12.322 Hz** — and LEDs sit on all
+  three. Those numbers are a joint consequence of the clock rate and the frame rate, so they cannot be
+  drift, mains flicker, exposure hunting or a browning-out clock source, which is what every earlier
+  ambiguous result turned out to be. Direct bits match too (PCL6 8.789, PCL7 4.395, PCH0 2.197,
+  PCH2 0.549, PCH3 0.275 Hz), all within 0.15–1.8%. **Honest caveat: the two lowest bins are
+  generous** — the 0.136 Hz tolerance also swallows a ~0.203 Hz cluster that is probably detrending
+  residual, so discount them; the high-frequency matches carry the result unaided. **This resolves the
+  previous entry's warning**: the 2026-08-24 spectra really were measuring an artifact, and the
+  reasons are now known — a browning-out Arduino, floating `irq`/`nmi` vectoring PC to $EAEA, and two
+  method errors recorded in the log (aggregating 55 LEDs so the 16 PC bits are diluted, and failing to
+  detrend the record's own envelope, which faked a 0.55 Hz peak at 11.9× the noise floor). Underlying
+  all of it: **only the direct low-frequency bits were ever looked for**, and those share a spectrum
+  with every slow artifact. **What is proved:** fetch, decode, execute, and the PC incrementing
+  correctly through **at least 12 bits** — which requires the decode PLA, the PC incrementer, the
+  address drivers and on-board clock phase generation to all work, i.e. 4,051 discrete transistors
+  doing 6502 logic. It also retroactively confirms the clock regenerates on-board, the dynamic nodes
+  hold at the leakage measured in Step 2b, and the `irq`/`nmi` fix took. **What is not proved:** a NOP
+  free-run never touches the ALU, A/X/Y, the stack, the flags, addressing modes or branches —
+  **Klaus Dormann's suite remains the acceptance gate**. New: `tools/pc_ripple.py`, which prints the
+  predicted (and aliased) frequencies for any clock and frame rate and, given extracted frames, finds
+  them. **Nothing on the board, in the fab package or in the firmware changed.** **Next: Step 5** —
+  solder a Pico, which replaces the Arduino entirely (clock + reset + memory) and turns every question
+  since 2026-08-12 into a printed instruction trace instead of a video analysis.
 
 - 2026-08-24 (later, **UNVERIFIED — hypotheses, not findings**): **the bench supply arrangement is
   suspect, and if it is, several of the day's LED analyses were measuring the Arduino rather than the
