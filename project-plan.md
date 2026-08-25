@@ -230,6 +230,60 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-25 (evening): **The Pico is soldered, the CPU runs a real program off it —
+  and the 2026-08-24 retraction of the driver-contention model is itself retracted.**
+  Board #1, Pico 2 W mounted, autorun on: **the A LEDs count**, which is Step 6 passed
+  and the first time the CPU has executed from emulated memory rather than a tie-off.
+  It draws **2.3 A**, against 0.7–1.2 A expected. Three independent lines now agree on
+  why, and the conclusion is the opposite of the one this plan has carried for a day.
+  **(a) The current is clock-independent** — the same at 500 Hz and at 10 kHz [user
+  measurement]. Switching or near-threshold loss scales with rate; a `cclk`-gated
+  contending pair conducts a fixed *fraction* of every cycle and does not. That single
+  observation rules out the distributed explanation. **(b) The FLIR shows discrete
+  spots at ~80 °C**, which is exactly what 2026-08-24 recorded as absent. **(c) New
+  tool `tools/contention_duty.py`** measures, rather than assumes, how often each of
+  the 164 VCC-side FETs is fighting its pull-down — `switchsim` resolves contention as
+  low and is structurally blind to it, but the same model exposes it as "VCC-side FET
+  on while the conduction group reaches vss". Run under two workloads it reconciles
+  both thermal images: **adh1/3/5/6/7 contend 35% of the time under real code and
+  0.3% under an all-NOP free-run**, and a NOP free-run through a $EA tie-off is
+  precisely the condition the 2026-08-24 image was taken in. **The observation was
+  sound; the generalisation drawn from it — "the excess is distributed over thousands
+  of near-threshold FETs" — was not.** The 2026-08-01 model was right about the
+  mechanism and was simply not being exercised.
+  **The strongest positive result is that the hand rework demonstrably works**: the
+  eight `dor` nets contend **91.8%** of the time under NOP free-run, i.e. through the
+  whole 2026-08-24 measurement, and the camera found them **cold**. At 1:1 that would
+  have been ~7 W in eight SOT-323s and impossible to miss.
+  **The user's camera beat the model twice.** First by finding the spots at all.
+  Then by marking `adl4`–`adl7` as among the hottest when `contention_duty.py` had
+  **excluded all four before measuring them** — they have no pull-down FET sitting
+  directly between the net and vss, but they are pulled low **through a pass-gate
+  chain**, which contends identically. The FETs my filter did find on those nets are
+  gated *by* adl4–7, i.e. loads they drive: **the same "counted FETs gated by X rather
+  than on X" error already recorded against `cclk` on 2026-08-01, repeated.** The
+  detector was always right — it follows conduction groups — so removing the filter
+  was the whole fix, and it promoted **adl6 and adl7 to 45.7%, the two busiest sites
+  on the board**, above every `adh` and every `dor`.
+  **Sixteen address-path sites now want the same 10 kΩ-in-series rework** (8 `adh`,
+  8 `adl`), mapped with positions, designators and neighbours in
+  `docs/rework-adh-marked.jpg` (`tools/mark_rework_adh.py`). Nine are confirmed hot.
+  **The 16 `ab*` output drivers measure 0.0% under both workloads and are cold on the
+  camera — they do not want reworking**, despite being flagged red on the older
+  `hotsites-marked.jpg`. Why the two clusters differ in temperature while barely
+  differing in duty is layout, and it is quantified rather than asserted: per-part
+  duty differs by 11%, but panel 2 packs nine sites into a **3.7 mm-wide column**
+  against panel 1's 14.8 mm spread — **2.6x the duty per cm², and 2.8x the neighbouring
+  dissipation within 12 mm**. Fixing panel 2 first should therefore gain more than the
+  sum of its parts, since it removes the mutual heating too.
+  **Not yet done, and it is the sharp test:** an all-NOP free-run predicts **three
+  different behaviours in one camera frame** — adh3/5/6/7 go cold (35%→0.3%), adh4
+  gets *hotter* (35%→48%), adl5/6/7 stay hot but ease (37–46%→22–34%). Same board,
+  same framing, one variable. **Nothing on the board, in the fab package or in the
+  netlist changed.** Safety: 80 °C is over the SOT-323 power rating but junction is
+  ~90–110 °C against a 150 °C limit — short runs fine, **do not start the multi-hour
+  functional test until the rework is done.**
+
 - 2026-08-25 (later): **The firmware was audited, hardened against the network
   and the terminal both going away, and flashed — and asking "what happens if wifi
   does not connect?" found three real faults.** Nothing on the board, in the fab
@@ -983,8 +1037,19 @@ power-up, 3–4 after rework.
 
 ## Driver contention: the power budget is wrong by 6x, and it is a ratio bug (2026-08-01)
 
-> **⚠ PARTLY FALSIFIED 2026-08-24 — read the Decisions entry of that date before using any number
-> here.** Thermal imaging of the real board found **no hot spot anywhere** (peak ~30 °C against
+> **⚠ STATUS, 2026-08-25: LARGELY RESTORED. This section was retracted on 2026-08-24 and the
+> retraction has itself been retracted — read the 2026-08-25 handoff entry first.** The mechanism
+> and the level problem always stood. The *power* figures were retracted because a FLIR image
+> found no hot spot; on 2026-08-25 the same board running a real program through the Pico shows
+> **discrete ~80 °C spots**, draws **2.3 A**, and draws the **same current at 500 Hz as at
+> 10 kHz** — which is the signature of static contention and not of the distributed
+> near-threshold conduction the retraction proposed. `tools/contention_duty.py` reconciles both
+> images: the sites that were hot on 2026-08-25 contend 35% of the time under real code and 0.3%
+> under the NOP free-run the 2026-08-24 image was taken in. What does NOT come back: the specific
+> claim that the eight `dor` drivers are the worst offenders under all workloads (the address
+> path is), and the 2.1 A total (measured 2.3 A, from a different site set).
+>
+> **Superseded detail retained below for the reasoning.** Thermal imaging of the real board found **no hot spot anywhere** (peak ~30 °C against
 > 25 °C ambient), which a 0.9 W SOT-323 could not hide. The **mechanism and the level problem below
 > stand** — the ratio error is real and a contended node at 1.0–1.9 V against a 1.1–1.5 V threshold
 > is a genuine correctness bug. The **power figures do not**: the board draws 1.4 A unclocked and
