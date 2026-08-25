@@ -77,8 +77,9 @@ correction it forced upstream. Everything here is dated and attributed to a spec
 <tr><td>3b — Thermal map (FLIR One)</td><td>2026-08-24</td><td>#1</td><td class="pass">no hot spots — model corrected</td></tr>
 <tr><td>3c — Does it compute? (PC ripple)</td><td>2026-08-25</td><td>#1</td><td class="pass"><strong>PASS — the CPU executes</strong></td></tr>
 <tr><td>4 — Eight-site 10 kΩ rework</td><td>2026-08-23</td><td>#1</td><td class="pass">done (out of order)</td></tr>
-<tr><td>5 — Solder the Pico</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
-<tr><td>6 — First clocked run</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>5 — Solder the Pico</td><td>2026-08-25</td><td>#1</td><td class="pass">PASS</td></tr>
+<tr><td>6 — First clocked run off the Pico</td><td>2026-08-25</td><td>#1</td><td class="pass"><strong>PASS — A counts</strong>; 2.3 A, contention found</td></tr>
+<tr><td>6b — NOP-workload thermal difference test</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 <tr><td>7 — Clock window</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 <tr><td>8 — Functional test</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 </table>
@@ -559,8 +560,7 @@ for the sweep: all 164 VCC-side FETs on the top-face render, grouped by what the
 reworked sites and the <strong>22 that have no pull-down and therefore cannot be hot</strong> marked
 distinctly. The 142 that can contend independently reproduces the plan's rev B site count.</p>
 
-<p class="gate">Gate: no site above ~30 °C. The concentrated-contention model is falsified on
-hardware; the excess current is distributed.</p>
+<p class="gate">Gate: no site above ~30 °C, under <em>this workload</em>. <strong>SCOPE CORRECTED 2026-08-25 — see Step 5/6.</strong> The observation stands and the conclusion drawn from it does not: this image was taken during a NOP free-run, and the sites that run at 80 °C under real code contend 0.3% of the time under NOPs. Concentrated contention is real; it was not being exercised here. What this image <em>does</em> prove is that the Step 4 rework works — the <code>dor</code> eight contend 91.8% of the time in exactly this condition and are cold.</p>
 </div>
 
 
@@ -637,8 +637,8 @@ the noise floor on 2026-08-24. Detrend each series with a cubic first.</li>
 </ul>
 
 <p>Underlying both: <strong>only the direct low-frequency bits were ever looked for</strong>, and those
-live in the same part of the spectrum as every slow artifact. The aliased bits were the way out and
-were not used until now.</p>
+live in the same part of the spectrum as every slow artifact. Naming the LEDs, not chasing aliases,
+is what made the test falsifiable.</p>
 
 <h3>What it proves, and what it does not</h3>
 
@@ -654,8 +654,173 @@ nodes hold charge at the leakage measured in Step 2b, the rewired supply holds, 
 <code>irq</code>/<code>nmi</code> pull-ups took (a spurious interrupt would vector PC to $EAEA and
 destroy exactly this ripple).</p>
 
-<p class="gate">Gate: PC bits present at their predicted frequencies, aliased ones included, with no
-unexplained peaks. <strong>PASS.</strong></p>
+<p class="gate">Gate: PC bits present at their predicted frequencies, four of them identified by name
+and forming a measured factor-of-two ladder, with no unexplained peaks. <strong>PASS.</strong></p>
+</div>
+
+
+
+<div class="step">
+<h2><span class="tag pass">PASS</span>Step 5/6 — The Pico is on, and the CPU runs a real program, 2026-08-25</h2>
+
+<div class="ok">
+<strong>The A register is counting, driven entirely by the board's own Pico.</strong> Until now every
+clocked run used an external Arduino and a resistor tie-off. This is the first time the 6502 has
+fetched from emulated memory, executed, and written back — the design working as designed.
+</div>
+
+<p>Module soldered to the underside site, pin 39 included, resistance re-checked the range-aware way
+before power. Autorun on, so it began clocking the moment the rail came up. The built-in counter image
+runs and the A LEDs count.</p>
+
+<h3>But it draws 2.3 A, and that reopens a closed question</h3>
+
+<p>Expected 0.7–1.2 A. Three independent observations say why, and together they <strong>reverse the
+correction made in Step 3b</strong>.</p>
+
+<ol>
+<li><strong>The current is the same at 500 Hz as at 10 kHz.</strong> This is the decisive one and it
+needs no model. Switching loss and near-threshold conduction both scale with clock rate. A
+<code>cclk</code>-gated contending pair conducts a fixed <em>fraction</em> of every cycle and does
+not. A 20× change in clock producing no change in current is what static contention looks like and
+nothing else does.</li>
+<li><strong>The FLIR shows discrete spots at ~80 °C</strong> — precisely what Step 3b recorded as
+absent.</li>
+<li><strong>The duty cycle was measured</strong>, not assumed, by a new tool.</li>
+</ol>
+
+<h3>Why both thermal images were right</h3>
+
+<p><code>tools/contention_duty.py</code> measures how often each of the 164 VCC-side FETs is fighting
+its pull-down. <code>switchsim</code> cannot see this — <code>_value()</code> returns low the moment
+vss joins the conduction group, so it <em>assumes</em> the pull-down wins, which is exactly how the
+1:1-ratio defect passed five green gates. The same model still exposes contention, just not through
+the value: the VCC-side device is on <em>and</em> the group reaches vss.</p>
+
+<p>Run under two workloads, it reconciles the two images completely:</p>
+
+<pre><code>ref     net    gate      real      nop
+Q2458   adl6   cclk     45.7%    34.3%
+Q3841   adl7   cclk     45.7%    34.3%
+Q1241   adl3   cclk     40.7%    23.0%
+Q2008   adl2   cclk     39.0%    24.0%
+Q506    adl5   cclk     37.0%    21.7%
+Q505    adh4   cclk     35.3%    48.0%
+Q2196   adh2   cclk     35.3%    48.0%
+Q541    adh1   cclk     35.0%     0.3%   &lt;- invisible in a NOP free-run
+Q2324   adh7   cclk     35.0%     0.3%   &lt;-
+Q2457   adh5   cclk     35.0%     0.3%   &lt;-
+Q2680   adh3   cclk     35.0%     0.3%   &lt;-
+Q3840   adh6   cclk     35.0%     0.3%   &lt;-
+</code></pre>
+
+<p><strong><code>adh1/3/5/6/7</code> contend 35% of the time under real code and 0.3% under an all-NOP
+free-run — and a NOP free-run through a $EA tie-off is exactly the condition the Step 3b image was
+taken under.</strong> That image was sound. The generalisation drawn from it — that the excess is
+distributed over thousands of near-threshold FETs — was not. The 2026-08-01 model was right about the
+mechanism and simply was not being exercised.</p>
+
+<div class="ok">
+<strong>The strongest positive result: the Step 4 hand rework demonstrably works.</strong> The eight
+<code>dor</code> nets contend <strong>91.8%</strong> of the time under NOP free-run — right through the
+whole Step 3b measurement — and the camera found them <strong>cold</strong>. Unreworked, that would
+have been ~7 W in eight SOT-323 packages and impossible to miss.
+</div>
+
+<h3>The camera beat the model twice</h3>
+
+<p>First by finding the spots at all. Then by marking <code>adl4</code>–<code>adl7</code> among the
+hottest when the tool had <strong>excluded all four before measuring them</strong>. They have no
+pull-down FET sitting directly between the net and vss — but they are pulled low <strong>through a
+pass-gate chain</strong>, which contends identically. The FETs the filter did find on those nets are
+gated <em>by</em> adl4–7, i.e. loads those nets drive: the same "counted FETs gated by X rather than on
+X" error already recorded against <code>cclk</code> on 2026-08-01, repeated. Removing the filter
+promoted <strong>adl6 and adl7 to 45.7%, the two busiest sites on the board</strong>, above every
+<code>adh</code> and every <code>dor</code>.</p>
+
+<h3>Why one cluster runs hotter than the other, at nearly the same duty</h3>
+
+<p>Heat was reported at both groups but much more at the lower-right one. Per-part duty differs by only
+11%, so the difference is layout, and it is quantified rather than asserted:</p>
+
+<pre><code>            sites  mean duty  x-spread  mean NN  duty/cm2  neighbour-duty &lt;12mm
+panel 1       7      31.9%     14.8 mm   8.8 mm    20.7          36.4%
+panel 2       9      35.4%      3.7 mm   5.1 mm    54.5         102.7%
+</code></pre>
+
+<p>Panel 2 packs nine sites into a 3.7 mm-wide column: <strong>2.6× the dissipation per cm² and 2.8×
+the neighbouring dissipation</strong>. Same watts per part, much hotter neighbourhood. Fixing panel 2
+first should gain more than the sum of its parts, because it removes the mutual heating too.</p>
+
+<h3>The rework list, and what is <em>not</em> on it</h3>
+
+<p><strong>Sixteen address-path sites</strong> want the same 10 kΩ-in-series fix (8 <code>adh</code>,
+8 <code>adl</code>); nine are confirmed hot. Positions, designators and neighbouring parts:
+<a href="rework-adh-marked.jpg">rework-adh-marked.jpg</a>.</p>
+
+<p><strong>The 16 <code>ab*</code> output drivers measure 0.0% under both workloads and are cold on the
+camera.</strong> They do not want reworking, despite being flagged as "NOP free-run worst case" on the
+older <a href="hotsites-marked.jpg">hotsites-marked.jpg</a>.</p>
+
+<h3>Two observations still unresolved</h3>
+
+<ul>
+<li><strong>The ammeter wanders 1.9–2.8 A</strong> on a cheap meter. A 0.9 A swing is hard to explain
+from the board — under NOPs the CPU does the same thing every cycle, so the contended set should be
+<em>more</em> constant, not less. Suspects are contact resistance in the croc path (~0.33 Ω per
+segment at 2 A, already flagged on 2026-08-24) and the meter itself, which produced a badly wrong
+reading once before. Next check: watch TP36/TP35 voltage and the current together — if they move in
+step it is the wiring.</li>
+<li><strong>The board sings.</strong> An audible tone tracking the clock, obvious at 10 kHz and gone at
+20 kHz — almost certainly because 20 kHz is past the listener's hearing, not because it stopped. Cause
+is MLCC piezoelectricity: Class II ceramics deform under applied voltage, and this board carries 96 ×
+100 nF and 4 × 10 µF on a 291 × 322 mm soundboard. <strong>For them to sing the rail must be rippling
+at the clock rate</strong>, which corroborates the supply-path suspicion above: the precharge pulse
+moves ~90 nC per edge, and through 0.5–2 Ω of lead resistance that is 45–180 mV of ripple. It also
+gives a free confirmation test — adding bulk capacitance or shortening the supply path should make it
+quieter.</li>
+</ul>
+
+<p class="gate">Gate: the CPU executes a real program from emulated memory. <strong>PASS.</strong>
+Current is 2× budget from address-path contention, which is understood, located, and fixable by an
+operation already proven on this board. <strong>Do not start the multi-hour functional test until the
+rework is done</strong> — 80 °C is over the SOT-323 power rating, though junction is ~90–110 °C
+against a 150 °C limit, so short runs are fine.</p>
+</div>
+
+
+<div class="step">
+<h2><span class="tag todo">Next</span>Step 6b — The NOP-workload thermal test, not yet run</h2>
+
+<p>The model above makes a prediction sharp enough to falsify it, using one variable on one board with
+the camera not moved between shots. Load <code>gen/nopfill.hex</code> (16 KB of $EA, generated and
+self-verified by <code>tools/make_nop_image.py</code>) and re-shoot.</p>
+
+<p><strong>On the ammeter</strong>, contention should fall from 7.66 nets to 3.80 — about half.
+And the <em>direction</em> is itself a test of the Step 4 rework:</p>
+
+<pre><code>if NOTHING were reworked          real  9.64 nets   nop 11.14 nets   +16%
+on this board (dor eight fixed)   real  7.66 nets   nop  3.80 nets   -50%
+</code></pre>
+
+<p>Under NOPs the <code>dor</code> drivers jump to 91.8% duty and would dominate everything, so an
+unreworked board draws <em>more</em>. <strong>If the current rises, the rework is not doing what this
+page claims.</strong></p>
+
+<p><strong>On the camera</strong>, three different behaviours in one frame:</p>
+
+<table>
+<tr><th>Sites</th><th>Duty change</th><th>Expect</th></tr>
+<tr><td>adh3, adh5, adh6, adh7</td><td>35% → 0.3%</td><td>go cold</td></tr>
+<tr><td>adh4</td><td>35% → 48%</td><td><strong>gets hotter</strong></td></tr>
+<tr><td>adl5, adl6, adl7</td><td>37–46% → 22–34%</td><td>stay hot, ease slightly</td></tr>
+</table>
+
+<p><code>adh4</code> sits in the middle of the same column as the four that should vanish, so camera,
+board, framing and supply are identical for all of them. One part behaving oppositely to its
+neighbours cannot be an artifact of any of those. <strong>The most informative failure would be adh4
+going cold with the rest</strong> — that would mean the split is not workload-dependent contention but
+something common to the column, and the model needs rethinking rather than patching.</p>
 </div>
 
 
@@ -664,6 +829,9 @@ unexplained peaks. <strong>PASS.</strong></p>
 <p>The numbers on this page are generated, not asserted:</p>
 
 <pre><code>python3 tools/pc_ripple.py --clock 2250 --frames FRAMES/   # Step 3c: find the PC
+python3 tools/contention_duty.py                          # Step 6: contention duty
+python3 tools/mark_rework_adh.py                          # Step 6: the rework map
+python3 tools/make_nop_image.py                           # Step 6b: the NOP image
 python3 tools/step1_model.py      # Step 1: the body-diode model and the meter readings
 python3 tools/dynamic_nodes.py    # Step 2b: retention, the 456 dynamic nodes, the clock window
 python3 tools/mark_hotsites.py    # Step 3b: the 164 VCC-side FETs on the board render</code></pre>
