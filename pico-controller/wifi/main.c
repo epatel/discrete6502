@@ -884,6 +884,12 @@ static void banner(void) {
 // ---- boot -----------------------------------------------------------------
 
 int main(void) {
+    // FIRST, before anything else can go wrong. If a previous run left the
+    // watchdog armed -- which an aborted reboot does -- every boot gets reset
+    // partway through and the board never reaches its main loop, never prints,
+    // and cannot be held in BOOTSEL long enough to reflash. Disabling it here is
+    // what lets a bad build be replaced by a good one.
+    watchdog_disable();
     stdio_init_all();
 
     settings_load();
@@ -943,7 +949,14 @@ int main(void) {
         if (!is_nil_time(s_reboot_at) && absolute_time_diff_us(get_absolute_time(),
                                                                s_reboot_at) < 0) {
             printf("[wifi] rebooting to apply new credentials\n");
-            watchdog_reboot(0, 0, 0);
+            sleep_ms(60);                 // let that reach the terminal
+            watchdog_reboot(0, 0, 10);
+            // watchdog_reboot() arms a reset; it does not stop the caller. Without
+            // this spin the loop comes round and arms it again, and an armed
+            // watchdog with nothing feeding it resets the chip forever -- including
+            // straight back out of BOOTSEL, which makes the board unflashable by
+            // software. Never return from here.
+            while (true) tight_loop_contents();
         }
     }
 }
