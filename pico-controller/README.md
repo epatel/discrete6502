@@ -296,6 +296,46 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### There is no single-step, and the panel no longer pretends otherwise
+
+This is dynamic logic. `bus_step_cycle()` rests the clock **LOW**, and the worst
+node holds charge for about **1.1 ms** in exactly that state (measured, board #1).
+A human takes 200 ms to click anything. So pressing step twice does not resume
+the first step — it resumes decayed garbage that still looks like a machine.
+
+The same applies to *any* two commands issued in sequence. The old documented
+workflow was `R` then `t 40`; the clock parks while you type, and the reset state
+is gone before the trace starts.
+
+**The rule: the clock never stops, and a command is a bounded interruption.**
+Anything needing a defined starting state must reset and run atomically.
+
+| Instead of | Use | Why |
+|---|---|---|
+| step, step, step | `R N` / **Reset and run** | Deterministic — always starts from reset, so it is reproducible |
+| stop, then trace | `t N` / **Capture 200 cycles** | The clock runs throughout the capture; reading the ring afterwards costs nothing |
+
+**The trace ring is the debugger.** You cannot step through execution on this
+machine, but you can step through *history*, and history does not decay.
+
+### The panel
+
+Summary first: a state pill (Running / Passed / Failed / Stopped), what is
+loaded, a progress bar, and the time remaining. Then one primary button, then
+everything else folded behind `<details>` — program, clock, activity log, bus
+trace, diagnostics.
+
+Progress comes from **cycles**, not checkpoints: `program_cycles` divided into
+`bus_cycle_count` is exact, needs no checkpoint table, and works for any image
+whose measured cycle count was stored.
+
+**The verdict is now reported, not left to you.** Built with
+`-DEMBED_FUNCTEST=ON`, the trap table maps a self-loop address to pass or fail
+and its line in the assembly listing; `/status` carries `tk`, `tp` and `tl`, so
+the panel says *"6502_functional_test complete — self-loop at $34D8, listing
+line 3078"* with a green pill. Without the flag it reports the bare address and
+says so, rather than guessing.
+
 ### Storing a program also stores the clock
 
 `S store` (and the panel's **store as boot image**) writes the whole settings

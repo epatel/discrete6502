@@ -60,6 +60,12 @@
 static volatile uint32_t s_cycle, s_half = 50;
 static volatile uint16_t s_addr, s_trap_addr;
 static volatile uint8_t s_data, s_flags, s_test_case, s_trapped, s_ft_on;
+// The trap verdict, which the firmware already knows and never told anyone:
+// with -DEMBED_FUNCTEST=ON the trap table maps a self-loop address to pass/fail
+// and its line in the assembly listing. Without it, s_trap_known stays 0 and the
+// page falls back to reporting the bare address.
+static volatile uint8_t s_trap_known, s_trap_pass;
+static volatile uint16_t s_trap_line;
 static volatile bool s_running;
 
 static bus_trace_t mirror[MIRROR_LEN];
@@ -77,7 +83,7 @@ typedef struct {
     uint32_t arg;
 } cmd_t;
 enum { CMD_RUN, CMD_STOP, CMD_RESET, CMD_STEP, CMD_CLOCK, CMD_FT,
-       CMD_RET, CMD_RETSCAN };
+       CMD_RET, CMD_RETSCAN, CMD_RESETRUN };
 
 // ---- core 1: the bus engine ----------------------------------------------
 
@@ -96,6 +102,9 @@ static bool __not_in_flash_func(publish)(const bus_trace_t *t) {
     s_test_case = f->test_case;
     s_trapped = f->trapped ? 1u : 0u;
     s_trap_addr = f->trap_addr;
+    s_trap_known = f->trap ? 1u : 0u;
+    s_trap_pass = (f->trap && f->trap_is_pass) ? 1u : 0u;
+    s_trap_line = f->trap ? f->trap->line : 0u;
     return go;
 }
 
@@ -129,6 +138,7 @@ static void __not_in_flash_func(core1_main)(void) {
     multicore_lockout_victim_init();
 
     bool run = false;
+    uint32_t budget = 0;   // cycles left to run; 0 = unbounded
     for (;;) {
         cmd_t c;
         while (queue_try_remove(&cmd_q, &c)) {
@@ -154,7 +164,22 @@ static void __not_in_flash_func(core1_main)(void) {
                 s_ret_busy = 0;
                 break;
             }
-            case CMD_RUN: functest_clear(); run = true; break;
+            case CMD_RUN:
+                functest_clear();
+                budget = c.arg;          // 0 = until stopped or a self-loop
+                run = true;
+                break;
+            case CMD_RESETRUN:
+                // Reset and run as ONE operation. Doing them as two commands a
+                // person issues in sequence does not work on this CPU: the clock
+                // parks between them and the worst dynamic node holds charge for
+                // about 1.1 ms, so the reset state is gone long before the run
+                // starts. Anything needing a defined start must be atomic.
+                functest_clear();
+                bus_reset_sequence();
+                budget = c.arg;
+                run = true;
+                break;
             case CMD_STOP: run = false; break;
             case CMD_RESET: run = false; bus_reset_sequence(); break;
             case CMD_STEP: run = false; bus_step_instruction(64); break;
@@ -168,7 +193,13 @@ static void __not_in_flash_func(core1_main)(void) {
             s_running = run;
         }
         if (run) {
-            bus_run(1000);              // chunked so commands stay responsive
+            uint32_t chunk = 1000;      // chunked so commands stay responsive
+            if (budget && budget < chunk) chunk = budget;
+            bus_run(chunk);
+            if (budget) {
+                budget -= chunk;
+                if (!budget) { run = false; s_running = false; }
+            }
             if (bus_aborted()) {        // watcher saw a self-loop
                 run = false;
                 s_running = false;
@@ -433,14 +464,16 @@ static void status_json(char *b, size_t cap) {
              "{\"run\":%u,\"cyc\":%lu,\"half\":%lu,\"a\":%u,\"d\":%u,\"f\":%u,"
              "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,"
              "\"rb\":%u,\"rv\":%u,\"rs\":%lu,\"rms\":%lu,\"rok\":%u,"
-             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"pname\":\"%s\",\"ip\":\"%s\"}",
+             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"tcyc\":%lu,\"tk\":%u,\"tp\":%u,\"tl\":%u,\"pname\":\"%s\",\"ip\":\"%s\"}",
              s_running ? 1u : 0u, (unsigned long)s_cycle, (unsigned long)s_half, s_addr,
              s_data, s_flags, s_ft_on, s_test_case, s_trapped, s_trap_addr,
              s_ret_busy, s_ret_verdict, (unsigned long)s_ret_seq,
              (unsigned long)s_ret_last_ms, s_ret_last_ok,
              (unsigned long)s_ret_good, (unsigned long)s_ret_bad,
              (unsigned long)settings_program_len(),
-             (unsigned long)settings_program_seconds(), settings()->program_name,
+             (unsigned long)settings_program_seconds(),
+             (unsigned long)settings()->program_cycles,
+             s_trap_known, s_trap_pass, s_trap_line, settings()->program_name,
              ip4addr_ntoa(netif_ip4_addr(netif_default)));
 }
 
@@ -466,7 +499,8 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
     }
     uint32_t val = qparam(c->path, "v", v, sizeof v) ? (uint32_t)strtoul(v, NULL, 0) : 0;
 
-    if (!strcmp(op, "run")) push(CMD_RUN, 0);
+    if (!strcmp(op, "run")) push(CMD_RUN, val);
+    else if (!strcmp(op, "resetrun")) push(CMD_RESETRUN, val);
     else if (!strcmp(op, "stop")) push(CMD_STOP, 0);
     else if (!strcmp(op, "reset")) push(CMD_RESET, 0);
     else if (!strcmp(op, "step")) push(CMD_STEP, 0);

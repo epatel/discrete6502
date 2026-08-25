@@ -184,10 +184,14 @@ static void print_trace_entry(bus_trace_t t) {
 
 static void help(void) {
     printf("discrete6502 tester\n"
-           "  R          reset sequence (assert, 8 cycles, release)\n"
+           "  R [N]      reset, then run N cycles -- as ONE operation. Reset\n"
+           "             then a separate run does not work: the clock parks\n"
+           "             between commands and state decays in about 1 ms.\n"
            "  c N        run N cycles (quiet)\n"
            "  t N        run N cycles, print each bus cycle\n"
-           "  s [N]      step N instructions (default 1), print cycles\n"
+           "  s [N]      run N instructions from HERE, printing cycles. NOT a\n"
+           "             single-step: state does not survive between commands,\n"
+           "             so repeating it resumes garbage. Use R N instead.\n"
            "  d [N]      dump last N trace entries (default 32)\n"
            "  x A L      hexdump L bytes of image at offset A (hex)\n"
            "  m A B..    poke bytes at offset A (all hex)\n"
@@ -318,10 +322,24 @@ int main(void) {
             printf(settings_save() ? "saved\n" : "flash write refused\n");
             break;
         }
-        case 'R':
+        case 'R': {
+            // R [N] resets and then runs N cycles as ONE operation. Doing them
+            // as two commands you type in sequence does not work on this CPU:
+            // the clock parks between them, and the worst dynamic node holds
+            // charge for about 1.1 ms (measured, board #1), so the reset state
+            // is long gone before the second command arrives. Anything that
+            // needs a defined starting state has to be atomic with the reset.
+            char *a = strtok(NULL, " ");
+            uint32_t n = a ? (uint32_t)strtoul(a, NULL, 0) : 0;
             bus_reset_sequence();
-            printf("reset released at cycle %lu\n", (unsigned long)bus_cycle_count);
+            if (n) bus_run(n);
+            printf("reset released, ran %lu cycles, now at cycle %lu\n",
+                   (unsigned long)n, (unsigned long)bus_cycle_count);
+            if (!n)
+                printf("  note: the clock is parked now. State decays in about 1 ms,\n"
+                       "        so a follow-up command starts from garbage. Use R N.\n");
             break;
+        }
         case 'c': {
             char *a = strtok(NULL, " ");
             uint32_t k = a ? strtoul(a, NULL, 0) : 1;
