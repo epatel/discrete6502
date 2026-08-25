@@ -184,7 +184,13 @@ Tools: fine-tip iron or hot air, fine tweezers, flux, magnification, a multimete
       ~0 Ω the leg is still touching — re-lift.</li>
   <li><strong>Fit the resistor.</strong> Tin pad 3. Stand the 10 kΩ on end with its lower
       termination on pad 3 and solder it. Then solder the lifted leg to the resistor's upper
-      termination. A short piece of fine wire between leg and resistor is fine if that is easier.</li>
+      termination. A short piece of fine wire between leg and resistor is fine if that is easier.
+      <br><strong>Put a slip of Kapton tape between the resistor body and the lifted leg</strong>
+      (done on board&nbsp;#1, and visible as the amber patches in the photographs). The leg is
+      springy and sits millimetres from a component it must not touch; the tape means the only
+      contact between them is the joint you make deliberately, and it stops a leg that relaxes over
+      time from quietly shorting the resistor out. A silently undone rework is worse than an obvious
+      one, because the board keeps working and just runs hot again.</li>
   <li><strong>Verify the fix.</strong> Pin 3 lead to a VCC bond pad should now read
       <strong>10 kΩ ± tolerance</strong>. Pad 3 itself to VCC should still read ~0 Ω.</li>
   <li><strong>Inspect.</strong> Check the resistor is not touching pin 1, pin 2, or any neighbouring
@@ -207,11 +213,27 @@ sub-millisecond stalls ramped up.
 </div>
 
 <div class="ok">
-<strong>Whole-board check when all eight are done.</strong> VCC to VSS at the bond pads should still
-read high (no bridge introduced). Then, at first clocked power-up, the supply current should stay
-near the pull-up budget of a few hundred mA instead of jumping to ~1.8–2.1 A. That current step
-<em>is</em> the measurement — if it still jumps, a site did not take.
-</div>
+<strong>Whole-board check when all eight are done.</strong> Re-measure VCC to VSS at the bond
+pads &mdash; but read it the <em>range-aware</em> way. There is no resistor-only path between the
+rails, so the meter reads FET body diodes and legitimately shows a few hundred ohms that
+<em>changes with the range</em> (195 Ω / 314 Ω / 3.77 kΩ on 200 Ω / 2k / 20k on board&nbsp;#1). A
+fault is under 1 Ω, or a value that does not move between ranges. The earlier instruction here
+&mdash; &ldquo;should still read high&rdquo; &mdash; was wrong and was falsified on hardware on
+2026-08-12.
+
+<br><br><strong>What the current will and will not do.</strong> Measured on board&nbsp;#1 after this
+rework: <strong>2.3 A while executing</strong>, not the few hundred mA an earlier version of this
+page predicted. That is not the rework failing. These eight are only 8 of the <strong>164</strong>
+sites carrying the same ratio error, and a thermal camera later found <strong>sixteen more on the
+address path</strong> running at about 80 °C &mdash;
+<a href="rework-adh-marked.jpg">mapped here</a>, with the contention duty measured for each. Expect
+the same operation sixteen more times before the current comes down.
+
+<br><br><strong>The check that does confirm these eight took</strong> is thermal, not electrical, and
+it is a clean one: under a NOP free-run these drivers contend <strong>91.8% of the time</strong>, so
+unreworked they would burn ~7 W between them and be the hottest thing on the board by far. On
+board&nbsp;#1 they are <em>cold</em> in exactly that condition. If any of the eight shows up warm
+under NOPs, that site did not take &mdash; and the Kapton in step 5 exists to stop precisely that.</div>
 
 <h2>If you would rather not rework</h2>
 <ul>
