@@ -296,6 +296,43 @@ All board current in this mode goes through one castellation and one via to
 the In4 VCC plane. That is sufficient at these currents, but it is a single
 feed.
 
+### Persistent settings and a stored boot image
+
+The top **64 KB of flash** holds a settings record and a 16 KB 6502 image, so the
+clock period, the boot behaviour, the WiFi credentials and a program all survive
+a power cycle. `common/settings.c`; 1.6% of a 4 MB part.
+
+From the tester CLI:
+
+    S                    show current settings
+    S autorun on|off     clock the CPU at boot, or park it
+    S clock 50           half-period in us (50 us = 10 kHz)
+    S store              save what is in memory as the boot image
+    S forget             drop it; the built-in counter becomes default again
+    S save               persist the above
+
+**A flash write destroys the 6502's state, and that is not avoidable.** Erasing
+turns XIP off, so the bus engine's core must be parked, and a sector erase takes
+tens of milliseconds while the worst dynamic node holds charge for about
+**1.1 ms** (measured, board #1). Stop the CPU and reset it after saving. Never
+save while a program is running.
+
+On the dual-core `wifi` build, core 1 calls `multicore_lockout_victim_init()` at
+entry. Without it `flash_safe_execute()` refuses and every save fails.
+
+### The board clocks itself at boot
+
+`bus_init()` leaves clk0 an output driven **LOW**, so the old sequence -- init,
+then block on `stdio_usb_connected()` -- left an unattended board with its clock
+parked. That is the board's **peak** current state: **1.4 A unclocked against
+0.87 A clocked** (measured), because the dynamic nodes drift to undefined levels
+and thousands of FETs sit biased near threshold. Not damaging -- FLIR imaging
+found no hot spot anywhere -- but the wrong state to walk away from.
+
+With `autorun` on, which is the default, the tester runs the reset ceremony and
+free-runs the stored or built-in image until a terminal attaches, then stops and
+reports the cycle count. `g` resumes; `S autorun off` restores the old behaviour.
+
 ### Optional modification: bridge VBUS to VSYS (demo boards only)
 
 Pin 40 is VBUS. On our board it is `nc40`, a net with one pad and nothing else
