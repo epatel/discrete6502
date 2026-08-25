@@ -543,12 +543,21 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
         push(op[3] == 's' ? CMD_RETSCAN : CMD_RET, val);
     }
     else if (!strcmp(op, "store") || !strcmp(op, "forget")) {
-        // Flash writes park core 1 for tens of milliseconds against a ~1.1 ms
-        // retention floor, so the CPU's state cannot survive one. Refuse rather
-        // than silently corrupting a run that looked fine a moment ago.
-        if (s_running) {
-            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
-            return;
+        // Unlike the clock, the running state changes WHAT gets stored: memory
+        // is live while the CPU executes, so a snapshot taken mid-run captures a
+        // partially-executed image rather than the one that was loaded. So stop
+        // first and wait for core 1 to actually notice, instead of refusing.
+        //
+        // Core 1 checks the queue between chunks of up to 1000 cycles, which is
+        // 100 ms at the default clock. Bounded at 400 ms because this blocks the
+        // lwIP poll on core 0 -- long enough for every practical clock, short
+        // enough that the HTTP connection survives it.
+        bool was_running = s_running;
+        if (was_running) {
+            push(CMD_STOP, 0);
+            absolute_time_t until = make_timeout_time_ms(400);
+            while (s_running && absolute_time_diff_us(get_absolute_time(), until) > 0)
+                sleep_ms(2);
         }
         const functest_image_t *im = functest_get_image();
         bool ok = (op[0] == 's')
@@ -556,17 +565,35 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
                                               im ? im->name : NULL,
                                               im ? im->cycles : 0)
                       : settings_program_clear();
+        if (op[0] == 'f') retention_load_image();
+        // The flash write parked core 1 for longer than the dynamic nodes hold
+        // charge, so the CPU has to be reset either way. Put it back how it was.
+        push(was_running ? CMD_RESETRUN : CMD_RESET, 0);
         if (!ok) {
             reply(pcb, c, "500 Server Error", "application/json",
                   "{\"err\":\"flash write refused\"}");
             return;
         }
-        // The image is gone from RAM as far as the CPU is concerned -- reload
-        // and reset so what runs next is what is now stored.
-        if (op[0] == 'f') retention_load_image();
-        push(CMD_RESET, 0);
+    }
+    else if (!strcmp(op, "clocksave") || !strcmp(op, "autorun")) {
+        // Both write flash, which parks core 1 for tens of milliseconds against
+        // a ~1.1 ms retention floor -- so the CPU's state cannot survive either
+        // way. Rather than refuse, note whether it was running, save, and then
+        // reset it back to where it was. Losing state is unavoidable; leaving
+        // the CPU in an undefined one afterwards is not.
+        bool was_running = s_running;
+        if (op[0] == 'c') settings()->half_period_us = s_half;
+        else settings()->autorun = val ? 1u : 0u;
+        bool ok = settings_save();
+        push(was_running ? CMD_RESETRUN : CMD_RESET, 0);
+        if (!ok) {
+            reply(pcb, c, "500 Server Error", "application/json",
+                  "{\"err\":\"flash write refused\"}");
+            return;
+        }
     }
     else if (!strcmp(op, "con")) {
+        // Touches neither memory nor flash, so it needs no stop.
         console_enable(val != 0);
         if (val && functest_get_image()) {
             reply(pcb, c, "200 OK", "application/json",
@@ -577,11 +604,14 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
         }
     }
     else if (!strcmp(op, "img")) {
-        // Memory is shared with core 1, so it may only be rewritten while the
-        // bus engine is idle -- same rule as the vector patch below.
-        if (s_running) {
-            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
-            return;
+        // Rewrites all of memory, which is shared with core 1, so the CPU has to
+        // be stopped first -- then reset onto the new image.
+        bool was_running = s_running;
+        if (was_running) {
+            push(CMD_STOP, 0);
+            absolute_time_t until = make_timeout_time_ms(400);
+            while (s_running && absolute_time_diff_us(get_absolute_time(), until) > 0)
+                sleep_ms(2);
         }
         char k[4];
         if (!qparam(c->path, "k", k, sizeof k)) {
@@ -604,35 +634,21 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
             functest_enable(im->case_addr);
             console_enable(false);         // it would fail the suite's RAM check
         }
-        push(CMD_RESET, 0);
-    }
-    else if (!strcmp(op, "clocksave") || !strcmp(op, "autorun")) {
-        // Both write flash, which parks core 1 for tens of milliseconds against
-        // a ~1.1 ms retention floor -- so the CPU's state cannot survive either
-        // way. Rather than refuse, note whether it was running, save, and then
-        // reset it back to where it was. Losing state is unavoidable; leaving
-        // the CPU in an undefined one afterwards is not.
-        bool was_running = s_running;
-        if (op[0] == 'c') settings()->half_period_us = s_half;
-        else settings()->autorun = val ? 1u : 0u;
-        bool ok = settings_save();
         push(was_running ? CMD_RESETRUN : CMD_RESET, 0);
-        if (!ok) {
-            reply(pcb, c, "500 Server Error", "application/json",
-                  "{\"err\":\"flash write refused\"}");
-            return;
-        }
     }
     else if (!strcmp(op, "vector")) {
-        // The functional test's own RES vector points at res_trap; it must be
-        // repointed at code_segment ($0400) to start. Memory is shared, so
-        // only touch it while core 1 is idle.
-        if (s_running) {
-            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
-            return;
+        // Patching $3FFC only matters at the next reset, so stopping and
+        // resetting is not a cost here -- it is the whole point.
+        bool was_running = s_running;
+        if (was_running) {
+            push(CMD_STOP, 0);
+            absolute_time_t until = make_timeout_time_ms(400);
+            while (s_running && absolute_time_diff_us(get_absolute_time(), until) > 0)
+                sleep_ms(2);
         }
         bus_mem()[0x3FFC] = 0x00;
         bus_mem()[0x3FFD] = 0x04;
+        push(was_running ? CMD_RESETRUN : CMD_RESET, 0);
     } else {
         reply(pcb, c, "400 Bad Request", "application/json", "{\"err\":\"bad op\"}");
         return;

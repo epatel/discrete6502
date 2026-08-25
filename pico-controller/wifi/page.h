@@ -113,7 +113,9 @@ static const char PAGE_HTML[] =
 
     "<details><summary>Program<span class=hint id=pgm></span></summary><div class=in>"
     "<p class=kv>Runs at power-up. Storing also stores the clock now set, so the runtime "
-    "shown above is what the board will do unattended.</p>"
+    "shown above is what the board will do unattended. It stops the CPU first and "
+    "resets it afterwards \u2014 memory is live while the CPU runs, so a snapshot "
+    "taken mid-run would capture a half-executed image.</p>"
     "<input type=file id=f><button onclick=up()>Upload hex</button> <span class=d id=ul></span>"
     "<div class=chips id=imgs style=margin-top:11px></div>"
     "<p class=kv id=imgw style='margin:10px 0 0;color:var(--bad);display:none'></p>"
