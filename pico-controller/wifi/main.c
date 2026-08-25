@@ -234,9 +234,20 @@ static void push(uint8_t op, uint32_t arg) {
 #define AP_SSID "discrete6502-setup"
 #define MDNS_NAME "discrete6502"   // -> discrete6502.local
 #define MAX_SCAN 16
+#define SCAN_TIMEOUT_MS 15000
+#define LINK_POLL_MS 5000     // how often the link is examined at all
+#define LINK_GRACE_MS 20000   // consecutive downtime before we act
+#define AP_RETRY_MS 300000    // AP mode re-tries the stored network this often
 
 static bool ap_mode;
+static bool mdns_up;                 // responder attached to the station netif
 static absolute_time_t s_reboot_at;  // nil until /wifi/save succeeds
+// Set when the AP comes up, so the periodic re-try of the stored network cannot
+// fire the instant setup mode is entered. It otherwise would: the deadline
+// starts at zero, which is already in the past, so the board tore its own AP
+// down for 40 s of retrying exactly when someone was trying to reach the portal
+// -- and killed the in-flight scan with it.
+static absolute_time_t next_ap_retry;
 static struct {
     char ssid[33];
     int16_t rssi;
@@ -265,15 +276,35 @@ static int scan_cb(void *env, const cyw43_ev_scan_result_t *r) {
     return 0;
 }
 
+static absolute_time_t scan_deadline;
+
 static void scan_start(void) {
     if (scan_busy) return;
     scan_n = 0;
     cyw43_wifi_scan_options_t o = {0};
-    if (cyw43_wifi_scan(&cyw43_state, &o, NULL, scan_cb) == 0) scan_busy = true;
+    if (cyw43_wifi_scan(&cyw43_state, &o, NULL, scan_cb) == 0) {
+        scan_busy = true;
+        scan_deadline = make_timeout_time_ms(SCAN_TIMEOUT_MS);
+    }
 }
 
+// A scan that never finishes must not be able to hang the portal. The page
+// keeps showing "scanning..." for exactly as long as busy stays true, and the
+// radio can leave a scan active indefinitely when it is fighting something else
+// for the antenna, so treat a stalled scan as a finished one: the list may be
+// empty, but /wifi/scan then restarts it and the user sees the state change
+// rather than a spinner that means nothing.
 static void scan_poll(void) {
-    if (scan_busy && !cyw43_wifi_scan_active(&cyw43_state)) scan_busy = false;
+    if (!scan_busy) return;
+    if (!cyw43_wifi_scan_active(&cyw43_state)) {
+        scan_busy = false;
+        return;
+    }
+    if (absolute_time_diff_us(get_absolute_time(), scan_deadline) < 0) {
+        printf("[wifi] scan stalled after %d s, giving up on it\n",
+               SCAN_TIMEOUT_MS / 1000);
+        scan_busy = false;
+    }
 }
 
 // %XX and + decoding, in place. Query strings carry passwords, and a password
@@ -319,18 +350,40 @@ static void mdns_txt(struct mdns_service *svc, void *arg) {
     mdns_resp_add_service_txtitem(svc, "path=/", 6);
 }
 
+// Safe to call again after a reconnect: mdns_resp_init() must run exactly once
+// per boot, and re-adding a netif that already has the responder on it is an
+// error, so a rejoin only re-announces the (possibly new) address instead.
 static void start_mdns(void) {
-    mdns_resp_init();
+    if (mdns_up) {
+        mdns_resp_announce(netif_default);
+        return;
+    }
+    static bool inited;
+    if (!inited) {
+        mdns_resp_init();
+        inited = true;
+    }
     if (mdns_resp_add_netif(netif_default, MDNS_NAME) != ERR_OK) {
         printf("[wifi] mDNS failed; use the address\n");
         return;
     }
     mdns_resp_add_service(netif_default, MDNS_NAME, "_http", DNSSD_PROTO_TCP,
                           HTTP_PORT, mdns_txt, NULL);
+    mdns_up = true;
 }
 
 static void start_ap(void) {
+    // Shut the station side down FIRST. try_sta() enables station mode and
+    // nothing turned it off when it failed, so the radio arrived here still
+    // retrying an association -- and a station stuck retrying starves the scan,
+    // which stays "active" forever and leaves the portal on "scanning..." with
+    // an empty list. This is why setup worked on a virgin board and broke after
+    // one wrong password: with no SSID stored, try_sta() returns before it ever
+    // enables station mode, so the AP came up on a quiet radio.
+    cyw43_arch_disable_sta_mode();
+
     ap_mode = true;
+    mdns_up = false;   // the responder was on the station netif, which is gone
     cyw43_arch_enable_ap_mode(AP_SSID, NULL, CYW43_AUTH_OPEN);
 
     ip4_addr_t ip, mask;
@@ -342,6 +395,7 @@ static void start_ap(void) {
     if (!dhcpsrv_start(&ip, &mask)) printf("[wifi] DHCP server failed\n");
     if (!dnssrv_start(&ip)) printf("[wifi] DNS server failed\n");
     printf("[wifi] setup mode: join \"%s\", then http://192.168.4.1/\n", AP_SSID);
+    next_ap_retry = make_timeout_time_ms(AP_RETRY_MS);
     scan_start();
 }
 
@@ -915,7 +969,113 @@ static void banner(void) {
     printf("autorun : %s\n", settings()->autorun ? "on -- clocks itself at power-up" : "off");
     printf("CPU     : %s at cycle %lu\n", s_running ? "running" : "stopped",
            (unsigned long)s_cycle);
+    // The verdict, on the channel that cannot drop. A functional-test run is
+    // nearly three hours; the panel is how you normally watch it, but wifi is
+    // the one part of this firmware that can die mid-run without stopping the
+    // CPU. If it does, USB is all that is left -- so the result has to be here
+    // and not only in /status, or a completed run is unreadable.
+    if (s_trapped) {
+        if (s_trap_known)
+            printf("VERDICT : %s -- self-loop at $%04X, listing line %u\n",
+                   s_trap_pass ? "PASSED" : "FAILED", s_trap_addr,
+                   (unsigned)s_trap_line);
+        else
+            printf("VERDICT : halted at $%04X -- address not in the trap table%s\n",
+                   s_trap_addr,
+                   functest_images_available() ? " for the loaded image"
+                                               : " (build -DEMBED_FUNCTEST=ON to name it)");
+    } else if (s_ft_on) {
+        printf("progress: checkpoint $%02X, no trap yet\n", s_test_case);
+    }
     printf("====================\n");
+}
+
+// ---- keeping the link ------------------------------------------------------
+//
+// Nothing in the SDK reconnects a dropped station link, so without this the
+// board joins once at boot and then keeps a dead socket forever: an AP reboot,
+// a lease expiry or a walk out of range costs you the panel until someone
+// power-cycles it. That matters here because a functional-test run is nearly
+// three hours long and core 1 keeps clocking right through a network outage --
+// the run survives, so the observability has to as well.
+//
+// Both directions are handled. Station down -> retry, then fall back to the
+// setup AP. And AP mode is not terminal either: a board whose network was
+// merely DOWN at boot would otherwise sit in setup mode after the network comes
+// back, which is the same trap in the other direction.
+
+static bool any_conn_open(void) {
+    for (int i = 0; i < MAX_CONN; i++)
+        if (conns[i].used) return true;
+    return false;
+}
+
+static void link_watch(void) {
+    static absolute_time_t next_poll, down_since;
+    if (absolute_time_diff_us(get_absolute_time(), next_poll) > 0) return;
+    next_poll = make_timeout_time_ms(LINK_POLL_MS);
+
+    if (ap_mode) {
+        // Only worth retrying if there is something to retry, and only when
+        // nobody is mid-way through the setup page -- tearing the AP down under
+        // a phone that is typing a password is worse than waiting.
+        if (!settings()->wifi_ssid[0] || any_conn_open()) {
+            next_ap_retry = make_timeout_time_ms(AP_RETRY_MS);
+            return;
+        }
+        if (absolute_time_diff_us(get_absolute_time(), next_ap_retry) > 0) return;
+        next_ap_retry = make_timeout_time_ms(AP_RETRY_MS);
+        printf("[wifi] setup mode: retrying %s\n", settings()->wifi_ssid);
+        dhcpsrv_stop();   // both bind sockets; start_ap() rebinds them if we fail
+        dnssrv_stop();
+        cyw43_arch_disable_ap_mode();
+        ap_mode = false;
+        if (try_sta()) {
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+            start_mdns();
+            printf("[wifi] rejoined: http://%s/  or  http://" MDNS_NAME ".local/\n",
+                   ip4addr_ntoa(netif_ip4_addr(netif_default)));
+            down_since = nil_time;
+        } else {
+            start_ap();   // back to setup, unchanged from the caller's view
+        }
+        return;
+    }
+
+    // cyw43_tcpip_link_status(), not cyw43_wifi_link_status(): associated but
+    // with no address is still unreachable, and a lapsed DHCP lease is one of
+    // the ways this fails.
+    if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP) {
+        if (!is_nil_time(down_since)) {
+            printf("[wifi] link recovered on its own\n");
+            down_since = nil_time;
+        }
+        return;
+    }
+
+    // Down. Give it a grace period first -- roaming and rekeying both show as a
+    // brief outage, and tearing down a working setup for those would be worse
+    // than the problem.
+    if (is_nil_time(down_since)) {
+        down_since = get_absolute_time();
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+        printf("[wifi] link down\n");
+        return;
+    }
+    if (absolute_time_diff_us(down_since, get_absolute_time()) < LINK_GRACE_MS * 1000)
+        return;
+
+    printf("[wifi] link down for %d s -- reconnecting\n", LINK_GRACE_MS / 1000);
+    down_since = nil_time;
+    if (try_sta()) {
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+        start_mdns();
+        printf("[wifi] rejoined: http://%s/  or  http://" MDNS_NAME ".local/\n",
+               ip4addr_ntoa(netif_ip4_addr(netif_default)));
+    } else {
+        printf("[wifi] could not rejoin; raising the setup AP\n");
+        start_ap();
+    }
 }
 
 // ---- boot -----------------------------------------------------------------
@@ -1017,6 +1177,7 @@ int main(void) {
         cyw43_arch_poll();
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(10));
         if (ap_mode) scan_poll();
+        link_watch();   // rate-limits itself; see LINK_POLL_MS
 
         // A terminal just appeared: say who we are, where to reach us, and what
         // is loaded. Costs nothing when nobody is watching.
