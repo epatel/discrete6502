@@ -19,7 +19,8 @@ add_executable(wifi main.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/bus6502.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/functest.c
     ${CMAKE_CURRENT_LIST_DIR}/../common/ihex.c
-    ${CMAKE_CURRENT_LIST_DIR}/../common/retention.c)
+    ${CMAKE_CURRENT_LIST_DIR}/../common/retention.c
+    ${CMAKE_CURRENT_LIST_DIR}/../common/settings.c)
 discrete6502_add_functest_images(wifi)
 target_include_directories(wifi PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../common
@@ -30,7 +31,8 @@ target_compile_definitions(wifi PRIVATE
 target_link_libraries(wifi
     pico_stdlib
     pico_multicore
-    pico_cyw43_arch_lwip_poll)
+    pico_cyw43_arch_lwip_poll
+    pico_flash)
 pico_enable_stdio_usb(wifi 1)
 pico_enable_stdio_uart(wifi 0)
 pico_add_extra_outputs(wifi)

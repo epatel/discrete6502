@@ -108,6 +108,16 @@ static bool ret_abort(void) {
 }
 
 static void __not_in_flash_func(core1_main)(void) {
+    // Required before core 0 may write flash. Erasing turns XIP off, so this
+    // core has to be parked somewhere that is not flash; without registering,
+    // flash_safe_execute() refuses and every settings/image save fails.
+    //
+    // Note what being parked costs: a sector erase takes tens of milliseconds
+    // and the worst dynamic node holds charge for about 1.1 ms (measured, board
+    // #1). A flash write therefore DESTROYS the 6502's state. Stop the CPU and
+    // reset it afterwards -- never save while a program is running.
+    multicore_lockout_victim_init();
+
     bool run = false;
     for (;;) {
         cmd_t c;

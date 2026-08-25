@@ -15,6 +15,7 @@
 #include "functest.h"
 #include "ihex.h"
 #include "retention.h"
+#include "settings.h"
 
 #include "pico/stdlib.h"
 #include <stdio.h>
@@ -202,20 +203,53 @@ static void help(void) {
            "  W [MAXMS]  find the retention boundary by bisection (default 4000)\n"
            "             both reload the counter image and need it to run\n"
            "  h          this help\n"
-           "columns: cycle  addr(14-bit)  data  r/W  SYNC\n");
+           "columns: cycle  addr(14-bit)  data  r/W  SYNC\n"
+           "S                 show settings; S autorun on|off, S clock US,\n"
+           "                  S store (memory -> boot image), S forget, S save\n");
 }
 
 int main(void) {
+    // stdio FIRST, always. USB and the 1200-baud reset path must be alive before
+    // anything else can hang, or a soldered-down Pico stops being reprogrammable.
     stdio_init_all();
+    settings_load();
+
     // Push-pull 3.3 V clock by default -- the board has NO pull-up on
     // clk0, so open-drain only works with an external 10k from the PHI0
     // bond pad to VCC (croc clips). See README "Logic levels".
-    bus_init(false);
+    bus_init(settings()->clk_open_drain);
+    bus_set_half_period_us(settings()->half_period_us);
     bus_set_watch(functest_watch);  // dormant until 'k on'
-    retention_load_image();
 
-    while (!stdio_usb_connected()) sleep_ms(100);
+    bool stored = settings_program_load_into_ram();
+    if (!stored) retention_load_image();
+
+    // Free-run until a terminal shows up, rather than parking the clock low.
+    // bus_init leaves clk0 an output driven LOW, and an unclocked board sits at
+    // its PEAK draw -- 1.4 A measured on board #1, against 0.87 A clocked --
+    // because the dynamic nodes drift to undefined levels and thousands of FETs
+    // end up biased near threshold. Not damaging (FLIR found no hot spot), but
+    // it is the wrong state to leave a board in unattended.
+    bool ran = false;
+    if (settings()->autorun) {
+        bus_reset_sequence();
+        while (!stdio_usb_connected()) {
+            bus_run(2000);  // chunked so USB is polled often; sleep_us yields
+            ran = true;
+        }
+    } else {
+        while (!stdio_usb_connected()) sleep_ms(100);
+    }
+
     printf("\ndiscrete6502 tester ready. h for help.\n");
+    printf("settings: %s, clock %lu us half-period, autorun %s, image %s\n",
+           settings_were_stored() ? "from flash" : "defaults (nothing stored)",
+           (unsigned long)settings()->half_period_us,
+           settings()->autorun ? "on" : "off",
+           stored ? "stored in flash" : "built-in counter");
+    if (ran)
+        printf("CPU free-ran %lu cycles while waiting; stopped now. 'g' to resume.\n",
+               (unsigned long)bus_cycle_count);
 
     char line[128];
     for (;;) {
@@ -227,6 +261,37 @@ int main(void) {
         if (!tok) continue;
         switch (tok[0]) {
         case 'h': help(); break;
+        case 'S': {
+            char *a = strtok(NULL, " "), *b = strtok(NULL, " ");
+            if (!a) {
+                printf("settings (%s):\n", settings_were_stored() ? "from flash" : "defaults");
+                printf("  clock    %lu us half-period (%lu Hz)\n",
+                       (unsigned long)settings()->half_period_us,
+                       (unsigned long)(500000UL / (settings()->half_period_us ?: 1)));
+                printf("  autorun  %s\n", settings()->autorun ? "on" : "off");
+                printf("  image    %s\n",
+                       settings_program_len() ? "stored in flash" : "built-in counter");
+                printf("  wifi     %s\n",
+                       settings()->wifi_ssid[0] ? settings()->wifi_ssid : "(not set)");
+                printf("usage: S autorun on|off | S clock US | S store | S forget | S save\n");
+                break;
+            }
+            if (!strcmp(a, "autorun") && b) settings()->autorun = !strcmp(b, "on");
+            else if (!strcmp(a, "clock") && b) {
+                uint32_t us = (uint32_t)strtoul(b, NULL, 0);
+                if (us) { settings()->half_period_us = us; bus_set_half_period_us(us); }
+            } else if (!strcmp(a, "store")) {
+                // Whatever is in emulated memory becomes the boot image.
+                printf(settings_program_save(bus_mem(), BUS_MEM_SIZE)
+                       ? "stored 16 KB as the boot image\n" : "flash write refused\n");
+                break;
+            } else if (!strcmp(a, "forget")) {
+                printf(settings_program_clear() ? "boot image cleared\n" : "flash write refused\n");
+                break;
+            } else if (strcmp(a, "save")) { printf("unknown: %s\n", a); break; }
+            printf(settings_save() ? "saved\n" : "flash write refused\n");
+            break;
+        }
         case 'R':
             bus_reset_sequence();
             printf("reset released at cycle %lu\n", (unsigned long)bus_cycle_count);
