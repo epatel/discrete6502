@@ -35,158 +35,162 @@ image.
 
 ## Bring-up sequence: read before first power-up
 
-Do the steps in this order. The order is deliberate: **the boards arrive with
-no Pico on them** (U1 is DNP), thus the first two steps have no 3.3 V part
-attached, and no logic-level question exists at any rail voltage. Use a bench
-supply with the current limit set to about 0.5 A for every step. The current
-limit, not a lower rail voltage, is what protects a mis-assembled board.
+**The procedure of record is [`docs/bring-up.html`](../docs/bring-up.html)**
+(live at `epatel.github.io/discrete6502/bring-up.html`), and what actually
+happened, with every measurement, is in
+[`docs/actual-bring-up.html`](../docs/actual-bring-up.html). This file used to
+restate the whole sequence and drifted out of date against both — Step 1 kept a
+gate that hardware falsified, Step 2 kept a prediction that was wrong by 4x. So
+it no longer restates it. **The numbering below matches `docs/bring-up.html`
+(Steps 0–8)**; what is written out here is the part that belongs to the
+firmware, and everything else is a one-line pointer.
 
-### Step 1: bare board, no power
+| | Step | Power |
+|---|---|---|
+| 0 | Receiving inspection | none |
+| 1 | VCC↔VSS resistance | none |
+| 2 | Board alone at 5 V, unclocked, no Pico | 5 V |
+| 3 | Optional: external clock, watch the LEDs | 5 V |
+| 4 | The eight-site 10 kΩ rework | none |
+| 5 | **Solder the Pico** | none |
+| 6 | First clocked run: the A-register counter | 5 V |
+| 7 | Measure the clock window | 5 V |
+| 8 | The functional test: the acceptance gate | 5 V |
 
-Measure the resistance from a VCC bond pad to a VSS bond pad. It must read
-high. The pull-up resistors reach floating nodes through FETs that are off,
-thus no low-resistance path to VSS exists. A low reading is a solder bridge.
-Find it before you apply power.
+Steps 0–4 need no Pico and no firmware — U1 is DNP, so the board arrives with no
+3.3 V part on it and no logic-level question exists at any rail. Two results from
+those steps set the numbers everything later is judged against, and **both
+contradict what this file used to say**:
 
-### Step 2: board alone at 5 V
+- **Step 1 does not "read high".** There is no resistor-only path between VCC and
+  VSS at all: **1,899 FET body diodes across 947 nets** conduct VSS → drain → 10 kΩ
+  → VCC, so the meter reads a *junction*, and the displayed value depends on the
+  range. Board #1 read **195 Ω / 314 Ω / 3.77 kΩ** on the 200 Ω / 2k / 20k ranges
+  while the voltage across it stayed at 0.36–0.47 V. **A fault is under 1 Ω, or a
+  value that does not change with range.** And it is a *positive* test: that
+  forward path cannot exist unless the pull-ups are populated, so one measurement
+  confirms ~1,000 back-side 0402s are present.
+- **Step 2 draws 1.4 A at 5 V, not 0.35 A**, and **clocking brings it *down* to
+  0.7–1.2 A**, not up. Thermal imaging found no hot spot anywhere (peak ~30 °C),
+  so the excess is spread over thousands of near-threshold FETs, not concentrated.
+  Treat a *change* from those figures as the signal, not an absolute.
 
-Croc-clip the current-limited supply to the VCC and VSS bond pads. Set the limit
-to 0.5 A, set 5 V, and **ramp the voltage up from zero** while you watch the
-current. Do not switch 5 V on in one step; the reason is below.
+Step 4's rework **has been done on board #1**. It is still required on any board
+that has not had it; it fixes an invalid logic level, not a thermal problem —
+that alarm was retracted on 2026-08-24.
 
-**Compare the current against the 0.35 A prediction.** This one number is the
-most informative test in the whole sequence. It finds a bridged rail, a reel
-loaded backwards and missing pull-ups.
+### Step 5: solder the Pico
 
-> **⚠ Corrected 2026-08-24 from measurement on board #1.** Both predictions in
-> this file were wrong, and in opposite directions. The board draws **1.4 A
-> unclocked**, not 0.35 A, and clocking brings it **down** to **0.7–1.2 A**, not
-> up to 1.8–2.1 A. Every "≈2.1 A when clocked" figure below is superseded.
-> FLIR imaging found **no hot spot anywhere** (peak ~30 °C), so the excess is
-> spread over thousands of near-threshold FETs rather than concentrated in a few
-> contending pairs — which also means there is no thermal urgency and no further
-> hand rework to do. A 3 A supply is still a fine thing to own, but the current
-> limit is no longer load-bearing. See the 2026-08-24 entries in
-> `project-plan.md` and `docs/actual-bring-up.html`.
-
-| Reading at 5 V | Verdict |
-|---|---|
-| ≈0.35 A | The prediction. A healthy board. |
-| Up to 0.65 A | The legitimate worst case: every pull-up low, every LED lit. Unusual, not a fault. |
-| Limits at a fraction of a volt | A short. Stop and find it. |
-| Limits only near 5 V | Ambiguous — see below. |
-| Grossly high or grossly low | A systematic fault. Do not proceed, and do not rework three more boards. |
-
-**Why you ramp: the limit is below the legitimate worst case.** 0.65 A on a
-healthy board would trip a 0.5 A limit and look exactly like a fault. *Where* it
-folds back is what separates them — a bridge limits almost immediately, a
-healthy-but-high board limits near the top. If it limits near the top and you
-need to tell the two apart, raise the limit to **0.8 A**. That is still far below
-the ~1.8 A that contention draws, so the limit stays diagnostic and does not
-merely become permissive.
-
-**An honest limit on "an unclocked board cannot contend".** The reasoning is that
-contention needs live logic state, which an unclocked board has none of. That is
-likely but not guaranteed: the dynamic nodes are not in a defined state on an
-unclocked board, they hold whatever power-up charge leaves them, and nothing
-forbids a `dor` gate and its pull-down from both sitting above threshold. Read the
-claim as *sustained* contention being unlikely, not as contention being
-impossible. It changes nothing you do, because **the protection was never the
-absence of contention — it is the current limit.** At 0.5 A the supply folds back
-as soon as two nets contend at 262 mA each, the rail sags, and dissipation stays
-well below what damages a SOT-323. These parts fail from sustained heating, which
-a current-limited supply prevents.
-
-Optionally, croc-clip a function generator to the Φ0 bond pad and drive clk0
-push-pull at some kHz. The data bus floats, because no memory is connected,
-thus the CPU executes garbage. The register LEDs must still move. Movement
-proves that the clock phases regenerate on-board and that the dynamic logic
-holds charge. Keep this brief and keep the current limit on: clocking is what
-makes driver contention thermal, and the rework has not been done yet.
-
-### Step 2b: the eight-site rework (rev A boards)
-
-Unpowered. Add a 10k resistor in series with each of the eight data-out driver
-pull-ups. Instructions, site by site, with true-scale renders:
-`docs/rework-dor-series-r.html`. Background: "Driver contention" in
-`project-plan.md`.
-
-It belongs **here**, between Step 2 and Step 3, and the order is the point.
-Steps 1 and 2 are the only tests that detect a *systematic* assembly fault, and
-any such fault would make the rework wasted labour on four boards. Everything
-from Step 4 onward involves sustained clocking, which is the condition that makes
-the defect thermal. Thus the rework goes exactly between them.
-
-Repeat the Step 1 resistance measurement when all eight are done.
-
-### Step 3: mount the Pico
-
-**Flash the `tester` firmware onto the bare module first**, on the bench, and
-confirm that it enumerates over USB. Then solder the Pico 2 W module on the
-underside site. **Solder pin 39.** See Powering for why pin 39 must be a
-soldered joint and not a decision.
+**Flash the firmware onto the bare module first**, on the bench, and confirm it
+enumerates over USB. Then solder the Pico 2 W module on the underside site.
+**Solder pin 39.** See Powering for why pin 39 must be a soldered joint and not a
+decision.
 
 Pin 38 is `vss` and pin 39 is `vcc`, side by side on 2.54 mm pitch. A solder
-bridge between them is a dead short across the board supply. Repeat the Step 1
-resistance measurement after you solder the module. Apply power only after that
-measurement.
+bridge between them is a dead short across the board supply. **Repeat the Step 1
+resistance measurement after you solder the module**, and apply power only after
+that measurement — reading it the range-aware way described above.
+
+> **⚠ CHANGED 2026-08-25 — a powered board now clocks itself immediately.**
+> This file used to say the firmware was "inert at boot", blocking on
+> `while (!stdio_usb_connected())` so that a pre-programmed board powered with no
+> terminal attached "does nothing: no clocking and no reset ceremony". **That is
+> no longer true, and the change was deliberate.** No firmware here blocks
+> waiting for a terminal, because the old blocking path left clk0 parked LOW —
+> which is the board's **peak** current state, 1.4 A against 0.87 A clocked — for
+> as long as nobody attached, possibly forever.
+>
+> With `autorun` on, which is the **default**, applying power runs the reset
+> ceremony and free-runs the stored or built-in image straight away. That is the
+> cooler state and the more useful one, but it means **first power-up is now an
+> event, not a decision.** Do the resistance measurement before you apply power,
+> not after.
+>
+> If you want the old behaviour for a first power-up, set `S autorun off` (tester)
+> or turn Autorun off in the panel's Diagnostics section *before* soldering — the
+> setting lives in flash and survives. The clock then stays parked, which costs
+> the extra 0.5 A but touches nothing.
 
 #### Flash before soldering, even though it can be reflashed in place
 
-The module can be reprogrammed in place indefinitely, and with no button press.
-`pico_stdio_usb/reset_interface.c` is linked into all three firmwares, thus the
-SDK 1200-baud-touch reset-to-bootloader works and `picotool` can reboot the
-module into its bootloader over USB. Flash it once beforehand anyway, for three
-reasons.
+The module can be reprogrammed in place indefinitely, and with no button press:
+`pico_stdio_usb/reset_interface.c` is linked into all three firmwares, so the SDK
+1200-baud-touch reset works and `picotool load -f -x` reboots the module into its
+bootloader over USB. Flash it once beforehand anyway, for three reasons.
 
 - **A bad module is cheap to reject before it is soldered.** The
-  `RaspberryPi_Pico_W_SMD` pads are 3.2 x 1.6 mm and run *under* the module, thus
+  `RaspberryPi_Pico_W_SMD` pads are 3.2 × 1.6 mm and run *under* the module, so
   desoldering one is a poor operation to perform beside 4,051 transistors.
 - **The first flash is the one that needs BOOTSEL**, held while the board
   power-cycles. That is the awkward step, and it is the step you can do off the
   board.
-- **The first power-up becomes a known state**, not merely a harmless one. A
-  blank module is safe, because RP2350 GPIOs default to inputs, but safe and
-  known are not the same property.
+- **The first power-up becomes a known state**, not merely a harmless one. A blank
+  module is safe, because RP2350 GPIOs default to inputs, but safe and known are
+  not the same property.
 
-**The firmware is inert at boot, which is what makes this safe.** `main()` calls
-`bus_init(false)` and then blocks on `while (!stdio_usb_connected())
-sleep_ms(100)`. A pre-programmed board that is powered with no terminal attached
-does nothing: no clocking and no reset ceremony. The CPU moves only when you
-open a serial connection, thus entering Step 4 is a decision and not an event.
-
-**One subtlety: `bus_init` leaves clk0 an output driven LOW**, and every other
-pin an input. A powered pre-programmed board therefore sits with the clock
-*parked*, which is the stall condition — the condition the retention test
-creates deliberately, and the condition that driver contention makes dangerous.
-This is safe in the sequence as written, because Step 2b puts the rework before
-the Pico goes on. Do not reorder those two, and do not leave an un-reworked board
-powered with a Pico fitted.
+**Verify what is on the module rather than trusting the banner**: the banner is
+identical across recent builds, so use `picotool verify -f wifi/build/wifi.uf2`,
+which diffs flash against the binary and prints the mismatching bytes. If you
+have more than one module on the bench, `picotool` reports a per-board serial —
+worth writing on a sticker, because two provisioned boards both answer to
+`discrete6502.local` and you cannot tell from the panel which one you have.
 
 **Unverified, worth checking before you choose a workholding setup:** the module
-mounts pads-down, thus its component side — USB connector and BOOTSEL button —
+mounts pads-down, so its component side — USB connector and BOOTSEL button —
 faces away from the PCB, which is downward when the board lies flat on its back.
 Prop the board up or use standoffs to reach the connector. This is reasoned from
 the footprint, not from a board in hand.
 
-### Step 4: 5 V logic bring-up
+### Step 6: first clocked run
 
-Power the board at 5 V from the bench supply. The `tester` firmware is already on
-the module from Step 3; reflash it in place if you have changed it, with no button
-press needed. USB may stay connected for serial. Open the terminal — the firmware
-waits for it before touching the CPU — then run the default A-register counter
-image and watch the A LEDs count.
+Power the board at 5 V. The firmware is already on the module from Step 5;
+reflash in place if you have changed it, no button press needed. USB may stay
+connected for serial.
 
-Watch the supply current here. Measured on board #1 with the rework done, a
-clocked board sits at **0.7–1.2 A** (not the "low hundreds of mA" this file used
-to predict, and not the 1.8–2.1 A it predicted either). Treat a *change* from
-that as the signal, not an absolute figure.
+With autorun on it is **already running** when you attach — the tester reports
+how many cycles it free-ran while waiting, and the wifi firmware's banner reports
+the cycle count. Run the default A-register counter image and watch the A LEDs
+count.
 
-Then walk the clock up with `p` to find the real ceiling. The retention floor no
-longer needs `W` to establish it: it was **measured at 456–871 Hz** (leakage
-1.9–2.3 nA per FET) from LED decay on board #1 — see `docs/actual-bring-up.html`
-Step 2b. Running `W` is now a confirmation rather than a first measurement, and
-the "never before the rework" warning is retired along with the thermal alarm.
+Watch the supply current here. Measured on board #1, a clocked board sits at
+**0.7–1.2 A** — not the "low hundreds of mA" this file used to predict, and not
+the 1.8–2.1 A it predicted after that either. Treat a *change* as the signal.
+
+**Two tie-offs that are not optional**, both learned the hard way on board #1:
+
+- **Tie the data bus to `$EA` (NOP) through 10 kΩ** if the Pico is not driving it.
+  A floating bus fetches random opcodes and **12 of the 256 are undocumented
+  KIL/JAM**, so the CPU halts within ~20 instructions. With the Pico serving
+  memory this is moot, but it matters for any external-clock experiment.
+- **Tie `irq` and `nmi` high.** Neither has a pull-up on this board. A spurious
+  IRQ is *absorbed* by the functional test's BRK handler at `$3819` — live code,
+  not a trap — and resurfaces as a failure at an unrelated address. That is a
+  wrong verdict that looks like a real CPU defect, which is worse than a stopped
+  run. The firmware warns at load time.
+
+### Step 7: measure the clock window
+
+Walk the clock up with `p` (tester) or the panel's clock chips to find the real
+ceiling; simulation says ~20 kHz at 5 V.
+
+**The floor no longer needs measuring**: it was established at **456–871 Hz**
+(leakage 1.9–2.3 nA per FET) from LED decay on board #1 — see
+`docs/actual-bring-up.html` Step 2b. `W` is now a confirmation, not a first
+measurement, and the "never run it before the rework" warning is retired along
+with the thermal alarm. **Recommended working clock: 4–5 kHz**, the geometric
+centre of the measured window.
+
+Note the panel and the tester both display the clock as `1e6/(2*half)` — the
+*nominal* rate. Measured, the loop costs about 1.2 µs per cycle, so 10,000 Hz
+nominal is **9,878 Hz actual** (1.2% low; ~2.4% at the 20 kHz ceiling). It does
+not matter for running programs, but it does if you are predicting frequencies —
+`tools/pc_ripple.py` takes the true clock as an argument for exactly that reason.
+
+### Step 8: the functional test
+
+See "Running the 6502 functional test suite" below, and `docs/bring-up.html`
+Step 8. Tie `irq` high first (above), and turn the console **off** — it
+intercepts three addresses inside the range the suite checksums.
 
 3.3 V is **not** a step in this sequence. It is a diagnostic fallback. See
 "3.3 V operation" below.
@@ -272,20 +276,22 @@ bench supply wins the node, and the diode blocks all back-feed into the host.
 With no bench supply, Pico USB power runs the whole board through VBUS, the
 module Schottky diode and VSYS. Three limits apply.
 
-- **The rail is not 5.0 V.** It is VBUS minus the diode drop: about 4.7 V to
-  4.8 V at 0.35 A, and much lower once the CPU is clocked — driver contention
-  takes the board to about 2.1 A (see "Driver contention" in `project-plan.md`),
-  which through the Schottky and a USB cable is a collapse, not a droop. Cable
-  resistance subtracts more still.
-- **Current. SUPERSEDED 2026-08-01 — USB-only mode is NOT viable at 5 V.** The
-  figures below omit driver contention: the eight data-bus output drivers draw
-  262 mA each at 5 V for most of the time, adding about **1.76 A** and taking the
-  board to **≈2.1 A**. Use a **3 A bench supply**. See "Driver contention" in
-  `project-plan.md`. The original figures, still valid for the *un-clocked* board
-  (Step 2, where contention is zero): 0.35 A typical, 0.65 A worst case with every
-  pull-up low and every LED lit. The `wifi` firmware adds about 50 mA average, with 200 mA
-  transmit bursts, thus about 0.9 A worst case. A USB-3 port or a charger
-  supplies this. A legacy 500 mA port does not.
+- **The rail is not 5.0 V.** It is VBUS minus the diode drop, and the board draws
+  far more than this section once assumed, so through a Schottky and a USB cable
+  it is a collapse rather than a droop. Cable resistance subtracts more still.
+- **Current — USB-only mode is NOT viable at 5 V.** Measured on board #1:
+  **1.4 A unclocked, 0.7–1.2 A clocked** (clocking brings it *down*; an unclocked
+  board's dynamic nodes drift to undefined levels and bias thousands of FETs near
+  threshold). Use a **2–3 A bench supply**. The `wifi` firmware adds about 50 mA
+  average with 200 mA transmit bursts on top of that.
+
+  > **Corrected 2026-08-24.** This entry previously said ≈2.1 A from driver
+  > contention — the eight data-bus drivers at 262 mA each — and before that
+  > 0.35 A typical. **Both were wrong, in opposite directions.** Thermal imaging
+  > found no hot spot anywhere (peak ~30 °C against 25 °C ambient), which a 0.9 W
+  > SOT-323 could not hide, so the excess is spread over ~4,051 near-threshold
+  > FETs at ~210 µA each rather than concentrated in a few contending pairs. The
+  > 2 A charger that the 2.1 A figure ruled out is in fact adequate.
 - **Use a bench supply for test runs.** This is dynamic logic. A rail sag does
   not degrade gracefully. It corrupts the dynamic nodes, and you read the
   result as a logic fault in the CPU. Use a bench supply with margin for the
@@ -590,9 +596,9 @@ It improves USB-only mode:
   4.8 V. This is the full 5 V margin.
 - The supply is stiffer for the WiFi bursts, because the diode dynamic
   resistance leaves the path.
-- The diode stops dissipating about 0.12 W at 0.35 A — and far more than that
-  at the ~2.1 A the board actually draws when clocked, which is the real reason
-  this bridge cannot rescue USB-only operation at 5 V.
+- The diode stops dissipating the ~0.3 W it sees at the 0.7–1.2 A the board
+  actually draws when clocked. That is real, but it does not rescue USB-only
+  operation at 5 V: the current is the limit, not the diode.
 
 **It also removes the reverse blocking, thus a bridged board must never have a
 bench supply on its bond pads.** Board VCC becomes VBUS, thus a bench supply
@@ -750,10 +756,11 @@ Two physical limits apply:
   large ground structure. Expect same-room range, not whole-house range.
 - **Power. Use a bench supply with this firmware.** WiFi adds about 50 mA
   average, with transmit bursts of 200 mA to 300 mA. The WL LED is also left on
-  permanently. Added to the real board current of about **2.1 A** when clocked
-  (driver contention — see `project-plan.md`), USB-only mode is **not viable at
-  all** at 5 V. The old figure here, 0.9 A worst case, assumed the superseded
-  0.35 A board current.
+  permanently. On top of the measured board current — **1.4 A unclocked, 0.7–1.2 A
+  clocked** (board #1) — USB-only mode is **not viable** at 5 V. Two earlier
+  figures here are superseded: 0.9 A worst case assumed a 0.35 A board, and
+  ≈2.1 A assumed concentrated driver contention that thermal imaging falsified on
+  2026-08-24.
 
   The bursts matter more than the average. A 200 mA to 300 mA step lands on the
   same rail that holds 456 dynamic storage nodes, and the board has only about
