@@ -31,3 +31,10 @@ gen/monster6502v2.*
 
 # Order identifiers — kept out of git history on purpose (see gen/fab/ORDER.local.md)
 gen/fab/ORDER.local.md
+
+# Rev B generator output. Regenerable in seconds with
+#   DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py
+# and unlike gen/netlist.json it is not what any fabricated board was built
+# from, so there is nothing to pin. 3.7 MB of derived data.
+gen/netlist_revb.json
+gen/discrete6502_revb.net

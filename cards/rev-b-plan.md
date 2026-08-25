@@ -2,21 +2,20 @@
 
 Everything known to be wrong with rev A that only a new board can fix, with the evidence for each
 and the order to do it in. Read before running `DISCRETE6502_REV_B=1` or touching
-`tools/gen_netlist.py`'s `has_pulldown` / `series_r_for`.
+`series_r_for` in `tools/gen_netlist.py`. **Item 1 is already applied**; the rest is not.
 
 **Nothing here is urgent.** Rev A works: board #1 executes programs, and every defect below either
 has a hand rework or is cosmetic. This is the list to apply *if* a board is ever fabricated again.
 
 ---
 
-## 1. The site filter is wrong — emit a resistor on all 164, not 142
+## 1. ~~The site filter is wrong~~ — FIXED: a resistor on all 164, not 142
 
 **This is the one that changes rev B's output, and it was found by a thermal camera.**
 
 Rev B adds a series resistor to each enhancement-mode VCC-side FET, restoring the load ratio that
-the netlist transform lost. It currently emits **142** of the 164, skipping the ones with no
-pull-down on the grounds that they "can never contend". That test is
-`tools/gen_netlist.py:198-203`:
+the netlist transform lost. Until 2026-08-25 it emitted **142** of the 164, skipping the ones with
+no pull-down on the grounds that they "can never contend". The test was:
 
 ```python
 has_pulldown = set()
@@ -42,10 +41,27 @@ So the "22 that can never contend" are not a real category — every one of the 
 vss, and 21 of the 22 skipped are *measured* contending. The skipped set includes **`adl6` and
 `adl7` at 45.7% duty, the two busiest sites on the whole board**, above every `adh` and every `dor`.
 
-**Fix:** delete the filter. Emit the series resistor on all 164. The original reason for skipping —
-22 fewer parts and 22 fewer nets to route on a board that was hard to route — does not survive the
-measurement, and a resistor on a net that never contends is harmless (the ratio is correct either
-way).
+**FIXED 2026-08-25.** The filter is gone; `tools/gen_netlist.py` emits a series resistor on all
+164. The original reason for skipping — 22 fewer parts and 22 fewer nets to route on a board that
+was hard to route — does not survive the measurement, and a resistor on a net that never contends is
+harmless (the ratio is correct either way). Verified on generation:
+
+```
+vcc_series_resistors         164      (was 142)
+components_total            5585      (rev A 5421, +164)
+singleton_nets                 0
+```
+
+164 mid nodes, each joining exactly one `vcc_series` resistor and one `vcc_side` FET, **0
+malformed**, and **0 vcc_side FETs left wired straight to VCC**. `switchsim.py` is green on rev B —
+traces identical for half-cycles 20..219, `PROGRAM CHECK: PASS` — and rev A's `gen/netlist.json` is
+byte-identical (sha256 `20001712d1…`).
+
+**Rev B now writes its own files**, `gen/netlist_revb.json` and `gen/discrete6502_revb.net`. It used
+to share the path with rev A, so a rev B run silently overwrote the netlist the fabricated board is
+checked against, and the only thing restoring it was remembering to re-run without the flag. Both
+are gitignored: regenerable, and not what any board was built from. To simulate rev B:
+`DISCRETE6502_REV_B=1 python3 tools/switchsim.py`.
 
 > **A rev B respin generated today would leave the hottest transistors on the board unfixed.**
 > This same flawed test also excluded `adl4`–`adl7` from the first contention measurement, until the
@@ -136,8 +152,7 @@ A respin re-runs **the entire pipeline from `gen_pcb.py` onward** — placement,
 finishing, silk, fab outputs — because both the resistor count and the pad positions change. Budget
 that, not an afternoon.
 
-1. Fix `has_pulldown` (item 1). Confirm the emitted count is **164**, and that rev A output stays
-   **byte-identical** (`sha256` against `gen/netlist.json`) — the REV_B branch must not leak.
+1. ~~Fix `has_pulldown`~~ — **done 2026-08-25**, see item 1.
 2. Bump the two clock sites to 0805 (item 2).
 3. Apply the bond-pad order fix and its assertion (item 3).
 4. Re-run `switchsim.py` — must stay green on both revs.

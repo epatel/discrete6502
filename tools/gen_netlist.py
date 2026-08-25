@@ -49,15 +49,23 @@ PULLUP_VALUE, PULLUP_LCSC = "10k", "C25744"
 # per contended net at 5 V, and a "low" sitting at 1.0-1.9 V against a 1.1-1.5 V
 # receiver threshold. See "Driver contention" in project-plan.md.
 #
-# Applied only where a pull-down exists on the same net: 22 of the 164 VCC-side
-# nets have none, so contention there is impossible and a resistor would be dead
-# weight. 142 sites get one.
+# Applied to ALL 164 VCC-side nets. This used to skip 22 of them on the grounds
+# that a net with no pull-down cannot contend, and that was wrong: the test only
+# recognised a transistor with vss DIRECTLY on a channel pin, and missed nets
+# pulled low through a pass-gate chain, which contend identically. Measured
+# (tools/contention_duty.py): zero of the 164 are genuinely isolated, 40 contend
+# under at least one workload, and 21 of those 40 were in the skipped set --
+# including adl6 and adl7 at 45.7% duty, the two busiest sites on the board.
+# A rev B generated with the old filter left the hottest transistors unfixed.
+# See cards/rev-b-plan.md. There is no filter now because the correct filter
+# admits everything.
 #
 # OFF BY DEFAULT. Rev A is fabricated and gen/netlist.json is what the golden
 # board and the released fab package were built from; changing it silently
 # would break check_parity and the RELEASE.md fingerprints. Enable with
 #     DISCRETE6502_REV_B=1 python3 tools/gen_netlist.py
-# which is also how a rev B board would be generated.
+# which writes gen/netlist_revb.json and gen/discrete6502_revb.net -- separate
+# files, so a rev B run CANNOT overwrite the fabricated rev A artifacts.
 REV_B = os.environ.get("DISCRETE6502_REV_B") == "1"
 
 # A blanket 10k would be wrong: cclk carries 482 gates (13 nF) and cp1 198
@@ -195,12 +203,8 @@ def main():
     # How many gates does each net drive? Needed to size the rev B series
     # resistors, and cheap to compute from the kept transistor list.
     gate_load = defaultdict(int)
-    has_pulldown = set()
     for tid, g, c1, c2, pos in kept:
         gate_load[net(g)] += 1
-        if vss in (c1, c2):
-            other = c2 if c1 == vss else c1
-            has_pulldown.add(net(other))
 
     for tid, g, c1, c2, pos in kept:
         gnet = net(g)
@@ -210,19 +214,19 @@ def main():
             stats["fet_pulldown"] += 1
         elif vcc in (c1, c2):
             other = c2 if c1 == vcc else c1
-            if REV_B and net(other) in has_pulldown:
+            if REV_B:
                 # VCC --[R]-- mid --(FET)-- other, restoring the load ratio.
-                # Only where a pull-down exists to fight: 22 of the 164 VCC-side
-                # nets have none, so they can never contend and a resistor there
-                # would be 22 pointless parts and 22 more nets to route.
+                # Every VCC-side net gets one. See the header: the old
+                # "only where a pull-down exists" test missed pass-gate paths
+                # and skipped 21 nets that measurably contend.
                 mid = "%s_vs" % tid
                 value, lcsc = series_r_for(gate_load.get(net(other), 0))
                 add_r("vcc_series", tid, value, lcsc, net(vcc), mid, pos)
                 add_fet("vcc_side", tid, gnet, mid, net(other), pos)
-                stats["vcc_series_resistors"] += 1
+                # counted after the fixed-point drop instead, below --
+                # incrementing here reports one more than the file contains,
+                # because the floating-channel pass removes a FET+resistor pair.
             else:
-                if REV_B:
-                    stats["vcc_side_no_pulldown_skipped"] += 1
                 add_fet("vcc_side", tid, gnet, net(vcc), net(other), pos)
             stats["fet_vcc_side"] += 1
         else:
@@ -398,6 +402,15 @@ def main():
     missing_external = [n for n in EXTERNAL if n not in nets]
 
     print("=== gen_netlist stats ===")
+    # Recount from the emitted list, not from the loop: the floating-channel
+    # pass removes a FET+resistor pair after the fact, so counting at
+    # emission reports one more than the file contains. Only under REV_B --
+    # `stats` is written into the JSON meta, so touching it on a rev A run
+    # changes gen/netlist.json, which must stay byte-identical.
+    if REV_B:
+        stats["vcc_series_resistors"] = sum(
+            1 for c in components if c.get("role") == "vcc_series")
+
     for k in sorted(stats):
         print("%-28s %d" % (k, stats[k]))
     print("%-28s %d" % ("components_total", len(components)))
@@ -407,7 +420,13 @@ def main():
     print("%-28s %d %s" % ("singleton_nets", len(singletons), singletons[:8]))
 
     GEN.mkdir(exist_ok=True)
-    (GEN / "netlist.json").write_text(json.dumps(
+    # Rev B writes its OWN files. Sharing the path with rev A meant a rev B run
+    # silently overwrote gen/netlist.json -- the netlist the fabricated board is
+    # checked against by check_parity.py -- and the only thing restoring it was
+    # remembering to re-run without the flag.
+    json_name = "netlist_revb.json" if REV_B else "netlist.json"
+    net_name = "discrete6502_revb.net" if REV_B else "discrete6502.net"
+    (GEN / json_name).write_text(json.dumps(
         dict(meta=dict(source="visual6502", stats=dict(stats),
                        fet=dict(value=FET_VALUE, lcsc=FET_LCSC)),
              components=components,
@@ -431,8 +450,8 @@ def main():
             "(node (ref %s) (pin %s))" % (sx(ref), sx(pad)) for ref, pad in pins)
         out.append("  (net (code %d) (name %s) %s)" % (code, sx(netname), nodes))
     out.append(" )\n)")
-    (GEN / "discrete6502.net").write_text("\n".join(out))
-    print("wrote gen/netlist.json and gen/discrete6502.net")
+    (GEN / net_name).write_text("\n".join(out))
+    print("wrote gen/%s and gen/%s" % (json_name, net_name))
     return 0 if not missing_external else 1
 
 

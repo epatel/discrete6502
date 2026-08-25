@@ -10,6 +10,7 @@ control signals, and registers are compared every half clock cycle.
 Exit 0 = equivalent + program executed correctly on both.
 """
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -184,7 +185,12 @@ def load_original():
 
 
 def load_transformed():
-    d = json.loads((ROOT / "gen" / "netlist.json").read_text())
+    # Rev B writes gen/netlist_revb.json so it cannot overwrite the fabricated
+    # rev A netlist. Point this at it the same way it is generated:
+    #     DISCRETE6502_REV_B=1 python3 tools/switchsim.py
+    name = "netlist_revb.json" if os.environ.get("DISCRETE6502_REV_B") == "1" \
+        else "netlist.json"
+    d = json.loads((ROOT / "gen" / name).read_text())
     netid = {}
 
     def nid(name):
