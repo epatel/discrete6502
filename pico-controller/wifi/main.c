@@ -490,7 +490,7 @@ static void status_json(char *b, size_t cap) {
              "{\"run\":%u,\"cyc\":%lu,\"half\":%lu,\"a\":%u,\"d\":%u,\"f\":%u,"
              "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,"
              "\"rb\":%u,\"rv\":%u,\"rs\":%lu,\"rms\":%lu,\"rok\":%u,"
-             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"tcyc\":%lu,\"tk\":%u,\"tp\":%u,\"tl\":%u,\"pname\":\"%s\",\"ip\":\"%s\"}",
+             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"tcyc\":%lu,\"tk\":%u,\"tp\":%u,\"tl\":%u,\"ar\":%u,\"pname\":\"%s\",\"ip\":\"%s\"}",
              s_running ? 1u : 0u, (unsigned long)s_cycle, (unsigned long)s_half, s_addr,
              s_data, s_flags, s_ft_on, s_test_case, s_trapped, s_trap_addr,
              s_ret_busy, s_ret_verdict, (unsigned long)s_ret_seq,
@@ -499,7 +499,8 @@ static void status_json(char *b, size_t cap) {
              (unsigned long)settings_program_len(),
              (unsigned long)settings_program_seconds(),
              (unsigned long)settings()->program_cycles,
-             s_trap_known, s_trap_pass, s_trap_line, settings()->program_name,
+             s_trap_known, s_trap_pass, s_trap_line, settings()->autorun,
+             settings()->program_name,
              ip4addr_ntoa(netif_ip4_addr(netif_default)));
 }
 
@@ -603,6 +604,18 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
             console_enable(false);         // it would fail the suite's RAM check
         }
         push(CMD_RESET, 0);
+    }
+    else if (!strcmp(op, "autorun")) {
+        if (s_running) {
+            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
+            return;
+        }
+        settings()->autorun = val ? 1u : 0u;
+        if (!settings_save()) {
+            reply(pcb, c, "500 Server Error", "application/json",
+                  "{\"err\":\"flash write refused\"}");
+            return;
+        }
     }
     else if (!strcmp(op, "vector")) {
         // The functional test's own RES vector points at res_trap; it must be
@@ -876,6 +889,7 @@ static void banner(void) {
     printf("tests   : %s\n", functest_images_available()
            ? "compiled in" : "not compiled in (build -DEMBED_FUNCTEST=ON)");
     printf("console : %s\n", console_enabled() ? "on" : "off");
+    printf("autorun : %s\n", settings()->autorun ? "on -- clocks itself at power-up" : "off");
     printf("CPU     : %s at cycle %lu\n", s_running ? "running" : "stopped",
            (unsigned long)s_cycle);
     printf("====================\n");
@@ -927,6 +941,17 @@ int main(void) {
     TRACE("launching core 1");
     multicore_launch_core1(core1_main);
     TRACE("core 1 up");
+
+    // Start clocking BEFORE the network, not after. Associating can take up to
+    // 40 s, and an unclocked board sits at its peak draw the whole time --
+    // 1.4 A against 0.87 A clocked, measured on board #1 -- because the dynamic
+    // nodes drift to undefined levels and thousands of FETs end up biased near
+    // threshold. It also means a board on a shelf with no network in reach is
+    // still running, which is the case autorun exists for.
+    if (settings()->autorun) {
+        push(CMD_RESETRUN, 0);
+        TRACE("autorun: reset and run");
+    }
 
     TRACE("cyw43_arch_init...");
     if (cyw43_arch_init()) {

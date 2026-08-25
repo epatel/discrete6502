@@ -166,7 +166,13 @@ static const char PAGE_HTML[] =
     "<p class=kv style='margin:11px 0 0'>stall <input type=number id=rms value=5 min=0> ms</p>"
     "<p class=kv style='margin:13px 0 7px'>Test watcher <span id=rst></span></p><div class=chips>"
     "<button class=chip onclick=\"cmd('ft',1)\">Watcher on</button>"
-    "<button class=chip onclick=\"cmd('ft',0)\">Off</button></div></div></details>"
+    "<button class=chip onclick=\"cmd('ft',0)\">Off</button></div>"
+    "<p class=kv style='margin:13px 0 7px'>Clock the CPU at power-up "
+    "<span id=arst></span> <span class=d>&mdash; an unclocked board draws more, "
+    "not less</span></p><div class=chips>"
+    "<button class=chip onclick=\"cmd('autorun',1)\">Autorun on</button>"
+    "<button class=chip onclick=\"cmd('autorun',0)\">Off</button></div>"
+    "</div></details>"
     "</div>"
 
     "<script>"
@@ -225,6 +231,7 @@ static const char PAGE_HTML[] =
     "E('pgm').textContent=j.img?(nm+' \\u00b7 '+j.img+' bytes'):'built-in counter';"
     "E('clk').textContent=(1e6/(2*j.half)).toFixed(0)+' Hz';"
     "E('rst').textContent=j.rb?'running...':(j.ft?'on':'off');"
+    "E('arst').textContent=j.ar?'(on)':'(off)';"
 
     "if(j.ft&&j.tc!==last){if(last>=0)L('Checkpoint $'+hx(j.tc,2)+' at cycle '+j.cyc,'g');"
     "last=j.tc}"
