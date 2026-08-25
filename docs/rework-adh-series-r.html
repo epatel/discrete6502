@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rev A rework: the sixteen address-path drivers</title>
+<meta name="description" content="Adding 10 k series resistors to the sixteen adh/adl precharge
+drivers on the discrete6502 board: why, which parts, and the procedure.">
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       background:#fff; color:#1a1a1c; }
+.wrap { max-width: 54rem; margin: 0 auto; padding: 2rem 1.2rem 5rem; }
+h1 { font-size:1.7rem; line-height:1.25; margin:0 0 .4rem; }
+h2 { font-size:1.25rem; margin:2.4rem 0 .6rem; }
+h3 { font-size:1.05rem; margin:1.6rem 0 .4rem; }
+.sub { color:#666; margin:0 0 2rem; }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
+       background:#f1f2f4; padding:.1em .35em; border-radius:3px; }
+pre { background:#f1f2f4; padding:.9rem 1rem; border-radius:6px; overflow-x:auto; }
+pre code { background:none; padding:0; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:.94rem; }
+th,td { text-align:left; padding:.42rem .6rem; border-bottom:1px solid #e3e5e8; }
+th { font-weight:600; color:#555; }
+td.num { font-variant-numeric:tabular-nums; }
+.hot { color:#c0392b; font-weight:600; }
+.tw { overflow-x:auto; }
+figure { margin:1.6rem 0; }
+figure img { width:100%; height:auto; border-radius:6px; display:block; }
+figcaption { color:#666; font-size:.9rem; margin-top:.45rem; }
+.ok, .warn { border-left:3px solid #2e7d5b; background:#f3f8f6; padding:.9rem 1.1rem;
+             border-radius:0 6px 6px 0; margin:1.4rem 0; }
+.warn { border-left-color:#c0392b; background:#fdf4f3; }
+ol li, ul li { margin:.45rem 0; }
+a { color:#1668b8; }
+@media (prefers-color-scheme: dark) {
+  body { background:#151719; color:#e6e8ea; }
+  .sub, figcaption, th { color:#9aa0a6; }
+  code, pre { background:#20242a; }
+  th,td { border-bottom-color:#2b3036; }
+  .ok { background:#16211d; } .warn { background:#231719; }
+  a { color:#6fb3f2; }
+}
+</style></head><body><div class="wrap">
+
+<h1>Rev A rework: 10&nbsp;k&ohm; in series with the sixteen address-path drivers</h1>
+<p class="sub">The same operation as
+<a href="rework-dor-series-r.html">the eight data-bus drivers</a>, sixteen more times, on parts that
+run hotter and are easier to reach. Generated from the board by
+<code>tools/make_rework_adh_page.py</code>.</p>
+
+<h2>Why</h2>
+<p>The transform that turned the die's netlist into a board preserved every <em>connection</em> but
+not every device <em>ratio</em>. Ratioed NMOS needs a weak load against a strong pull-down; the
+1,018 depletion loads correctly became 10&nbsp;k&ohm; resistors, but <strong>164 VCC-side
+transistors kept the same BSS138W as the transistor pulling against them</strong> &mdash; a fair
+fight where the design needs a rigged one. A contended pair burns about 0.9&nbsp;W in a package
+rated for 0.3&nbsp;W, and leaves a logic &ldquo;low&rdquo; at 1&ndash;1.9&nbsp;V against a
+1.1&ndash;1.5&nbsp;V switching threshold.</p>
+
+<p>Eight of those were repaired by hand and that repair is confirmed working. These sixteen are the
+<strong>address-path precharge drivers</strong>, and they are worse: they are gated by
+<code>cclk</code>, so they contend for a fixed fraction of <em>every</em> cycle rather than a
+program-dependent one. <strong>Nine of them measured about 80&nbsp;&deg;C</strong> on board&nbsp;#1
+with a thermal camera while it executed real code.</p>
+
+<div class="warn">
+<strong>They hid for a reason worth knowing.</strong> Contention here is workload-dependent. Five of
+these contend 35% of the time under a real program and <strong>0.3% under a free-run of
+NOPs</strong> &mdash; and a NOP free-run is exactly the condition an earlier thermal sweep was run
+under, which is why that sweep found nothing and briefly retracted the whole model. Measure with the
+CPU doing real work, not idling.
+</div>
+
+<h2>The sixteen sites</h2>
+<p>Duty is measured by <code>tools/contention_duty.py</code>, which simulates the board under two
+workloads and reports how often each VCC-side device is fighting its pull-down. All sixteen are on
+the <strong>front face</strong>, all are SOT-323, and on all sixteen <strong>pin&nbsp;3 is the VCC
+side</strong> &mdash; the same pin lifted on the data-bus eight.</p>
+
+<div class="tw"><table>
+<tr><th>net</th><th>ref</th><th>x&nbsp;(mm)</th><th>y&nbsp;(mm)</th>
+    <th>duty, running</th><th>duty, NOPs</th><th>R</th><th>thermal</th></tr>
+<tr><td>adh0</td><td>Q374</td><td class=num>160.15</td><td class=num>191.80</td><td class=num>33.7%</td><td class=num>14.3%</td><td>10k</td><td>—</td></tr>
+<tr><td>adh1</td><td>Q541</td><td class=num>156.45</td><td class=num>205.80</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>—</td></tr>
+<tr><td>adh2</td><td>Q2196</td><td class=num>160.15</td><td class=num>214.20</td><td class=num>35.3%</td><td class=num>48.0%</td><td>10k</td><td>—</td></tr>
+<tr><td class="hot">adh3</td><td>Q2680</td><td class=num>204.55</td><td class=num>228.20</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh4</td><td>Q505</td><td class=num>204.55</td><td class=num>242.20</td><td class=num>35.3%</td><td class=num>48.0%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh5</td><td>Q2457</td><td class=num>200.85</td><td class=num>250.60</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh6</td><td>Q3840</td><td class=num>200.85</td><td class=num>264.60</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh7</td><td>Q2324</td><td class=num>200.85</td><td class=num>270.20</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td>adl0</td><td>Q3136</td><td class=num>167.55</td><td class=num>180.60</td><td class=num>19.3%</td><td class=num>24.7%</td><td>10k</td><td>—</td></tr>
+<tr><td>adl1</td><td>Q2543</td><td class=num>163.85</td><td class=num>197.40</td><td class=num>20.0%</td><td class=num>25.7%</td><td>10k</td><td>—</td></tr>
+<tr><td>adl2</td><td>Q2008</td><td class=num>171.25</td><td class=num>208.60</td><td class=num>39.0%</td><td class=num>24.0%</td><td>10k</td><td>—</td></tr>
+<tr><td>adl3</td><td>Q1241</td><td class=num>163.85</td><td class=num>219.80</td><td class=num>40.7%</td><td class=num>23.0%</td><td>10k</td><td>—</td></tr>
+<tr><td class="hot">adl4</td><td>Q347</td><td class=num>204.55</td><td class=num>233.80</td><td class=num>15.3%</td><td class=num>25.3%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adl5</td><td>Q506</td><td class=num>200.85</td><td class=num>239.40</td><td class=num>37.0%</td><td class=num>21.7%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adl6</td><td>Q2458</td><td class=num>200.85</td><td class=num>256.20</td><td class=num>45.7%</td><td class=num>34.3%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adl7</td><td>Q3841</td><td class=num>204.55</td><td class=num>267.40</td><td class=num>45.7%</td><td class=num>34.3%</td><td>10k</td><td>measured hot</td></tr>
+</table></div>
+
+<figure>
+  <img src="img/rework-adh-sites.jpg" alt="Contact sheet of sixteen board crops, each 10 mm square,
+       one per rework site, with the target transistor ringed and labelled by net and designator.">
+  <figcaption>Each panel is a 10&nbsp;mm square of the real top-face render, centred on the part, with an arrow on <strong>pin&nbsp;3 &mdash; the leg to lift</strong>. Every FET on this board is at 0&deg; rotation, so pin&nbsp;3 is always the lone pad on the right.
+  Red = measured hot; amber = same defect, not yet confirmed. The wider view with neighbouring
+  designators is <a href="rework-adh-marked.jpg">here</a>.</figcaption>
+</figure>
+
+<h2>Same method, and slightly easier</h2>
+<p>Identical to the data-bus eight: <strong>lift pin&nbsp;3 and bridge it back to its pad with a
+10&nbsp;k&ohm; resistor.</strong> Pin&nbsp;3 is the lone pin on its side of the SOT-323,
+1.78&nbsp;mm from the other two, so neither neighbour is at risk.</p>
+<ul>
+  <li><strong>Value: 10&nbsp;k&ohm; on all sixteen</strong> (10k). Each of these nets drives
+      exactly <strong>one</strong> gate &mdash; 27&nbsp;pF &mdash; so the RC rise is about
+      0.6&nbsp;&micro;s against a 25&nbsp;&micro;s half-cycle. This is computed with the same
+      <code>series_r_for()</code> rule the rev&nbsp;B generator uses, so the hand fix and a future
+      respin cannot drift apart. Do <em>not</em> generalise it: <code>cclk</code> drives 482 gates
+      and needs 100&nbsp;&ohm;.</li>
+  <li><strong>More room than last time.</strong> The nearest neighbouring part is
+      <strong>2.80&nbsp;mm</strong> away, against 1.94&nbsp;mm at the data-bus sites.</li>
+  <li><strong>0402 is what the board uses</strong> (LCSC C25744), but <strong>0603 is easier to
+      handle</strong> and there is room for it.</li>
+</ul>
+
+<h2>Procedure, per site</h2>
+<p>Tools: fine-tip iron or hot air, fine tweezers, flux, magnification, a multimeter, and Kapton
+tape.</p>
+<ol>
+  <li><strong>Locate the part.</strong> Check the designator against the table and the contact sheet
+      before touching anything &mdash; every neighbour is an identical SOT-323. Note the two
+      clusters: <code>adh0&ndash;2</code> and <code>adl0&ndash;3</code> sit around
+      x&nbsp;156&ndash;171&nbsp;mm, the rest around x&nbsp;200&ndash;205&nbsp;mm.</li>
+  <li><strong>Measure first.</strong> Pin&nbsp;3 to a VCC bond pad should read ~0&nbsp;&ohm;. Record
+      it; that is your &ldquo;before&rdquo;.</li>
+  <li><strong>Lift pin&nbsp;3.</strong> Flux the joint, heat pad&nbsp;3, lift the leg clear with
+      tweezers and bend it slightly upward. Do not disturb the body.</li>
+  <li><strong>Verify the break.</strong> The lifted lead to VCC should now read open. If it still
+      reads ~0&nbsp;&ohm; the leg is still touching &mdash; re-lift.</li>
+  <li><strong>Fit the resistor.</strong> Tin pad&nbsp;3, stand the 10&nbsp;k&ohm; on end with its
+      lower termination on the pad, solder it, then solder the lifted leg to the upper termination.
+      <strong>Put a slip of Kapton tape between the resistor body and the lifted leg</strong>, as on
+      the data-bus eight. The leg is springy and a leg that relaxes back shorts the resistor out
+      <em>silently</em> &mdash; the board keeps working and simply runs hot again, which is the worst
+      way for a repair to fail.</li>
+  <li><strong>Verify the fix.</strong> The lifted lead to a VCC bond pad should now read
+      <strong>10&nbsp;k&ohm; &plusmn; tolerance</strong>; pad&nbsp;3 itself to VCC should still read
+      ~0&nbsp;&ohm;.</li>
+  <li><strong>Inspect.</strong> Resistor clear of pins 1 and 2 and of every neighbour; lifted leg not
+      touching the pad it came from.</li>
+</ol>
+
+<h2>Checking it worked</h2>
+<div class="ok">
+<p><strong>Thermal, not electrical, and take the &ldquo;before&rdquo; picture first.</strong> Run the
+CPU on a real program &mdash; not NOPs, for the reason above &mdash; let it settle two or three
+minutes, and photograph the two clusters. Repeat after the rework from the same camera position. The
+nine hot sites should go cold.</p>
+<p><strong>The supply current is the blunt version of the same test.</strong> Board&nbsp;#1 drew
+2.3&nbsp;A executing before this rework. Note it before you start; a drop of several hundred mA is
+what success looks like. Do not expect the few-hundred-mA figure early versions of these pages
+predicted &mdash; there are 164 sites with this defect and this fixes sixteen.</p>
+<p><strong>Whole-board check.</strong> VCC to VSS at the bond pads, read the <em>range-aware</em>
+way: there is no resistor-only path between the rails, so a few hundred ohms that <em>changes with
+the meter range</em> is correct and healthy. A fault is under 1&nbsp;&ohm;, or a reading that does
+not move between ranges.</p>
+</div>
+
+<h2>If you are generating a rev&nbsp;B board instead</h2>
+<div class="warn">
+<p><strong><code>tools/gen_netlist.py</code> would currently skip 5 of these sixteen:
+<code>adl3</code>, <code>adl4</code>, <code>adl5</code>, <code>adl6</code>, <code>adl7</code>.</strong> Its <code>has_pulldown</code> test only counts a transistor with vss directly
+on a channel pin, and these nets are pulled low <em>through a pass-gate chain</em> instead. They
+contend exactly the same way &mdash; <code>adl6</code> and <code>adl7</code> are the two busiest
+sites on the whole board at 45.7% &mdash; so a rev&nbsp;B respin generated today would leave the
+hottest parts unfixed.</p>
+<p>The same flawed test also excluded them from the first duty measurement, until a thermal camera
+put them back. Fix <code>has_pulldown</code> to follow conduction paths before trusting rev&nbsp;B's
+142-site count.</p>
+</div>
+
+</div></body></html>
