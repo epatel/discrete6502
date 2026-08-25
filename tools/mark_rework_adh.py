@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Where the eleven address-path rework sites are, so you can find them by eye.
+"""Where the sixteen address-path rework sites are, so you can find them by eye.
 
 The 2026-08-25 thermal finding: adh3..adh7 run at ~80 C on board #1 while it
 executes real code. tools/contention_duty.py measured why -- adh1/3/5/6/7 contend
@@ -9,7 +9,7 @@ nothing. adh0/2/4 and adl0/1/2 contend under both.
 
 The fix is the operation already proven on the dor eight: 10k in series with
 pin 3. This draws the map for it -- an overview plus a zoomed panel per cluster,
-because the eleven sit in two groups 40 mm apart and neither is findable by
+because the sixteen sit in two groups 40 mm apart and neither is findable by
 counting.
 
 Everything is derived, never drawn: positions from the fabricated board, roles
@@ -39,10 +39,13 @@ DUTY = {
     "adh0": (33.7, 14.3), "adh1": (35.0, 0.3), "adh2": (35.3, 48.0),
     "adh3": (35.0, 0.3), "adh4": (35.3, 48.0), "adh5": (35.0, 0.3),
     "adh6": (35.0, 0.3), "adh7": (35.0, 0.3),
-    "adl0": (19.3, 24.7), "adl1": (20.0, 25.7), "adl2": (39.0, 39.0),
+    "adl0": (19.3, 24.7), "adl1": (20.0, 25.7), "adl2": (39.0, 24.0),
+    "adl3": (40.7, 23.0), "adl4": (15.3, 25.3), "adl5": (37.0, 21.7),
+    "adl6": (45.7, 34.3), "adl7": (45.7, 34.3),
 }
 # Measured hot with a FLIR on board #1, 2026-08-25, at ~80 C.
-CONFIRMED_HOT = {"adh3", "adh4", "adh5", "adh6", "adh7"}
+CONFIRMED_HOT = {"adh3", "adh4", "adh5", "adh6", "adh7",
+                 "adl4", "adl5", "adl6", "adl7"}
 
 RED = (255, 70, 70)
 AMBER = (255, 176, 46)
@@ -118,13 +121,13 @@ def main():
 
     lg = ["ADDRESS-PATH REWORK SITES - 10k in series with pin 3",
           "",
-          "RED    adh3-adh7  measured ~80 C on board #1 (FLIR, 2026-08-25)",
-          "AMBER  adh0-2, adl0-2  same defect, not yet confirmed hot",
+          "RED    measured hottest on board #1 (FLIR, 2026-08-25)",
+          "AMBER  same defect, not yet confirmed hot",
           "",
-          "All 11 are on the TOP face. Same operation as the dor eight.",
-          "adh1/3/5/6/7 contend 35%% of the time under real code and 0.3%%",
-          "under a NOP free-run -- which is why the earlier thermal test",
-          "found nothing. adh0/2/4 and adl0-2 contend under both."]
+          "All 16 are on the TOP face. Same operation as the dor eight.",
+          "adl6/adl7 are the busiest sites on the whole board at 45.7%%.",
+          "adh1/3/5/6/7 contend 35%% under real code and 0.3%% under a NOP",
+          "free-run -- which is why the 2026-08-24 thermal test saw nothing."]
     bw = max(d.textlength(s, font=f) for s in lg) + 40
     bh = len(lg) * (f.size + 9) + 26
     d.rectangle([20, 20, 20 + bw, 20 + bh], fill=(0, 0, 0))

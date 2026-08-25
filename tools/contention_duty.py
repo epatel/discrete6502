@@ -74,7 +74,15 @@ def build_indexed():
             pulldn[b if a in ("vss", "vcc") else a] += 1
     for s in sites:
         s["pulldowns"] = pulldn[s["net"]]
-    return sim, [s for s in sites if s["pulldowns"]], names
+    # Do NOT filter on pulldowns. A net with no FET sitting directly between it
+    # and vss can still be pulled low THROUGH A PASS-GATE CHAIN -- adl4..adl7 are
+    # exactly that, and they measured ~80 C on board #1 while an earlier version
+    # of this script had excluded them as unable to contend. The detector below
+    # follows conduction groups, so it handles those paths correctly; it was only
+    # this filter that was wrong. (The FETs that filter *did* find on adl4..adl7
+    # are gated BY those nets, i.e. loads they drive -- the same "gated by X, not
+    # on X" error recorded against cclk on 2026-08-01.)
+    return sim, sites, names
 
 
 def measure(halves, workload):
