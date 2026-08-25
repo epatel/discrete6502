@@ -30,7 +30,9 @@ discrete6502_add_functest_images(wifi)
 target_include_directories(wifi PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../common
     ${CMAKE_CURRENT_LIST_DIR})
+set(BOOT_TRACE OFF CACHE BOOL "block for a terminal and narrate boot")
 target_compile_definitions(wifi PRIVATE
+    BOOT_TRACE=$<BOOL:${BOOT_TRACE}>
     WIFI_SSID=\"${WIFI_SSID}\"
     WIFI_PASSWORD=\"${WIFI_PASSWORD}\")
 target_link_libraries(wifi

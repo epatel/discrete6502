@@ -883,6 +883,20 @@ static void banner(void) {
 
 // ---- boot -----------------------------------------------------------------
 
+// Boot tracing. Off by default because it BLOCKS until a terminal attaches,
+// which a headless board must never do -- but when the board comes up silent,
+// printing after the fact is useless: you cannot attach before it boots. Build
+// with -DBOOT_TRACE=ON to have it wait for you and then narrate every stage.
+#if BOOT_TRACE
+#define TRACE(...)                     \
+    do {                               \
+        printf("[boot] " __VA_ARGS__); \
+        printf("\n");                  \
+    } while (0)
+#else
+#define TRACE(...) ((void)0)
+#endif
+
 int main(void) {
     // FIRST, before anything else can go wrong. If a previous run left the
     // watchdog armed -- which an aborted reboot does -- every boot gets reset
@@ -891,8 +905,16 @@ int main(void) {
     // what lets a bad build be replaced by a good one.
     watchdog_disable();
     stdio_init_all();
+#if BOOT_TRACE
+    while (!stdio_usb_connected()) sleep_ms(100);
+    sleep_ms(200);
+    TRACE("stdio up, watchdog disarmed");
+#endif
 
     settings_load();
+    TRACE("settings loaded: ssid %s, %u chars of password",
+          settings()->wifi_ssid[0] ? "set" : "EMPTY",
+          (unsigned)strlen(settings()->wifi_pass));
     bus_init(settings()->clk_open_drain);  // push-pull: no board pull-up on clk0
     bus_set_half_period_us(settings()->half_period_us);
     bus_set_watch(publish);
@@ -902,8 +924,11 @@ int main(void) {
     // something visible before any upload.
     if (!settings_program_load_into_ram()) retention_load_image();
     queue_init(&cmd_q, sizeof(cmd_t), 16);
+    TRACE("launching core 1");
     multicore_launch_core1(core1_main);
+    TRACE("core 1 up");
 
+    TRACE("cyw43_arch_init...");
     if (cyw43_arch_init()) {
         printf("[wifi] cyw43 init failed\n");
         return 1;
@@ -916,6 +941,7 @@ int main(void) {
         settings_save();
     }
 
+    TRACE("cyw43 ready; trying station mode");
     if (try_sta()) {
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
         start_mdns();
@@ -924,8 +950,10 @@ int main(void) {
     } else {
         // No credentials, or they did not work. Raise the setup portal rather
         // than retrying forever with nobody able to tell it what to try.
+        TRACE("station failed; starting the setup AP");
         start_ap();
     }
+    TRACE("network stage done, opening the listen socket");
 
     struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
     if (!pcb || tcp_bind(pcb, NULL, HTTP_PORT) != ERR_OK) {
@@ -935,6 +963,7 @@ int main(void) {
     pcb = tcp_listen_with_backlog(pcb, MAX_CONN);
     tcp_accept(pcb, on_accept);
 
+    TRACE("entering the main loop");
     bool was_connected = false;
     for (;;) {
         cyw43_arch_poll();

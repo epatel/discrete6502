@@ -38,6 +38,15 @@
 #define LWIP_MDNS_RESPONDER 1
 #define LWIP_NUM_NETIF_CLIENT_DATA 1
 #define MDNS_MAX_SERVICES 1
+// Every protocol that schedules work needs a slot in this pool, and lwIP PANICS
+// when it runs dry rather than degrading. Enabling mDNS and IGMP without paying
+// for them is what made the board die the moment it joined a network: it booted,
+// associated, printed its address, entered the main loop, and then panicked as
+// soon as mDNS tried to schedule its first announcement. AP mode was unaffected
+// because start_mdns() only runs on the station interface -- which is exactly
+// why this looked like a credentials or connect bug for so long.
+// TCP, DHCP, DNS, ARP, IGMP and mDNS all draw on it; 16 is generous and cheap.
+#define MEMP_NUM_SYS_TIMEOUT 16
 // DHCP client, our DHCP server, our DNS hijack and mDNS can all want one at
 // once; the default of 4 is uncomfortably close.
 #define MEMP_NUM_UDP_PCB 8
