@@ -150,17 +150,51 @@ def analyse_labelled(frame_dir, fps, label_file, clock, cyc, thr):
     import numpy as np
     from PIL import Image
 
-    labels = json.load(open(label_file))
+    raw = json.load(open(label_file))
     fs = sorted(glob.glob(os.path.join(frame_dir, "*.png")) +
                 glob.glob(os.path.join(frame_dir, "*.jpg")))
     n = len(fs)
-    names = list(labels)
+
+    # Two accepted shapes: flat {label: [y,x]} (fixed coordinates), or the
+    # tracked form from led_picker.py with keyframes plus a global drift curve.
+    # Tracking matters: the board wanders in a handheld clip, and a fixed window
+    # slides off its LED, smearing exactly the signal being measured.
+    if "keyframes" in raw:
+        kf = {int(k): v for k, v in raw["keyframes"].items()}
+        drift = raw.get("drift") or [[0.0, 0.0]] * n
+        names = sorted({nm for d in kf.values() for nm in d})
+        ks = sorted(kf)
+        track = np.zeros((n, len(names), 2), np.float32)
+        for j, nm in enumerate(names):
+            have = [k for k in ks if nm in kf[k]]
+            for i in range(n):
+                lo = max([k for k in have if k <= i], default=None)
+                hi = min([k for k in have if k >= i], default=None)
+                if lo is not None and hi is not None and lo != hi:
+                    t = (i - lo) / float(hi - lo)
+                    a0, a1 = kf[lo][nm], kf[hi][nm]
+                    track[i, j] = [a0[0] + t * (a1[0] - a0[0]), a0[1] + t * (a1[1] - a0[1])]
+                else:
+                    k = lo if lo is not None else hi
+                    d0, d1 = drift[min(k, n - 1)], drift[i]
+                    track[i, j] = [kf[k][nm][0] + d1[0] - d0[0],
+                                   kf[k][nm][1] + d1[1] - d0[1]]
+        span = float(np.abs(track - track[0]).max())
+        print("tracked %d LEDs across %d keyframes; markers move up to %.1f px"
+              % (len(names), len(ks), span))
+    else:
+        names = list(raw)
+        track = np.zeros((n, len(names), 2), np.float32)
+        for j, nm in enumerate(names):
+            track[:, j] = raw[nm]
+        print("fixed coordinates for %d LEDs (no tracking)" % len(names))
+
     series = np.empty((n, len(names)), np.float32)
     for i, f in enumerate(fs):
         a = np.asarray(Image.open(f).convert("RGB")).astype(np.float32)
         s = np.clip(a[..., 0] - np.maximum(a[..., 1], a[..., 2]), 0, None)
-        for j, nm in enumerate(names):
-            y, x = labels[nm]
+        for j in range(len(names)):
+            y, x = int(round(track[i, j, 0])), int(round(track[i, j, 1]))
             series[i, j] = s[max(0, y - 3):y + 4, max(0, x - 3):x + 4].max()
 
     inst = clock / float(cyc)
