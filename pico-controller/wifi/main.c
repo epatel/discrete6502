@@ -490,7 +490,7 @@ static void status_json(char *b, size_t cap) {
              "{\"run\":%u,\"cyc\":%lu,\"half\":%lu,\"a\":%u,\"d\":%u,\"f\":%u,"
              "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,"
              "\"rb\":%u,\"rv\":%u,\"rs\":%lu,\"rms\":%lu,\"rok\":%u,"
-             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"tcyc\":%lu,\"tk\":%u,\"tp\":%u,\"tl\":%u,\"ar\":%u,\"pname\":\"%s\",\"ip\":\"%s\"}",
+             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"tcyc\":%lu,\"tk\":%u,\"tp\":%u,\"tl\":%u,\"ar\":%u,\"shalf\":%lu,\"pname\":\"%s\",\"ip\":\"%s\"}",
              s_running ? 1u : 0u, (unsigned long)s_cycle, (unsigned long)s_half, s_addr,
              s_data, s_flags, s_ft_on, s_test_case, s_trapped, s_trap_addr,
              s_ret_busy, s_ret_verdict, (unsigned long)s_ret_seq,
@@ -500,6 +500,7 @@ static void status_json(char *b, size_t cap) {
              (unsigned long)settings_program_seconds(),
              (unsigned long)settings()->program_cycles,
              s_trap_known, s_trap_pass, s_trap_line, settings()->autorun,
+             (unsigned long)settings()->half_period_us,
              settings()->program_name,
              ip4addr_ntoa(netif_ip4_addr(netif_default)));
 }
@@ -604,6 +605,22 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
             console_enable(false);         // it would fail the suite's RAM check
         }
         push(CMD_RESET, 0);
+    }
+    else if (!strcmp(op, "clocksave")) {
+        // The clock changes live without touching flash, because a flash write
+        // parks core 1 for tens of milliseconds against a ~1.1 ms retention
+        // floor -- saving on every click would destroy the CPU's state each
+        // time. So persisting it is a separate, deliberate act.
+        if (s_running) {
+            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
+            return;
+        }
+        settings()->half_period_us = s_half;
+        if (!settings_save()) {
+            reply(pcb, c, "500 Server Error", "application/json",
+                  "{\"err\":\"flash write refused\"}");
+            return;
+        }
     }
     else if (!strcmp(op, "autorun")) {
         if (s_running) {
@@ -884,8 +901,9 @@ static void banner(void) {
                                        : (settings_program_len() ? "stored" : "built-in counter"),
            settings_program_seconds() ? "" : " (runtime unknown)");
     if (settings_program_seconds()) printf("runtime : about %s at this clock\n", d);
-    printf("clock   : %lu us half-period (%lu Hz)\n",
-           (unsigned long)s_half, (unsigned long)(500000UL / (s_half ? s_half : 1)));
+    printf("clock   : %lu us half-period (%lu Hz)%s\n",
+           (unsigned long)s_half, (unsigned long)(500000UL / (s_half ? s_half : 1)),
+           s_half == settings()->half_period_us ? "" : "  [not saved]");
     printf("tests   : %s\n", functest_images_available()
            ? "compiled in" : "not compiled in (build -DEMBED_FUNCTEST=ON)");
     printf("console : %s\n", console_enabled() ? "on" : "off");

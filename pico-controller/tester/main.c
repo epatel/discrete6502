@@ -196,7 +196,8 @@ static void help(void) {
            "  d [N]      dump last N trace entries (default 32)\n"
            "  x A L      hexdump L bytes of image at offset A (hex)\n"
            "  m A B..    poke bytes at offset A (all hex)\n"
-           "  p US       set clock half-period in us (default 50 = 10 kHz)\n"
+           "  p US       set clock half-period in us (default 50 = 10 kHz). Live\n"
+           "             only -- S clock N then S save to make it the default.\n"
            "  z          zero cycle counter + trace\n"
            "  L          load an Intel hex image pasted into this terminal\n"
            "  T [c|f|d]  load a built-in image: c=counter loop (the boot default),\n"
@@ -444,8 +445,21 @@ int main(void) {
             break;
         }
         case 'p': {
+            // Live only. Writing flash parks the bus engine for tens of
+            // milliseconds against a ~1.1 ms retention floor, so persisting the
+            // clock on every change would destroy the CPU's state each time.
+            // 'S clock N' then 'S save' is the deliberate way to keep it.
             char *a = strtok(NULL, " ");
-            if (a) bus_set_half_period_us(strtoul(a, NULL, 0));
+            if (a) {
+                uint32_t us = (uint32_t)strtoul(a, NULL, 0);
+                if (us) {
+                    bus_set_half_period_us(us);
+                    printf("clock now %lu us half-period (%lu Hz)%s\n",
+                           (unsigned long)us, (unsigned long)(500000UL / us),
+                           us == settings()->half_period_us
+                               ? "" : " -- not saved; S clock N then S save to keep it");
+                }
+            }
             break;
         }
         case 'z':
