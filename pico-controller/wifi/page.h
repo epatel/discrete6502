@@ -133,7 +133,8 @@ static const char PAGE_HTML[] =
     "<button class=chip onclick=\"cmd('clock',25)\">20 kHz</button></div>"
     "<p class=kv style='margin:12px 0 0'>half-period "
     "<input type=number id=hp value=50 min=1> &micro;s "
-    "<button onclick=\"cmd('clock',hp.value)\">Set</button></p>"
+    "<button onclick=\"cmd('clock',hp.value)\">Set</button>"
+    "<button onclick=\"cmd('clocksave')\">Save</button></p>"
     "<p class=kv id=clksave style='margin:11px 0 0'></p></div></details>"
 
     "<details id=cond><summary>Console<span class=hint id=conh>off</span></summary>"
@@ -236,8 +237,9 @@ static const char PAGE_HTML[] =
     "E('clksave').innerHTML=j.half==j.shalf?"
     "('Saved as the power-up default.'):"
     "('Running at '+(1e6/(2*j.half)).toFixed(0)+' Hz, but the board still starts at '"
-    "+(1e6/(2*j.shalf)).toFixed(0)+' Hz. '+"
-    "'<button class=chip onclick=\"cmd(\\'clocksave\\')\">Save as default</button>');"
+    "+(1e6/(2*j.shalf)).toFixed(0)+' Hz \\u2014 Save makes it the default. "
+    "Saving resets the CPU: writing flash stops the clock for longer than the "
+    "dynamic nodes hold charge.');"
     "E('rst').textContent=j.rb?'running...':(j.ft?'on':'off');"
     "E('arst').textContent=j.ar?'(on)':'(off)';"
 

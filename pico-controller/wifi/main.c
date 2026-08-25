@@ -606,29 +606,18 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
         }
         push(CMD_RESET, 0);
     }
-    else if (!strcmp(op, "clocksave")) {
-        // The clock changes live without touching flash, because a flash write
-        // parks core 1 for tens of milliseconds against a ~1.1 ms retention
-        // floor -- saving on every click would destroy the CPU's state each
-        // time. So persisting it is a separate, deliberate act.
-        if (s_running) {
-            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
-            return;
-        }
-        settings()->half_period_us = s_half;
-        if (!settings_save()) {
-            reply(pcb, c, "500 Server Error", "application/json",
-                  "{\"err\":\"flash write refused\"}");
-            return;
-        }
-    }
-    else if (!strcmp(op, "autorun")) {
-        if (s_running) {
-            reply(pcb, c, "409 Conflict", "application/json", "{\"err\":\"stop first\"}");
-            return;
-        }
-        settings()->autorun = val ? 1u : 0u;
-        if (!settings_save()) {
+    else if (!strcmp(op, "clocksave") || !strcmp(op, "autorun")) {
+        // Both write flash, which parks core 1 for tens of milliseconds against
+        // a ~1.1 ms retention floor -- so the CPU's state cannot survive either
+        // way. Rather than refuse, note whether it was running, save, and then
+        // reset it back to where it was. Losing state is unavoidable; leaving
+        // the CPU in an undefined one afterwards is not.
+        bool was_running = s_running;
+        if (op[0] == 'c') settings()->half_period_us = s_half;
+        else settings()->autorun = val ? 1u : 0u;
+        bool ok = settings_save();
+        push(was_running ? CMD_RESETRUN : CMD_RESET, 0);
+        if (!ok) {
             reply(pcb, c, "500 Server Error", "application/json",
                   "{\"err\":\"flash write refused\"}");
             return;
