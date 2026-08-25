@@ -346,6 +346,8 @@ static void start_ap(void) {
 }
 
 static const char PORTAL_HTML[] =
+    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
+    "Cache-Control: no-store\r\nConnection: close\r\n\r\n"
     "<!doctype html><meta charset=utf-8><title>discrete6502 setup</title>"
     "<meta name=viewport content='width=device-width,initial-scale=1'>"
     "<style>body{font:16px system-ui;margin:0;padding:18px;background:#111;color:#eee}"
@@ -430,15 +432,37 @@ static void pump(struct tcp_pcb *pcb, conn_t *c) {
     tcp_output(pcb);
 }
 
+// Send a string that already carries its own HTTP headers, straight from
+// flash. No copy, so no size limit: pump() and on_sent() chunk it out.
+static void send_static(struct tcp_pcb *pcb, conn_t *c, const char *s, uint32_t len) {
+    c->out = s;
+    c->out_len = len;
+    c->state = ST_SEND;
+    pump(pcb, c);
+}
+
 static void reply(struct tcp_pcb *pcb, conn_t *c, const char *status, const char *ctype,
                   const char *body) {
+    // The response is assembled in c->buf, so a body that does not fit used to
+    // be silently truncated WHILE the header still advertised the full length.
+    // The browser then waits for bytes that never arrive and renders whatever
+    // it got -- which looks like a blank page, not like an error. Anything too
+    // big for this path belongs in send_static() instead.
+    size_t blen = strlen(body);
     int n = snprintf(c->buf, sizeof c->buf,
                      "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %u\r\n"
                      "Connection: close\r\n\r\n%s",
-                     status, ctype, (unsigned)strlen(body), body);
-    if (n < 0) n = 0;
+                     status, ctype, (unsigned)blen, body);
+    if (n < 0 || (size_t)n >= sizeof c->buf) {
+        static const char oops[] =
+            "HTTP/1.1 500 Server Error\r\nContent-Type: text/plain\r\n"
+            "Content-Length: 46\r\nConnection: close\r\n\r\n"
+            "response too large for the connection buffer";
+        n = (int)(sizeof oops - 1);
+        memcpy(c->buf, oops, (size_t)n);
+    }
     c->out = c->buf;
-    c->out_len = (uint32_t)n < sizeof c->buf ? (uint32_t)n : sizeof c->buf - 1;
+    c->out_len = (uint32_t)n;
     c->state = ST_SEND;
     pump(pcb, c);
 }
@@ -687,7 +711,7 @@ static void dispatch(struct tcp_pcb *pcb, conn_t *c) {
         }
     } else if (!strcmp(c->path, "/") || !strncmp(c->path, "/index", 6)) {
         if (ap_mode) {
-            reply(pcb, c, "200 OK", "text/html", PORTAL_HTML);
+            send_static(pcb, c, PORTAL_HTML, (uint32_t)(sizeof PORTAL_HTML - 1));
             return;
         }
         c->out = PAGE_HTML;                       // already includes its headers
@@ -695,7 +719,9 @@ static void dispatch(struct tcp_pcb *pcb, conn_t *c) {
         c->state = ST_SEND;
         pump(pcb, c);
     } else if (ap_mode) {
-        reply(pcb, c, "200 OK", "text/html", PORTAL_HTML);
+        // Captive-portal catch-all: every unknown path is the portal, which is
+        // what makes the phone's connectivity probe fail and raise "Sign in".
+        send_static(pcb, c, PORTAL_HTML, (uint32_t)(sizeof PORTAL_HTML - 1));
     } else {
         reply(pcb, c, "404 Not Found", "text/plain", "no");
     }
