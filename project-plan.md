@@ -1175,6 +1175,12 @@ risk during their switching windows.
   would be sabotage. Measured: **none are.** Every one of the 164 nets has exactly **one** pull-up
   FET against its pull-downs — the same 1:1 ratio error, uniformly — so the defect really is that
   wide and the fix is not defensive over-fitting.
+- ~~**But 22 of them can never contend**, having no pull-down at all, so rev B now **skips
+  those**~~ **— WRONG, corrected 2026-08-25. All 164 have a path to vss; the test only found
+  transistors with `vss` directly on a channel pin and missed nets pulled low through a
+  pass-gate chain. 21 of the 22 skipped are *measured* contending, including `adl6`/`adl7` at
+  45.7%, the two busiest sites on the board. A rev B generated today leaves the hottest
+  transistors unfixed. See `cards/rev-b-plan.md`. Original text follows:**
 - **But 22 of them can never contend**, having no pull-down at all, so rev B now **skips those**:
   142 sites get a resistor, 23 are skipped (the extra one is t1322, whose FET the floating-channel
   pass drops anyway). That saves 22 parts and, more usefully, 22 nets on a board that was hard to
