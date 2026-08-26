@@ -23,21 +23,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Blocking line reader. Returns the length; the buffer is NUL-terminated.
+// Whatever this firmware is waiting for, it must never be a terminal. A board on
+// a shelf with nobody attached still has a CPU on it, and a firmware that waits
+// forever for a terminal that may never come is wrong on its own terms.
 //
-// We echo each character ourselves: this is a raw USB CDC link, not a tty, so
-// there is no line discipline doing it for us and a terminal like `screen`
-// shows nothing while you type. Every character is flushed as it arrives --
-// buffering until the newline is exactly the behaviour we are fixing.
-//
-// echo=false is for pasted Intel hex ('L'), where echoing 37.6 kB back down the
-// same link would double the traffic for no benefit.
-// Whatever this firmware is waiting for, it must never be a terminal. A board
-// on a shelf with nobody attached still has a CPU on it, and bus_init leaves
-// clk0 an output driven LOW -- an unclocked board sits at its PEAK draw (1.4 A
-// measured on board #1, against 0.87 A clocked) because the dynamic nodes drift
-// to undefined levels and thousands of FETs end up biased near threshold. So
-// "waiting" must not mean "parked".
+// NOTE, corrected 2026-08-26: this used to justify itself on current, claiming a
+// parked clock was the board's PEAK draw at 1.4 A. Backwards. That figure came
+// from a board with NO Pico, where clk0 (no pull-up), the data bus and reset all
+// float and the dynamic nodes drift. Fitted and parked, board #1 draws 0.30 A;
+// executing, 1.70 A. Parking is the cheapest state. The argument for not
+// blocking stands without it.
 static bool s_ran;
 static bool s_stored;   // a boot image came out of flash, not the built-in counter
 
@@ -71,8 +66,17 @@ static void idle_work(void) {
     }
 }
 
-// Returns the length, or -1 if the terminal went away mid-line -- which the
-// caller must treat as "no command", not as an empty one.
+// Line reader. Returns the length, or -1 if the terminal went away mid-line --
+// which the caller must treat as "no command", not as an empty one. It polls
+// rather than blocking, so a board with nobody attached keeps working.
+//
+// We echo each character ourselves: this is a raw USB CDC link, not a tty, so
+// there is no line discipline doing it for us and a terminal like `screen`
+// shows nothing while you type. Every character is flushed as it arrives --
+// buffering until the newline is exactly the behaviour we are fixing.
+//
+// echo=false is for pasted Intel hex ('L'), where echoing 37.6 kB back down the
+// same link would double the traffic for no benefit.
 static int read_line(char *buf, int cap, bool echo) {
     int n = 0;
     for (;;) {

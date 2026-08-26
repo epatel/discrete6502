@@ -230,6 +230,29 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-26 (later): **A stopped board draws 0.30 A — the passive budget, exactly as designed —
+  and that retires the 1.4 A question open since 2026-08-23.** Measured with the Pico fitted and the
+  clock parked: **0.30 A** against a design prediction of 0.35 A typical and a 0.548 A passive
+  ceiling. **Nothing is wrong with the board at rest, and never was.** The 1.4 A that drove a
+  fortnight of reasoning was measured with **no Pico on the board**, so `clk0` (which has no pull-up
+  here), the data bus and reset were all *floating* — a condition that genuinely does drift the
+  dynamic nodes and bias thousands of FETs near threshold, which is what the 2026-08-24 correction
+  proposed. **It is simply not the condition the board runs in.** Executing, board #1 draws
+  **1.70 A**, so **contention is 1.40 A**, or about **180 mA per contended net** against
+  `switchsim`'s ~7.7 simultaneous — the same quantity `sim/driver_contention.sp` puts at 262 mA
+  worst case. Two independent routes to one number. **Also: power-on order is worth 0.65 A**
+  [user finding] — hot-plugging the VCC croc onto a live charger gave ~2.35 A; connecting both clips
+  cold and energising at the charger gives 1.70 A. Keep the second, which is better practice anyway.
+  **And the fluctuation is the CPU, not the instrument** — it had been written off as a meter or
+  contact problem for two days, and with the clock stopped the reading is steady. A 30 s meter video
+  was OCR'd (validated against five hand-read frames) and tested for the period the address counter
+  would produce: **no support** (r = +0.02 at 6.5 s, −0.10 at 13.1 s, ±0.09 noise floor), though the
+  *magnitude* fits — a 1.35 A swing at 180 mA/net is ~7 nets moving, the right size for the address
+  bits sweeping. Left unresolved rather than argued; 30 s is two cycles of the period sought.
+  **Target for the sixteen-site rework, written before it is done: executing current should fall
+  from 1.70 A to roughly 0.7–0.9 A** (the `adh`/`adl` sites are ~5.2 of the 7.7 contending), with
+  the stopped figure unchanged at 0.30 A. Logged as Step 6c in `docs/actual-bring-up.html`.
+
 - 2026-08-26: **The NOP test falsified my prediction, and the board's answer was better than the
   one I asked for.** Prediction: `adh3/5/6/7` go cold under an all-NOP free-run while `adh4` gets
   hotter — a three-way split in one camera frame. **Result: every adh site stayed hot.** The cause is
@@ -1080,7 +1103,16 @@ power-up, 3–4 after rework.
 > stand** — the ratio error is real and a contended node at 1.0–1.9 V against a 1.1–1.5 V threshold
 > is a genuine correctness bug. The **power figures do not**: the board draws 1.4 A unclocked and
 > 0.7–1.2 A clocked, not 2.1 A, and the excess is distributed across thousands of near-threshold
-> FETs (~210 µA each) rather than concentrated in a few fully-contending pairs. Consequently rev B
+> FETs (~210 µA each) rather than concentrated in a few fully-contending pairs.
+>
+> **⚠ THE DISTRIBUTED READING IS ITSELF NOW SCOPED, 2026-08-26.** With the Pico fitted and the clock
+> *stopped*, board #1 draws **0.30 A** — the passive budget, as designed. The 1.4 A that motivated
+> the distributed explanation was measured with **no Pico on the board**, so `clk0` (which has no
+> pull-up), the data bus and reset were all **floating**. That condition really does drift the
+> dynamic nodes and bias thousands of FETs near threshold. It is not the condition the board runs
+> in. Executing, it draws **1.70 A**, and the 1.40 A above passive is contention at roughly 180 mA
+> per contended net — the same quantity `sim/driver_contention.sp` puts at 262 mA worst case.
+> Consequently rev B
 > is a fix for *levels*, not for current, and no further hand rework is warranted.
 
 Found by asking whether the MOnSter has a clock floor, reading its designer's answer, and then

@@ -70,10 +70,11 @@ contradict what this file used to say**:
   value that does not change with range.** And it is a *positive* test: that
   forward path cannot exist unless the pull-ups are populated, so one measurement
   confirms ~1,000 back-side 0402s are present.
-- **Step 2 draws 1.4 A at 5 V, not 0.35 A**, and **clocking brings it *down* to
-  0.7–1.2 A**, not up. Thermal imaging found no hot spot anywhere (peak ~30 °C),
-  so the excess is spread over thousands of near-threshold FETs, not concentrated.
-  Treat a *change* from those figures as the signal, not an absolute.
+- **Step 2 draws 1.4 A at 5 V, not 0.35 A** — but only because no Pico is fitted
+  yet, so `clk0`, the data bus and reset are floating and the dynamic nodes drift.
+  **Once the Pico is on, a parked clock draws 0.30 A** (the designed passive
+  budget) and **executing draws 1.70 A** (measured, board #1, 2026-08-26). Treat a
+  *change* from those figures as the signal, not an absolute.
 
 Step 4's rework **has been done on board #1**. It is still required on any board
 that has not had it; it fixes an invalid logic level, not a thermal problem —
@@ -97,8 +98,11 @@ that measurement — reading it the range-aware way described above.
 > terminal attached "does nothing: no clocking and no reset ceremony". **That is
 > no longer true, and the change was deliberate.** No firmware here blocks
 > waiting for a terminal, because the old blocking path left clk0 parked LOW —
-> which is the board's **peak** current state, 1.4 A against 0.87 A clocked — for
-> as long as nobody attached, possibly forever.
+> which was believed to be the board's peak current state. **That was wrong on a
+> populated board** — see the correction under Powering: a parked clock draws
+> **0.30 A** and executing draws **1.70 A**, so parking is the cheapest state, not
+> the most expensive. Autorun remains the right default because you want the CPU
+> doing something, not to save power.
 >
 > With `autorun` on, which is the **default**, applying power runs the reset
 > ceremony and free-runs the stored or built-in image straight away. That is the
@@ -153,8 +157,9 @@ the cycle count. Run the default A-register counter image and watch the A LEDs
 count.
 
 Watch the supply current here. Measured on board #1, a clocked board sits at
-**0.7–1.2 A** — not the "low hundreds of mA" this file used to predict, and not
-the 1.8–2.1 A it predicted after that either. Treat a *change* as the signal.
+**1.70 A executing against 0.30 A with the clock stopped** (2026-08-26). The
+stopped figure is the passive network as designed; the 1.40 A difference is
+contention. Treat a *change* as the signal.
 
 **Two tie-offs that are not optional**, both learned the hard way on board #1:
 
@@ -280,9 +285,9 @@ module Schottky diode and VSYS. Three limits apply.
   far more than this section once assumed, so through a Schottky and a USB cable
   it is a collapse rather than a droop. Cable resistance subtracts more still.
 - **Current — USB-only mode is NOT viable at 5 V.** Measured on board #1:
-  **1.4 A unclocked, 0.7–1.2 A clocked** (clocking brings it *down*; an unclocked
-  board's dynamic nodes drift to undefined levels and bias thousands of FETs near
-  threshold). Use a **2–3 A bench supply**. The `wifi` firmware adds about 50 mA
+  **0.30 A with the clock parked, 1.70 A executing** (measured 2026-08-26 with the
+  Pico fitted; the 1.4 A recorded earlier was a *bare* board with clk0 and the bus
+  floating). Use a **2–3 A bench supply**. The `wifi` firmware adds about 50 mA
   average with 200 mA transmit bursts on top of that.
 
   > **Corrected 2026-08-24.** This entry previously said ≈2.1 A from driver
@@ -557,10 +562,18 @@ entry. Without it `flash_safe_execute()` refuses and every save fails.
 
 `bus_init()` leaves clk0 an output driven **LOW**, so the old sequence -- init,
 then block on `stdio_usb_connected()` -- left an unattended board with its clock
-parked. That is the board's **peak** current state: **1.4 A unclocked against
-0.87 A clocked** (measured), because the dynamic nodes drift to undefined levels
-and thousands of FETs sit biased near threshold. Not damaging -- FLIR imaging
-found no hot spot anywhere -- but the wrong state to walk away from.
+parked. That was believed to be the board's **peak** current state, from a
+**1.4 A unclocked** measurement. > **⚠ CORRECTED 2026-08-26.** That 1.4 A was measured with **no Pico on the board**, so `clk0`
+> (which has no pull-up here), the data bus and reset were all **floating** — which really does
+> drift the dynamic nodes and bias thousands of FETs near threshold. **It is not the state a
+> populated board sits in.** With the Pico fitted and the clock parked, board #1 draws **0.30 A**,
+> the designed passive budget. Executing, it draws **1.70 A**. So on a board with a Pico,
+> **clocking costs about 1.4 A rather than saving it**, and parking the clock is the *cheapest*
+> state, not the most expensive.
+
+So the clock-parked state is fine to leave a board in. Autorun is still the right
+default, for the ordinary reason that a board on a shelf may as well be running,
+not because it saves current.
 
 With `autorun` on, which is the default, the tester runs the reset ceremony and
 free-runs the stored or built-in image while nobody is attached, then stops and
@@ -568,8 +581,10 @@ reports the cycle count when a terminal appears. `g` resumes.
 
 **No firmware here ever blocks waiting for a terminal.** That was fixed on
 2026-08-25, and the `autorun off` path was the reason: it sat in
-`while (!stdio_usb_connected()) sleep_ms(100)` with clk0 parked LOW — the 1.4 A
-state described above — for as long as nobody attached, which might be forever.
+`while (!stdio_usb_connected()) sleep_ms(100)` with clk0 parked LOW, for as long
+as nobody attached, which might be forever. (The current argument that originally
+motivated this is corrected above — parking is not the expensive state — but a
+firmware that waits forever for a terminal is wrong regardless.)
 The tester now has one wait, in its main loop, and it does not block: with
 autorun on the CPU free-runs in 500-cycle chunks, otherwise it polls cheaply.
 `read_line()` polls rather than calling `getchar()` and returns −1 when the
@@ -596,8 +611,8 @@ It improves USB-only mode:
   4.8 V. This is the full 5 V margin.
 - The supply is stiffer for the WiFi bursts, because the diode dynamic
   resistance leaves the path.
-- The diode stops dissipating the ~0.3 W it sees at the 0.7–1.2 A the board
-  actually draws when clocked. That is real, but it does not rescue USB-only
+- The diode stops dissipating the ~0.4 W it sees at the 1.70 A the board actually
+  draws when executing. That is real, but it does not rescue USB-only
   operation at 5 V: the current is the limit, not the diode.
 
 **It also removes the reverse blocking, thus a bridged board must never have a
@@ -756,8 +771,8 @@ Two physical limits apply:
   large ground structure. Expect same-room range, not whole-house range.
 - **Power. Use a bench supply with this firmware.** WiFi adds about 50 mA
   average, with transmit bursts of 200 mA to 300 mA. The WL LED is also left on
-  permanently. On top of the measured board current — **1.4 A unclocked, 0.7–1.2 A
-  clocked** (board #1) — USB-only mode is **not viable** at 5 V. Two earlier
+  permanently. On top of the measured board current — **1.70 A executing**
+  (board #1) — USB-only mode is **not viable** at 5 V. Two earlier
   figures here are superseded: 0.9 A worst case assumed a 0.35 A board, and
   ≈2.1 A assumed concentrated driver contention that thermal imaging falsified on
   2026-08-24.

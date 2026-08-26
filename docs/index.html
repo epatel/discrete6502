@@ -502,7 +502,7 @@
       <tr><td>Board</td><td>290.7 × 322.0 mm, 6 layers, ENIG</td></tr>
       <tr><td>Routing</td><td>8,421 connections · 103 m of copper · 14,454 vias</td></tr>
       <tr><td>Supply</td><td>5 V (3.3 V also validated)</td></tr>
-      <tr><td>Power</td><td><b>11.5 W measured</b> (2.3 A at 5 V) &middot; address-path rework pending</td></tr>
+      <tr><td>Power</td><td><b>1.70 A running, 0.30 A stopped</b> (measured) &middot; the difference is contention, rework pending</td></tr>
       <tr><td>Clock ceiling</td><td>≈ 20 kHz at 5 V, ≈ 10 kHz at 3.3 V</td></tr>
       <tr><td>Clock floor</td><td><b>456&ndash;871 Hz measured</b> on board #1 (leakage 1.9&ndash;2.3 nA/FET)</td></tr>
     </table></div>
@@ -589,7 +589,7 @@
       the same part as the transistors pulling against them &mdash; a fair fight where the design
       needs a rigged one. A contended pair burns about 0.9 W in a package rated for 0.3 W, and
       leaves a logic &ldquo;low&rdquo; sitting at 1&ndash;1.9 V when the receiving gate switches at
-      1.1&ndash;1.5 V. The board draws <b>2.3 A and 11.5 W</b> instead of the 1.6 W first estimated.
+      1.1&ndash;1.5 V. Measured on board&nbsp;#1: <b>1.70&nbsp;A executing against 0.30&nbsp;A with the clock stopped</b>. The stopped figure is the passive network behaving exactly as designed (0.35&nbsp;A predicted); the <b>1.40&nbsp;A difference is contention</b>, about 180&nbsp;mA in each of the handful of nets contending at any moment.
     </p>
 
     <p class="note">

@@ -1145,11 +1145,16 @@ int main(void) {
     TRACE("core 1 up");
 
     // Start clocking BEFORE the network, not after. Associating can take up to
-    // 40 s, and an unclocked board sits at its peak draw the whole time --
-    // 1.4 A against 0.87 A clocked, measured on board #1 -- because the dynamic
-    // nodes drift to undefined levels and thousands of FETs end up biased near
-    // threshold. It also means a board on a shelf with no network in reach is
-    // still running, which is the case autorun exists for.
+    // 40 s, and a board on a shelf with no network in reach should still be
+    // running -- which is the case autorun exists for.
+    //
+    // NOTE, corrected 2026-08-26: this used to say an unclocked board sits at
+    // its PEAK draw (1.4 A against 0.87 A clocked) and that clocking early saved
+    // current. That is backwards on a populated board. The 1.4 A was measured
+    // with NO Pico fitted, so clk0 (no pull-up on this board), the data bus and
+    // reset were all floating and the dynamic nodes drifted. With the Pico on
+    // and the clock parked, board #1 draws 0.30 A; executing, 1.70 A. Clocking
+    // costs about 1.4 A. Autorun is still right, for the ordinary reason.
     if (settings()->autorun) {
         push(CMD_RESETRUN, 0);
         TRACE("autorun: reset and run");

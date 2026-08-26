@@ -83,7 +83,8 @@ correction it forced upstream. Everything here is dated and attributed to a spec
 <tr><td>4 — Eight-site 10 kΩ rework</td><td>2026-08-23</td><td>#1</td><td class="pass">done (out of order)</td></tr>
 <tr><td>5 — Solder the Pico</td><td>2026-08-25</td><td>#1</td><td class="pass">PASS</td></tr>
 <tr><td>6 — First clocked run off the Pico</td><td>2026-08-25</td><td>#1</td><td class="pass"><strong>PASS — A counts</strong>; 2.3 A, contention found</td></tr>
-<tr><td>6b — NOP-workload thermal difference test</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
+<tr><td>6b — NOP-workload thermal test</td><td>2026-08-26</td><td>#1</td><td class="warn">prediction failed, mechanism survived</td></tr>
+<tr><td>6c — Supply current, stopped vs executing</td><td>2026-08-26</td><td>#1</td><td class="pass">0.30 A / 1.70 A</td></tr>
 <tr><td>7 — Clock window</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 <tr><td>8 — Functional test</td><td>—</td><td>—</td><td class="todo">not yet run</td></tr>
 </table>
@@ -880,6 +881,64 @@ contend heavily in use.</li>
 <p class="gate">Gate: the prediction failed and the mechanism survived. <strong>Rework all sixteen.</strong></p>
 </div>
 
+
+
+<div class="step">
+<h2><span class="tag pass">PASS</span>Step 6c — What the board actually draws, 2026-08-26</h2>
+
+<div class="ok">
+<strong>Clock stopped: 0.30 A. Executing: 1.70 A.</strong> The stopped figure is the passive network
+behaving exactly as designed. The 1.40 A difference is contention, and it is now a number rather
+than an inference.
+</div>
+
+<h3>The stopped current settles a question that has been open since Step 2</h3>
+
+<p>Step 2 measured <strong>1.4 A unclocked</strong> against a 0.35 A prediction and that gap drove a
+fortnight of reasoning. It was measured with <strong>no Pico on the board</strong> — so
+<code>clk0</code>, which has no pull-up on this board, along with the data bus and reset, were all
+<em>floating</em>. That condition genuinely does let the dynamic nodes drift to undefined levels and
+bias thousands of FETs near threshold, which is what the Step 3b correction proposed.</p>
+
+<p><strong>It is not the condition the board runs in.</strong> With the Pico fitted and the clock
+parked at a defined level, board #1 draws <strong>0.30 A</strong> — against a design prediction of
+0.35 A typical and a passive ceiling of 0.548 A. Nothing is wrong with the board at rest, and never
+was.</p>
+
+<h3>The running current, and what it says per net</h3>
+
+<pre><code>stopped     0.30 A     passive network, as designed
+executing   1.70 A     mean over 30 s (range 1.05 - 2.40)
+            ------
+contention  1.40 A
+</code></pre>
+
+<p>Against <code>switchsim</code>'s ~7.7 nets contended on average on this board, that is about
+<strong>180 mA per contended net</strong> — the same quantity <code>sim/driver_contention.sp</code>
+puts at 262 mA for a worst-case gate drive. Two independent routes to the same number, sim on the
+high side as expected.</p>
+
+<h3>Two smaller results from the same session</h3>
+
+<ul>
+<li><strong>Power-on order matters, by about 0.65 A.</strong> Hot-plugging the VCC croc onto an
+already-live charger gave a mean of ~2.35 A; connecting both clips cold and then energising at the
+charger gives <strong>1.70 A</strong>. Keep the second ritual — it is better practice regardless,
+since hot-plugging a 2 A load onto a crocodile clip arcs and pits the contact.</li>
+<li><strong>The fluctuation is the CPU, not the instrument.</strong> It had been treated as a meter
+or contact problem for two days. With the clock stopped the reading is steady, so whatever moves it
+is the processor. A 30 s recording of the meter was OCR'd and tested for the period the address
+counter would produce — <strong>no support</strong> (r = +0.02 at 6.5 s, −0.10 at 13.1 s, against a
+±0.09 noise floor). The magnitude fits (a 1.35 A swing at 180 mA/net is about 7 nets moving in and
+out, the right size for the address bits sweeping) but the periodicity does not, and 30 s is only
+two cycles of the period being looked for. Recorded as unresolved.</li>
+</ul>
+
+<p class="gate">Gate: a stopped board draws its designed passive current. <strong>PASS.</strong>
+Target for the sixteen-site rework: the <code>adh</code>/<code>adl</code> sites are about 5.2 of the
+7.7 nets contending, so executing current should fall from 1.70 A to roughly
+<strong>0.7–0.9 A</strong>, with the stopped figure unchanged at 0.30 A.</p>
+</div>
 
 <h2>Reproducing the analysis</h2>
 
