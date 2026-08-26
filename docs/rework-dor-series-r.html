@@ -230,7 +230,9 @@ address path</strong> running at about 80 °C &mdash;
 the same operation sixteen more times before the current comes down.
 
 <br><br><strong>The check that does confirm these eight took</strong> is thermal, not electrical, and
-it is a clean one: under a NOP free-run these drivers contend <strong>91.8% of the time</strong>, so
+it is a reasonable one: under a NOP free-run these drivers measured <strong>91.8% contended</strong>
+in simulation (a single-address run &mdash; see the caveat in <code>tools/contention_duty.py</code>,
+which makes the exact figure soft though not the direction), so
 unreworked they would burn ~7 W between them and be the hottest thing on the board by far. On
 board&nbsp;#1 they are <em>cold</em> in exactly that condition. If any of the eight shows up warm
 under NOPs, that site did not take &mdash; and the Kapton in step 5 exists to stop precisely that.</div>

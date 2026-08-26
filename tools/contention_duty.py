@@ -21,6 +21,18 @@ is executing -- so this runs TWO workloads and compares:
          measurement was actually made under
 
 Usage:  python3 tools/contention_duty.py [--halves 400] [--top 25]
+
+CAVEAT, ADDED 2026-08-26 -- READ BEFORE TRUSTING A NUMBER FROM THIS TOOL.
+Duty here is ADDRESS-dependent, and a short run pins the address. `adh` IS the
+high byte of the address during a fetch, so a bit that happens to be high is not
+being pulled low and reads 0% -- not because it never contends, but because it
+did not contend at that address. A 300-half-cycle run holds PCH at one value the
+whole time. Run with the reset vector at $EA (the default NOP image) and
+adh1/3/5/6/7 read 0.3%; run it at $0000 and all eight read 48%, because $EA has
+those bits set and $00 does not. Hardware settled it on 2026-08-26: under a real
+NOP free-run every adh site runs hot, and adh6/adh7 visibly cycle at 3.3 s and
+6.6 s -- exactly the rate those PCH bits toggle. Treat a low figure as "quiet at
+this address", never as "quiet".
 """
 import argparse
 import json
@@ -127,7 +139,7 @@ def main():
     for s in rows[:args.top]:
         r, nd = s["duty"], nop[s["ref"]]["duty"]
         if r > 0.2 and nd < 0.05:
-            v = "PROGRAM-DEPENDENT  <-- invisible in a NOP free-run"
+            v = "quiet at THIS address -- see the caveat, not 'never contends'"
         elif r > 0.2 and nd > 0.2:
             v = "always contended"
         elif r < 0.05 and nd < 0.05:

@@ -118,10 +118,13 @@ each VCC-side device conducts while its net reaches vss. **Promote it to a gate 
 any VCC-side FET without a series resistor shows non-zero duty under either workload. On rev B that
 should be *no sites at all*, which makes it a clean pass/fail rather than a threshold to argue about.
 
-Keep both workloads. The whole reason this was hard to see is that **contention is
-workload-dependent** — `adh1/3/5/6/7` contend 35% of the time under real code and 0.3% under a NOP
-free-run, which is why a thermal sweep taken during a NOP free-run found nothing and briefly
-retracted the entire model.
+**Sweep the address, do not trust one run.** Duty here is *address*-dependent: `adh` is the high
+byte of the address during a fetch, so a short simulation pins the address and reports 0% for every
+bit that merely happens to be high. A 150-cycle run at PCH = `$EA` reports `adh1/3/5/6/7` quiet; the
+same run at PCH = `$00` reports all eight at 48%. Any gate built on this must exercise a range of
+addresses, or it will certify sites that contend heavily in real use — which is exactly the error
+this card was written to record, committed a second time in the measurement rather than the
+generator.
 
 ---
 

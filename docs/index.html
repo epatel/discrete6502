@@ -615,10 +615,11 @@
     <p class="note">
       <b>The same camera then found sixteen more.</b> The address-path drivers carry the identical
       defect and were never reworked; nine of them measure about <b>80 &deg;C</b> while the board
-      executes real code. They hid because contention is <em>workload-dependent</em> &mdash; five of
-      them contend 35% of the time under a real program and 0.3% under a free-run of NOPs, which is
-      exactly the condition an earlier thermal sweep had been run under, and which is why that sweep
-      found nothing and briefly retracted the whole model.
+      executes real code. All sixteen contend in normal use: <code>adh</code> <em>is</em> the high byte of
+      the address during a fetch, so each bit is pulled low about half the time as the address
+      sweeps. Confirmed on 2026-08-26, when a free-run of NOPs ran every one of them hot and the two
+      slowest bits were seen <em>cycling</em> hot and cold at exactly the rate the program counter
+      dictates.
       <a href="rework-adh-series-r.html">All sixteen are mapped, with the duty cycle measured for each and the same site-by-site procedure</a>. The generator can also emit the fix at all 142 vulnerable sites for a future revision.
     </p>
 

@@ -2,10 +2,10 @@
 """Where the sixteen address-path rework sites are, so you can find them by eye.
 
 The 2026-08-25 thermal finding: adh3..adh7 run at ~80 C on board #1 while it
-executes real code. tools/contention_duty.py measured why -- adh1/3/5/6/7 contend
-35% of the time under a real program and 0.3% under a NOP free-run, which is the
-condition the 2026-08-24 FLIR image was taken in and therefore why it saw
-nothing. adh0/2/4 and adl0/1/2 contend under both.
+executes real code, and on 2026-08-26 a NOP free-run ran ALL of them hot too.
+The duty figures below came from a short simulation that pinned the address and
+so read 0% on bits that merely happened to be high; see the caveat in
+tools/contention_duty.py. Every one of these sixteen contends in normal use.
 
 The fix is the operation already proven on the dor eight: 10k in series with
 pin 3. This draws the map for it -- an overview plus a zoomed panel per cluster,
@@ -126,8 +126,8 @@ def main():
           "",
           "All 16 are on the TOP face. Same operation as the dor eight.",
           "adl6/adl7 are the busiest sites on the whole board at 45.7%%.",
-          "adh1/3/5/6/7 contend 35%% under real code and 0.3%% under a NOP",
-          "free-run -- which is why the 2026-08-24 thermal test saw nothing."]
+          "All sixteen contend in normal use: adh IS the address high byte, so"
+          "each bit is pulled low about half the time as the address sweeps."]
     bw = max(d.textlength(s, font=f) for s in lg) + 40
     bh = len(lg) * (f.size + 9) + 26
     d.rectangle([20, 20, 20 + bw, 20 + bh], fill=(0, 0, 0))

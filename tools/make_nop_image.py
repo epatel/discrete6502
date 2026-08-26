@@ -2,10 +2,12 @@
 """Emit a 16 KB all-$EA image as Intel hex: the NOP free-run, for thermal work.
 
 WHY. tools/contention_duty.py measures each VCC-side FET's contention duty under
-two workloads, and they differ enormously -- adh3/5/6/7 contend 35% of the time
-under real code and 0.3% under an all-NOP free-run. That is what reconciles the
-2026-08-24 thermal image (no hot spots, taken during a $EA free-run) with the
-2026-08-25 one (discrete 80 C spots, taken while executing a real program).
+two workloads. An earlier version of this comment claimed those workloads differ
+enormously for the adh sites and that this reconciled the 2026-08-24 thermal
+image (no hot spots) with the 2026-08-25 one (80 C spots). THAT WAS WRONG: the
+difference was an artifact of a short simulation pinning the address, and on
+2026-08-26 a real NOP free-run ran every adh site hot. Why the 2026-08-24 sweep
+saw nothing is unexplained.
 
 Loading this image reproduces the 2026-08-24 condition through the Pico rather
 than through a resistor tie-off, so the two thermal images differ in workload and

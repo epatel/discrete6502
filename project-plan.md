@@ -230,6 +230,32 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-26: **The NOP test falsified my prediction, and the board's answer was better than the
+  one I asked for.** Prediction: `adh3/5/6/7` go cold under an all-NOP free-run while `adh4` gets
+  hotter — a three-way split in one camera frame. **Result: every adh site stayed hot.** The cause is
+  a measurement artifact I introduced. `tools/contention_duty.py` ran 300 half-cycles = 150 cycles,
+  in which the PC barely moves, so **PCH sat at `$EA` for the whole simulation — and `adh` *is* PCH
+  during a fetch.** A bit already high is not being pulled low and cannot contend. Re-running the
+  identical measurement with the reset vector at `$0000` gives **48% on all eight**; at `$EA` the
+  bits reading 0% are **exactly the bits set in `$EA`** (1,3,5,6,7). So contention here is
+  **address-dependent, not workload-dependent**, and over any real run the address sweeps and every
+  bit heats. **The user's own observation is the stronger result:** `adh6` and `adh7` were seen to
+  stay cold about a second longer and then heat — *cycling*. PCH bit *n* toggles every 2ⁿ × 256
+  instructions, so at 10 kHz `T = 2ⁿ × 512 / f` gives **3.3 s for adh6 and 6.6 s for adh7**, and
+  those are the only two bits slow enough for copper's thermal mass to follow (adh0–adh4 are 50 ms
+  to 0.8 s and just look warm). **This is the Step 3c program-counter ripple measurement again, in
+  the thermal domain** — a better confirmation of the mechanism than the prediction it replaced.
+  **Consequences:** all sixteen sites want the rework and the "some are only hot under real code"
+  nuance is gone; **why the 2026-08-24 thermal sweep found nothing is UNEXPLAINED again**, since the
+  workload split was the only thing reconciling it, and no replacement is offered because none has
+  been earned; and any duty gate for rev B **must sweep addresses** or it will certify sites that
+  contend heavily in use — the same class of error as the `has_pulldown` filter, committed a second
+  time in the measurement instead of the generator. Docs swept: `tools/contention_duty.py` carries
+  the caveat and labels low readings "quiet at THIS address", and `make_nop_image.py`,
+  `mark_rework_adh.py`, `rework-adh-series-r.html`, `rework-dor-series-r.html`, `index.html`,
+  `actual-bring-up.html` (Steps 5/6 and 6b) and `cards/rev-b-plan.md` are corrected. **The user has
+  started the sixteen-site rework, which is needed regardless of the explanation.**
+
 - 2026-08-25 (evening): **The Pico is soldered, the CPU runs a real program off it —
   and the 2026-08-24 retraction of the driver-contention model is itself retracted.**
   Board #1, Pico 2 W mounted, autorun on: **the A LEDs count**, which is Step 6 passed

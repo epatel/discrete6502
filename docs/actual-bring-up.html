@@ -730,11 +730,18 @@ Q2680   adh3   cclk     35.0%     0.3%   &lt;-
 Q3840   adh6   cclk     35.0%     0.3%   &lt;-
 </code></pre>
 
-<p><strong><code>adh1/3/5/6/7</code> contend 35% of the time under real code and 0.3% under an all-NOP
-free-run — and a NOP free-run through a $EA tie-off is exactly the condition the Step 3b image was
-taken under.</strong> That image was sound. The generalisation drawn from it — that the excess is
-distributed over thousands of near-threshold FETs — was not. The 2026-08-01 model was right about the
-mechanism and simply was not being exercised.</p>
+<p><strong>CORRECTED 2026-08-26.</strong> This section originally read the table above as showing
+that <code>adh1/3/5/6/7</code> contend 35% of the time under real code and 0.3% under an all-NOP
+free-run, and concluded that the Step 3b image was sound but its generalisation was not, because it
+had been taken during a NOP free-run. <strong>The 0.3% was an artifact and the reconciliation is
+dead.</strong> The measurement ran 150 cycles, during which the program counter barely moves, so PCH
+sat at <code>$EA</code> throughout &mdash; and <code>adh</code> <em>is</em> the high byte of the
+address during a fetch. The bits that read 0% were exactly the bits <em>set</em> in
+<code>$EA</code>: a bit already high is not being pulled low and cannot contend. Re-run with PCH =
+<code>$00</code> and all eight read 48%. Contention here is <strong>address-dependent, not
+workload-dependent</strong>; over any real run the address sweeps and every bit spends about half
+its time low. <strong>Why the Step 3b sweep found nothing is therefore unexplained again</strong>,
+and is recorded as open rather than papered over.</p>
 
 <div class="ok">
 <strong>The strongest positive result: the Step 4 hand rework demonstrably works.</strong> The eight
@@ -806,37 +813,71 @@ against a 150 °C limit, so short runs are fine.</p>
 
 
 <div class="step">
-<h2><span class="tag todo">Next</span>Step 6b — The NOP-workload thermal test, not yet run</h2>
+<h2><span class="tag warn">Correction</span>Step 6b — The NOP test, and the prediction it broke, 2026-08-26</h2>
 
-<p>The model above makes a prediction sharp enough to falsify it, using one variable on one board with
-the camera not moved between shots. Load <code>gen/nopfill.hex</code> (16 KB of $EA, generated and
-self-verified by <code>tools/make_nop_image.py</code>) and re-shoot.</p>
+<div class="warn">
+<strong>Every adh site ran hot under NOPs, and the prediction said four of them would go cold.</strong>
+The board was right and the model was wrong.
+</div>
 
-<p><strong>On the ammeter</strong>, contention should fall from 7.66 nets to 3.80 — about half.
-And the <em>direction</em> is itself a test of the Step 4 rework:</p>
+<p>The test was meant to be decisive: load <code>gen/nopfill.hex</code> (16 KB of $EA), re-shoot the
+same column, and watch <code>adh3/5/6/7</code> go cold while <code>adh4</code> got hotter. Instead
+they all stayed hot &mdash; but the run produced a better result than the prediction would have.</p>
 
-<pre><code>if NOTHING were reworked          real  9.64 nets   nop 11.14 nets   +16%
-on this board (dor eight fixed)   real  7.66 nets   nop  3.80 nets   -50%
+<h3>Why the prediction was wrong</h3>
+
+<p><code>tools/contention_duty.py</code> ran 300 half-cycles. The program counter barely moves in
+150 cycles, so <strong>PCH sat at <code>$EA</code> for the whole simulation</strong> &mdash; and
+<code>adh</code> <em>is</em> PCH during a fetch. A bit that is already high is not being pulled low,
+so it cannot contend. Re-run the identical measurement with the reset vector changed:</p>
+
+<pre><code>PCH = $EA = 11101010   (what the simulation actually ran)
+  adh0  adh1  adh2  adh3  adh4  adh5  adh6  adh7
+   14%    0%   48%    0%   48%    0%    0%    0%
+
+PCH = $00 = 00000000
+   48%   48%   48%   48%   48%   48%   48%   48%
 </code></pre>
 
-<p>Under NOPs the <code>dor</code> drivers jump to 91.8% duty and would dominate everything, so an
-unreworked board draws <em>more</em>. <strong>If the current rises, the rework is not doing what this
-page claims.</strong></p>
+<p>The bits that measured quiet are <strong>exactly the bits set in <code>$EA</code></strong>
+&mdash; 1, 3, 5, 6, 7. Contention here is <strong>address-dependent, not workload-dependent</strong>.
+Over a real run the address sweeps, every bit spends about half its time low, and all of them heat.</p>
 
-<p><strong>On the camera</strong>, three different behaviours in one frame:</p>
+<h3>What the board showed instead, which is stronger</h3>
 
-<table>
-<tr><th>Sites</th><th>Duty change</th><th>Expect</th></tr>
-<tr><td>adh3, adh5, adh6, adh7</td><td>35% → 0.3%</td><td>go cold</td></tr>
-<tr><td>adh4</td><td>35% → 48%</td><td><strong>gets hotter</strong></td></tr>
-<tr><td>adl5, adl6, adl7</td><td>37–46% → 22–34%</td><td>stay hot, ease slightly</td></tr>
-</table>
+<p>Watching the image, <code>adh6</code> and <code>adh7</code> were seen to stay cold about a second
+longer than the others and then heat up as well &mdash; <strong>cycling</strong>, not merely warm.
+That is quantitative. PCH increments every 256 instructions and bit <em>n</em> toggles every
+2<sup>n</sup> of those, so at 10 kHz (NOP = 2 cycles, 5,000 instructions/s):</p>
 
-<p><code>adh4</code> sits in the middle of the same column as the four that should vanish, so camera,
-board, framing and supply are identical for all of them. One part behaving oppositely to its
-neighbours cannot be an artifact of any of those. <strong>The most informative failure would be adh4
-going cold with the rest</strong> — that would mean the split is not workload-dependent contention but
-something common to the column, and the model needs rethinking rather than patching.</p>
+<pre><code>T = 2^n x 512 / f_clock
+
+adh0..adh4   50 ms .. 0.8 s     faster than the copper's thermal time constant
+adh5         1.6 s
+adh6         3.3 s              <- observed cycling
+adh7         6.6 s              <- observed cycling
+</code></pre>
+
+<p>The only two bits slow enough for thermal mass to follow are exactly the two that were seen
+cycling. This is the program-counter ripple measurement of Step 3c again, in the thermal domain
+instead of the optical one, and it is a stronger confirmation of the contention mechanism than the
+prediction it replaced. <strong>A worthwhile follow-up before the rework removes it:</strong> film
+30 s of FLIR and check <code>adh7</code>'s period is exactly twice <code>adh6</code>'s.</p>
+
+<h3>What it changes</h3>
+
+<ul>
+<li><strong>All sixteen sites want the rework</strong>, and the "some are only hot under real code"
+nuance is gone &mdash; it was never real.</li>
+<li><strong>Why Step 3b saw no hot spots is open again.</strong> The workload explanation was the
+only thing reconciling it, and it is dead. Same board, also a NOP free-run, address also sweeping.
+No replacement explanation is offered here, because none has been earned.</li>
+<li><strong>The measurement tool now carries a caveat</strong> and its low readings are labelled
+"quiet at THIS address". A duty gate for rev B must sweep addresses or it will certify sites that
+contend heavily in use.</li>
+</ul>
+
+<p class="gate">Gate: the prediction failed and the mechanism survived. <strong>Rework all sixteen.</strong></p>
 </div>
 
 
