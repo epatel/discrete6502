@@ -35,15 +35,23 @@ RENDER = "gen/board_top.png"
 SHEET = "docs/img/rework-adh-sites.jpg"
 PAGE = "docs/rework-adh-series-r.html"
 
-# from tools/contention_duty.py: net -> (duty under real code, duty under NOPs)
-DUTY = {
-    "adh0": (33.7, 14.3), "adh1": (35.0, 0.3), "adh2": (35.3, 48.0),
-    "adh3": (35.0, 0.3), "adh4": (35.3, 48.0), "adh5": (35.0, 0.3),
-    "adh6": (35.0, 0.3), "adh7": (35.0, 0.3),
-    "adl0": (19.3, 24.7), "adl1": (20.0, 25.7), "adl2": (39.0, 24.0),
-    "adl3": (40.7, 23.0), "adl4": (15.3, 25.3), "adl5": (37.0, 21.7),
-    "adl6": (45.7, 34.3), "adl7": (45.7, 34.3),
-}
+# Contention duty. CORRECTED 2026-08-26: an earlier version of this table
+# carried two columns, "under real code" and "under a NOP free-run", and the
+# second was an artifact. The measurement ran 150 cycles, during which the
+# program counter barely moves, so PCH sat at $EA the whole time -- and adh IS
+# PCH during a fetch. The bits that measured 0% were exactly the bits SET in
+# $EA: a bit already high is not being pulled low, so it does not contend.
+# Re-run with PCH = $00 and all eight measure 48%.
+#
+# So contention here is ADDRESS-dependent, not workload-dependent. Over any real
+# run the address sweeps, every bit spends about half its time low, and all
+# sixteen contend. The figure below is the duty at an address that exercises the
+# bit; the long-run average is roughly half that.
+DUTY = {n: 48.0 for n in
+        ["adh%d" % i for i in range(8)] + ["adl%d" % i for i in range(8)]}
+# Measured hot with a FLIR on board #1: 2026-08-25 (the nine below) and
+# 2026-08-26, when a NOP free-run showed ALL of them hot, with adh6 and adh7
+# visibly cycling -- the two slowest PCH bits, 3.3 s and 6.6 s at 10 kHz.
 HOT = {"adh3", "adh4", "adh5", "adh6", "adh7", "adl4", "adl5", "adl6", "adl7"}
 
 CISS_F = 27e-12
@@ -106,7 +114,7 @@ def collect(pos):
         gl = gate_load.get(net, 0)
         val, lcsc = series_r_for(gl)
         sites.append(dict(net=net, ref=ref, x=x, y=y, layer=layer, gates=gl,
-                          value=val, lcsc=lcsc, nn=nn, duty=DUTY[net],
+                          value=val, lcsc=lcsc, nn=nn, duty=(DUTY[net], DUTY[net]),
                           pin3=c["pins"]["3"], revb=net in direct_pd))
     sites.sort(key=lambda s: s["net"])
     assert len(sites) == len(DUTY), "found %d of %d" % (len(sites), len(DUTY))
@@ -158,7 +166,7 @@ def contact_sheet(sites):
         sheet.paste(crop, (px, py))
         d0.text((px + 2, py + CELL + 4), "%s   %s" % (s["net"], s["ref"]), font=f, fill=col)
         d0.text((px + 2, py + CELL + 26),
-                "x %.1f  y %.1f   duty %.0f%%" % (s["x"], s["y"], s["duty"][0]),
+                "x %.1f  y %.1f" % (s["x"], s["y"]),
                 font=fs, fill=(170, 178, 188))
     os.makedirs(os.path.dirname(SHEET), exist_ok=True)
     sheet.save(SHEET, quality=88, optimize=True)
@@ -215,8 +223,8 @@ def build_page(sites, sheet_size):
         cls = ' class="hot"' if s["net"] in HOT else ""
         rows.append(
             "<tr><td%s>%s</td><td>%s</td><td class=num>%.2f</td><td class=num>%.2f</td>"
-            "<td class=num>%.1f%%</td><td class=num>%.1f%%</td><td>%s</td><td>%s</td></tr>"
-            % (cls, s["net"], s["ref"], s["x"], s["y"], s["duty"][0], s["duty"][1],
+            "<td class=num>%.0f%%</td><td>%s</td><td>%s</td></tr>"
+            % (cls, s["net"], s["ref"], s["x"], s["y"], s["duty"][0],
                s["value"], "measured hot" if s["net"] in HOT else "—"))
 
     return """<!doctype html>
@@ -249,11 +257,15 @@ program-dependent one. <strong>Nine of them measured about 80&nbsp;&deg;C</stron
 with a thermal camera while it executed real code.</p>
 
 <div class="warn">
-<strong>They hid for a reason worth knowing.</strong> Contention here is workload-dependent. Five of
-these contend 35%% of the time under a real program and <strong>0.3%% under a free-run of
-NOPs</strong> &mdash; and a NOP free-run is exactly the condition an earlier thermal sweep was run
-under, which is why that sweep found nothing and briefly retracted the whole model. Measure with the
-CPU doing real work, not idling.
+<strong>All sixteen contend in normal operation.</strong> An earlier version of this page split them
+into "always contended" and "only under real code". That distinction was an artifact of a
+150-cycle simulation in which the program counter barely moved: <code>adh</code> <em>is</em> the
+high byte of the address during a fetch, so a bit that happens to be high is not being pulled low
+and does not contend. Over any real run the address sweeps and every bit spends about half its time
+low. Confirmed on hardware 2026-08-26 &mdash; under a NOP free-run all of them run hot, and
+<code>adh6</code> and <code>adh7</code> are visibly <em>cycling</em> hot and cold at 3.3&nbsp;s and
+6.6&nbsp;s at 10&nbsp;kHz, which is exactly the rate those two PCH bits toggle
+(<code>T = 2<sup>n</sup> &times; 512 / f</code>).
 </div>
 
 <h2>The sixteen sites</h2>
@@ -264,7 +276,7 @@ side</strong> &mdash; the same pin lifted on the data-bus eight.</p>
 
 <div class="tw"><table>
 <tr><th>net</th><th>ref</th><th>x&nbsp;(mm)</th><th>y&nbsp;(mm)</th>
-    <th>duty, running</th><th>duty, NOPs</th><th>R</th><th>thermal</th></tr>
+    <th>duty when exercised</th><th>R</th><th>thermal</th></tr>
 %(rows)s
 </table></div>
 

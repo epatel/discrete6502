@@ -64,11 +64,15 @@ program-dependent one. <strong>Nine of them measured about 80&nbsp;&deg;C</stron
 with a thermal camera while it executed real code.</p>
 
 <div class="warn">
-<strong>They hid for a reason worth knowing.</strong> Contention here is workload-dependent. Five of
-these contend 35% of the time under a real program and <strong>0.3% under a free-run of
-NOPs</strong> &mdash; and a NOP free-run is exactly the condition an earlier thermal sweep was run
-under, which is why that sweep found nothing and briefly retracted the whole model. Measure with the
-CPU doing real work, not idling.
+<strong>All sixteen contend in normal operation.</strong> An earlier version of this page split them
+into "always contended" and "only under real code". That distinction was an artifact of a
+150-cycle simulation in which the program counter barely moved: <code>adh</code> <em>is</em> the
+high byte of the address during a fetch, so a bit that happens to be high is not being pulled low
+and does not contend. Over any real run the address sweeps and every bit spends about half its time
+low. Confirmed on hardware 2026-08-26 &mdash; under a NOP free-run all of them run hot, and
+<code>adh6</code> and <code>adh7</code> are visibly <em>cycling</em> hot and cold at 3.3&nbsp;s and
+6.6&nbsp;s at 10&nbsp;kHz, which is exactly the rate those two PCH bits toggle
+(<code>T = 2<sup>n</sup> &times; 512 / f</code>).
 </div>
 
 <h2>The sixteen sites</h2>
@@ -79,23 +83,23 @@ side</strong> &mdash; the same pin lifted on the data-bus eight.</p>
 
 <div class="tw"><table>
 <tr><th>net</th><th>ref</th><th>x&nbsp;(mm)</th><th>y&nbsp;(mm)</th>
-    <th>duty, running</th><th>duty, NOPs</th><th>R</th><th>thermal</th></tr>
-<tr><td>adh0</td><td>Q374</td><td class=num>160.15</td><td class=num>191.80</td><td class=num>33.7%</td><td class=num>14.3%</td><td>10k</td><td>—</td></tr>
-<tr><td>adh1</td><td>Q541</td><td class=num>156.45</td><td class=num>205.80</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>—</td></tr>
-<tr><td>adh2</td><td>Q2196</td><td class=num>160.15</td><td class=num>214.20</td><td class=num>35.3%</td><td class=num>48.0%</td><td>10k</td><td>—</td></tr>
-<tr><td class="hot">adh3</td><td>Q2680</td><td class=num>204.55</td><td class=num>228.20</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td class="hot">adh4</td><td>Q505</td><td class=num>204.55</td><td class=num>242.20</td><td class=num>35.3%</td><td class=num>48.0%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td class="hot">adh5</td><td>Q2457</td><td class=num>200.85</td><td class=num>250.60</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td class="hot">adh6</td><td>Q3840</td><td class=num>200.85</td><td class=num>264.60</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td class="hot">adh7</td><td>Q2324</td><td class=num>200.85</td><td class=num>270.20</td><td class=num>35.0%</td><td class=num>0.3%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td>adl0</td><td>Q3136</td><td class=num>167.55</td><td class=num>180.60</td><td class=num>19.3%</td><td class=num>24.7%</td><td>10k</td><td>—</td></tr>
-<tr><td>adl1</td><td>Q2543</td><td class=num>163.85</td><td class=num>197.40</td><td class=num>20.0%</td><td class=num>25.7%</td><td>10k</td><td>—</td></tr>
-<tr><td>adl2</td><td>Q2008</td><td class=num>171.25</td><td class=num>208.60</td><td class=num>39.0%</td><td class=num>24.0%</td><td>10k</td><td>—</td></tr>
-<tr><td>adl3</td><td>Q1241</td><td class=num>163.85</td><td class=num>219.80</td><td class=num>40.7%</td><td class=num>23.0%</td><td>10k</td><td>—</td></tr>
-<tr><td class="hot">adl4</td><td>Q347</td><td class=num>204.55</td><td class=num>233.80</td><td class=num>15.3%</td><td class=num>25.3%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td class="hot">adl5</td><td>Q506</td><td class=num>200.85</td><td class=num>239.40</td><td class=num>37.0%</td><td class=num>21.7%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td class="hot">adl6</td><td>Q2458</td><td class=num>200.85</td><td class=num>256.20</td><td class=num>45.7%</td><td class=num>34.3%</td><td>10k</td><td>measured hot</td></tr>
-<tr><td class="hot">adl7</td><td>Q3841</td><td class=num>204.55</td><td class=num>267.40</td><td class=num>45.7%</td><td class=num>34.3%</td><td>10k</td><td>measured hot</td></tr>
+    <th>duty when exercised</th><th>R</th><th>thermal</th></tr>
+<tr><td>adh0</td><td>Q374</td><td class=num>160.15</td><td class=num>191.80</td><td class=num>48%</td><td>10k</td><td>—</td></tr>
+<tr><td>adh1</td><td>Q541</td><td class=num>156.45</td><td class=num>205.80</td><td class=num>48%</td><td>10k</td><td>—</td></tr>
+<tr><td>adh2</td><td>Q2196</td><td class=num>160.15</td><td class=num>214.20</td><td class=num>48%</td><td>10k</td><td>—</td></tr>
+<tr><td class="hot">adh3</td><td>Q2680</td><td class=num>204.55</td><td class=num>228.20</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh4</td><td>Q505</td><td class=num>204.55</td><td class=num>242.20</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh5</td><td>Q2457</td><td class=num>200.85</td><td class=num>250.60</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh6</td><td>Q3840</td><td class=num>200.85</td><td class=num>264.60</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adh7</td><td>Q2324</td><td class=num>200.85</td><td class=num>270.20</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td>adl0</td><td>Q3136</td><td class=num>167.55</td><td class=num>180.60</td><td class=num>48%</td><td>10k</td><td>—</td></tr>
+<tr><td>adl1</td><td>Q2543</td><td class=num>163.85</td><td class=num>197.40</td><td class=num>48%</td><td>10k</td><td>—</td></tr>
+<tr><td>adl2</td><td>Q2008</td><td class=num>171.25</td><td class=num>208.60</td><td class=num>48%</td><td>10k</td><td>—</td></tr>
+<tr><td>adl3</td><td>Q1241</td><td class=num>163.85</td><td class=num>219.80</td><td class=num>48%</td><td>10k</td><td>—</td></tr>
+<tr><td class="hot">adl4</td><td>Q347</td><td class=num>204.55</td><td class=num>233.80</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adl5</td><td>Q506</td><td class=num>200.85</td><td class=num>239.40</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adl6</td><td>Q2458</td><td class=num>200.85</td><td class=num>256.20</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
+<tr><td class="hot">adl7</td><td>Q3841</td><td class=num>204.55</td><td class=num>267.40</td><td class=num>48%</td><td>10k</td><td>measured hot</td></tr>
 </table></div>
 
 <figure>
