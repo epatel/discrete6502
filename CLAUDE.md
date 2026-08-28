@@ -56,7 +56,7 @@ Load the matching card from `cards/` when a trigger fits the current task:
   (3.3 V vs 5 V, the missing clk0 pull-up), or how board and Pico get powered
 - `cards/bond-pad-ring.md` — when working on the 36-pad edge ring, `rim_slot`/pad placement in `tools/gen_pcb.py`, locating a bond pad for probing, or comparing the board against visual6502's die view (records the rev A pad-order defect: A6, VSS, D7, R/W are in the wrong slot)
 - `cards/rev-b-plan.md` — when generating rev B (`DISCRETE6502_REV_B=1`), touching `has_pulldown`/`series_r_for` in `tools/gen_netlist.py`, or deciding whether a respin is worth it; records that the 142-site count is wrong (all 164 want a resistor) and everything else a new board must change
-- `navigator/README.md` — when locating a component on the physical board, mapping a net or
-  designator to a position, or pointing someone at a site live (`python3 navigator/server.py`,
-  driven by `navigator/navctl.py`)
+- `cards/navigator.md` — when the answer is a place on the board (where is Q2577, what is next to
+  it, which parts are on `s0`), when the user is at the bench and something should be pointed at
+  live, or when working on `navigator/` itself; deeper reference in `navigator/README.md`
 - `cards/layout.md` — when working on the PCB (`gen/discrete6502.kicad_pcb`), the routing pipeline (`tools/route_nc.*` + finishing passes), DRC severity rationale, silkscreen (`tools/add_silk.py`), or the fab outputs in `gen/fab/`
