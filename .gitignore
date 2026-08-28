@@ -38,3 +38,6 @@ gen/fab/ORDER.local.md
 # from, so there is nothing to pin. 3.7 MB of derived data.
 gen/netlist_revb.json
 gen/discrete6502_revb.net
+
+# navigator: generated index + live annotation state
+navigator/data/

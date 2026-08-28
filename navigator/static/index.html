@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>discrete6502 · board navigator</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>discrete6502 <span class="rev">rev A</span></h1>
+  <div class="sides">
+    <button id="sideF" class="on">Top (F)</button>
+    <button id="sideB">Bottom (B)</button>
+  </div>
+  <div class="tools">
+    <label><input type="checkbox" id="tParts" checked> parts</label>
+    <label><input type="checkbox" id="tLabels" checked> refs</label>
+    <label><input type="checkbox" id="tAnn" checked> pins</label>
+    <label class="slider">image <input type="range" id="opacity" min="0" max="100" value="100"></label>
+    <button id="fit" title="Fit board (F)">fit</button>
+    <button id="pinMode" title="Then click the board to drop a pin">+ pin</button>
+  </div>
+  <div class="right">
+    <span id="coords" class="coords">—</span>
+    <span id="live" class="live off">offline</span>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="search">
+      <input id="q" placeholder="Q2577 · net:s0 · role:vcc_side · type:led" autocomplete="off">
+      <div class="hint" id="hint">5,425 parts. Try <code>net:cclk</code>, <code>role:led_S</code>, <code>value:10k</code>.</div>
+    </div>
+    <div id="results" class="results"></div>
+
+    <section class="card" id="groupCard">
+      <h2>Groups</h2>
+      <div id="groups" class="groups"></div>
+    </section>
+
+    <section id="detail" class="card hidden"></section>
+
+    <section class="card" id="noteCard" hidden>
+      <h2 id="noteTitle">Note</h2>
+      <div id="noteBody" class="note"></div>
+    </section>
+
+    <section class="card">
+      <h2>Annotations <span id="annCount" class="badge">0</span>
+        <button id="clearAnn" class="mini">clear</button></h2>
+      <div id="annList" class="annlist"></div>
+    </section>
+
+    <section class="card legend">
+      <h2>Legend</h2>
+      <ul id="legend"></ul>
+    </section>
+  </aside>
+
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="tip" class="tip hidden"></div>
+    <div id="hlbar" class="hlbar hidden"></div>
+  </div>
+</main>
+
+<dialog id="pinDlg">
+  <form method="dialog">
+    <h3>New annotation</h3>
+    <label>label <input name="label" autofocus></label>
+    <label>note <textarea name="text" rows="3"></textarea></label>
+    <label>colour
+      <select name="color">
+        <option value="#ff4757">red</option>
+        <option value="#ffd23f">yellow</option>
+        <option value="#3fd0ff">cyan</option>
+        <option value="#7bed9f">green</option>
+        <option value="#c792ff">violet</option>
+      </select>
+    </label>
+    <menu>
+      <button value="cancel">cancel</button>
+      <button value="ok" class="primary">add</button>
+    </menu>
+  </form>
+</dialog>
+
+<script src="/app.js"></script>
+</body>
+</html>
