@@ -39,7 +39,11 @@ aside{width:330px;flex:0 0 auto;background:var(--panel);border-right:1px solid v
 .hint{color:var(--dim);font-size:11px;margin-top:6px}
 .hint code{background:var(--panel2);padding:1px 4px;border-radius:3px;font-family:var(--mono)}
 
-.results{display:flex;flex-direction:column;gap:1px;max-height:34vh;overflow-y:auto}
+/* flex-shrink must be off: overflow-y:auto sets this item's automatic minimum
+   size to 0, so a full sidebar squeezed the result rows to zero height and the
+   list looked empty while the match count said otherwise */
+.results{display:flex;flex-direction:column;gap:1px;flex:0 0 auto;
+  max-height:34vh;overflow-y:auto}
 .row{display:flex;gap:8px;align-items:baseline;padding:4px 6px;border-radius:4px;cursor:pointer}
 .row:hover{background:var(--panel2)}
 .row.sel{background:#12362b;outline:1px solid var(--acc)}
