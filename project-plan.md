@@ -230,6 +230,78 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-28: **THE CPU COMPUTES — 23 datapath subtests pass — and the stack fault that
+  produced `FAILED at $02F3` was a single leaking transistor, found and replaced.**
+  `tools/quick_selftest.py` covers TXS/TSX, TAX/TXA/TAY/TYA, INX/DEX/INY/DEY with wrap,
+  ADC/SBC/AND/ORA/EOR, ASL/LSR, PHA/PLA, S decrementing twice and restoring, PHP/PLP,
+  zero page, absolute-indexed, JSR/RTS and both Z-flag directions. **All 23 pass on board #1.**
+  That is far past the 2026-08-25 NOP free-run, which only exercised fetch, decode and the PC.
+  **Root cause of the stack failure: Q2577** (pull-down, gate `s0`, drain `n983`, x 75.05
+  y 183.40) had a **20 kohm gate-to-drain leak against 177 kohm on its matched twin Q3793**.
+  `n983` carries a 10 kohm pull-up (R585), and `s0` is a pure dynamic node with no pull-down
+  of its own, so the leak pinned S bit 0 high: `PHA` could not decrement S, `RTS` pulled flag
+  bytes instead of a return address, the PC landed in the zero-filled void, `$00` = BRK, and
+  the run ended at `int_trap`. Repaired by **transplanting the FET from Q4050** (the P2 flag
+  LED driver, a cosmetic tap the CPU does not use) — **no donor board needed**. Cost: the S0
+  and P2 LEDs are dark. **This was a random fab defect on a net the rework never touched**,
+  exactly the class the yield estimate predicted (0.5–2 per board across ~14,700 joints);
+  the contention and address-bus faults were simply louder.
+  **Three wrong calls on the way, all the same mistake**, and worth recording because it cost
+  hours: `alub0`/Q1313, then `sb0`/Q1804, then Q4024. Each was named from **a single
+  in-circuit two-point reading**, which measures the part *and* everything around it — so on
+  a net that is already faulty, every part sitting on it reads wrong. Q4024 measured 70 kohm
+  gate-drain against a healthy OL and was removed on that basis; its gate *is* `s0`, so the
+  meter was seeing the Q2577 fault straight through it. It shed a pin on removal and was not
+  reused. **What finally worked: measure each suspect against its matched twin on bit 1, and
+  trust only the part whose low reading cannot be explained by the fault itself** — Q2577 was
+  the only one whose pin 3 (`n983`) is independent of `s0`.
+  **The test program was validated before it was trusted**: the same image runs on the
+  reference visual6502 netlist under `switchsim` and passes all 23 there, which caught two
+  bugs in the test program itself (the interrupt trap was being written into the middle of the
+  code; the `abs,X` subtest wrote on top of the fail-loop table). Either would have looked like
+  a hardware fault. Its verdict is the **address it loops at** — `$0480` pass, `$0400+3(N-1)`
+  names the failing subtest, `$0600` int_trap — because that is the one thing the wifi panel's
+  32-cycle window can always show, and the panel cannot read memory back.
+  **The `cclk` short is gone, and it was the smoke.** `cclk` measured **32 ohm to VCC** against
+  `cp1`'s 540 ohm — a short that stopped the internal clock phases, froze the address bus at
+  `$3FFF` with no SYNC, and made time-to-hang collapse 20.1 s → 4.1 s → 0.5 s as the board
+  warmed. An IPA wash and water rinse cleared it: `cclk` and `cp1` now read **9 kohm each**.
+  **Six 45-second trials afterwards, no freeze.** Since a wash removes surface contamination and
+  not silicon, it was a bridge or conductive residue, not damage.
+  **Address bus: all 14 bits toggle.** ab7 (`adl7`/Q3841) came good after the rework at that
+  site was redone; ab6 (`adl6`/Q2458) lost its resistor during the wash and was resoldered;
+  ab2 was fixed by reflowing the Pico GP10 joint. **Current 0.5 A clocked against a 0.548 A
+  passive floor**, so the 16-site rework is doing its job. FLIR peak 40 C, no localised spot.
+  **The one thing still blocking the acceptance run is bench power, not the board.** The Pico
+  loses power every 25–45 s: the cycle counter resets to zero, USB disappears entirely, mDNS
+  drops. **VSYS is tied to board VCC (pin 39 soldered), so USB cannot rescue it** — a port
+  asked to carry 0.5–2.2 A current-limits and takes VSYS down with the board. A 10 uF at pins
+  38/39 did not help, which fits: 10 uF holds a rail for microseconds, not for a dropout long
+  enough to reset the chip. The firmware is not responsible — `watchdog_disable()` runs first
+  in `main()` and the only deliberate reboot path fires once after saving credentials.
+  **The distinguishing measurement, not yet taken: does supply current spike just before each
+  dropout (a board fault) or does the voltage sag on its own (bench wiring)?**
+  **Note the startup trap**: with the clock parked the board draws **2.2 A**, and that is the
+  state at power-up before autorun starts clocking. A USB-C source without CC resistors
+  supplies only 500–900 mA, which explains both "stuck from start" and "runs a few seconds".
+  **Wanted: a 5 V supply rated >=3 A on a real connector, not USB.**
+  **The decimal test reached 2.1% (965,606 cycles) at 9,811 Hz before the network dropped.**
+  Corrected estimate: **77 minutes at 10 kHz**, not the 2h33m the firmware reports — that
+  figure assumes a 5 kHz clock. **Do not monitor it over wifi**: the lwIP stack wedges under
+  repeated short-lived requests, observed even at **one poll per minute**. The CPU is
+  unaffected — it runs on core 1 and kept executing while the web server was dead — so start
+  the run, leave it, and read `VERDICT :` from the **USB serial banner**, which is in the
+  firmware for exactly this reason.
+  **New tools:** `tools/quick_selftest.py` (the 23-test image, `--hex` to print it),
+  `tools/board_probe.py` (push/push-even/push1/sxfer/dex, `hold-push`/`hold-dex`/`hold-idle`
+  loops for thermal work, `--sweep` across clock rates), and four derived probe maps —
+  `tools/mark_stack_sites.py`, `mark_probe_points.py`, `mark_s0_probe.py`,
+  `mark_q2577_swap.py`. Full record in **`docs/stack-decrement-defect.md`** (742 lines).
+  **Pico firmware:** flash erased and `wifi.uf2` reflashed; settings back to defaults
+  (autorun on, 50 us half-period). **`discrete6502.local` resolves over mDNS**, so the IP
+  never needs hunting after a power cycle.
+  **Nothing in the fab package or the netlist changed.**
+
 - 2026-08-26 (later): **A stopped board draws 0.30 A — the passive budget, exactly as designed —
   and that retires the 1.4 A question open since 2026-08-23.** Measured with the Pico fitted and the
   clock parked: **0.30 A** against a design prediction of 0.35 A typical and a 0.548 A passive
@@ -832,6 +904,34 @@ _(append-only; timestamp and mark locked decisions)_
 - 2026-07-18: M4 complete. (a) Switch-level sim proves the transformed netlist behaviorally identical to the original visual6502 netlist — same traces, same correct execution of a stack/JSR/ADC/branch test program. (b) onsemi BSIM3v3 2N7002 model confirms pass pairs analog-correct for all source-driven transfers (incl. 4-FET series chains, '1'≈5.1V bootstrap-assisted, '0' clean); the only failing pattern — '0' between two floating islands via clock-edge charge injection — is one the 6502's precharge-high design never relies on. Layout insurance: DNP ballast-cap footprints on main buses (open question). Next: M5 — install KiCad, import `gen/discrete6502.net`, scripted placement (functional-block clustering from netlist `origin` fields), routing strategy, DRC vs. `cards/jlcpcb-constraints.md`, plus connector/power-entry/input-protection design.
 - 2026-07-18: M3 complete. KiCad chosen as EDA target (netlist-direct-to-pcbnew, scripted placement in M5; no hand schematic). `tools/gen_netlist.py` transforms visual6502 data → 5,179 components / 2,587 nets / 5 part numbers, all JLCPCB basic class, with LED taps included; invariant checks pass (`cards/netlist-pipeline.md`). Next: M4 — behavioral verification: export the transformed netlist to a simulator (perfect6502-style switch-level sim or SPICE subcircuits with vendor 2N7002 models), run real 6502 test programs, compare against visual6502 golden model; re-verify the bootstrap-dependent pass pairs with manufacturer models.
 - 2026-07-18: M2 complete. Dynamic latch with back-to-back pass-FET pair SPICE-validated for BSS138/2N7002/AO3400 (`sim/passpair_latch.sp`); clock-edge bootstrap over-charges stored '1' above VDD, eliminating threshold drop — but must be re-verified with manufacturer SPICE models and on more topologies (series pass chains, clock drivers) in M4. AO3400A rejected (1nF Ciss too slow with 10k pull-ups). Parts, voltages, and board target settled (see Decisions). Next: M3 — pick EDA tool (KiCad assumed) and build the scripted netlist→schematic/placement pipeline from `data/visual6502/transdefs.js` (dedup 271 parallel transistors, expand 783 pass FETs to pairs, emit pull-up resistors from segdefs '+' flags).
+
+- 2026-08-28 **[M6, hardware finding + repair]** **A single transistor, Q2577, was pinning
+  S bit 0 high and breaking every stack operation.** Gate-to-drain leak of 20 kohm against
+  177 kohm on its matched twin; its drain net `n983` carries a 10 kohm pull-up, and `s0` has
+  no pull-down, so S bit 0 could never fall. Repaired by transplanting the FET from Q4050, a
+  P2-flag LED driver. **Not the driver-contention ratio bug** — `s0` has no pull-up and no
+  VCC-side FET — but a random fab defect, the first one located on this board.
+  **Method that worked, after three wrong calls:** an in-circuit two-point reading measures
+  the part *and* its surroundings, so on a faulty net every part reads wrong. Compare each
+  suspect against its matched twin on an adjacent bit, and trust only the one whose reading
+  cannot be borrowed from the fault itself.
+
+- 2026-08-28 **[M6, milestone]** **23 datapath subtests pass on board #1**
+  (`tools/quick_selftest.py`): registers and all transfers, ALU with carry and borrow, shifts,
+  stack in both directions with S tracking, flag save/restore, zero-page and absolute-indexed
+  addressing, and JSR/RTS. **Validated on the reference visual6502 netlist first**, which
+  caught two bugs in the test program that would otherwise have read as hardware faults.
+  The verdict is encoded as the **address the CPU loops at**, so it survives the wifi panel's
+  32-cycle trace window and needs no memory read-back. Klaus Dormann's suite remains the
+  acceptance gate.
+
+- 2026-08-28 **[operational, learned the hard way]** **Never write Pico flash while the CPU is
+  running**, and never poll a long run over wifi. `op=autorun`/`clocksave`/`store` stall the
+  core including lwIP; issuing one mid-run wedged the web server during the write and the
+  settings record — which holds the wifi credentials — had to be erased and reprovisioned.
+  Separately, the lwIP stack wedges under repeated short-lived HTTP requests, observed at one
+  poll per minute. The CPU survives both on core 1; only the observation channel dies, which
+  is why the verdict is printed to USB serial.
 
 ## Cost — AS ORDERED (paid 2026-07-28)
 
