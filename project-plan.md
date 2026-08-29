@@ -261,8 +261,45 @@ _(append-only; timestamp and mark locked decisions)_
   verdict rule). It exists because the tester stops clocking the moment a terminal attaches, and a
   parked clock is the high-current state — measured twice, the port died ~1 s after attach, so the
   observer destroyed what it was observing. The shipped shape is: wait for the host, announce, run
-  the test in one 15 ms window, float `clk0`, then repeat the verdict twice a second for as long as
+  the test in one 15 ms window, park `clk0` LOW, then repeat the verdict twice a second for as long as
   the rail lasts. **Not yet run to a verdict on hardware.**
+
+- 2026-08-29 (later): **The excess current has a named cause, and `clk0` must never be left
+  floating — both settled by tracing the netlist rather than arguing.** [user, thermal camera]
+  **Q1830 and the seven parts above it ran very hot with the adh/adl rework already done.** The
+  navigator named it in one query: `vcc_side` FET, **gate `cclk`**, precharging `idb7` — and the
+  column above it is `idb0`-`idb6`. **They are the same 1:1 ratio defect as the sixteen reworked
+  sites, take the same fix (10k in series with pin 3), and were never in the rework set.**
+  `sb0`-`sb7` are eight more in the same condition. So the rework is incomplete, not wrong:
+  32 FETs are cclk-gated precharge devices, 16 are done, 16 are not.
+  **Why that is the whole 2 A: the chain `clk0` -> Q2229/Q2420 -> `n519`/`n358` ->
+  `n1129`/`n1467` -> Q432/Q3504 -> `cclk` means clk0 LOW parks cclk LOW and all 32 precharge
+  FETs off; clk0 HIGH turns them all on at once.** Eight at the simulated 262 mA is 2.1 A, the
+  order of the draw that folded a 2.4 A charger to **3.6 V at 2.5 A** and tripped a 3 A adapter
+  outright. **This reconciles two figures the plan carried as contradictory** — "clock parked,
+  0.30 A" (Pico fitted, `bus_init` drives clk0 low) against "clock parked, 2.2 A" (floating).
+  Same words, opposite pin states, 7x apart.
+  **Consequences, all implemented:** (a) the selftest firmware now **parks clk0 low** instead of
+  floating it — floating was exactly backwards, and there is no pull-up or pull-down on that pin;
+  (b) **`bus_set_phase_us(high, low)`** splits the clock phases, because contention flows only
+  while the clock is high, so the average scales with duty cycle. Bounds are measured: high
+  >= ~25 us to settle (`sim/fanout_speed.sp`), low <= ~500 us against the 1.13 ms retention floor.
+  **40 us / 400 us is ~2.3 kHz at 9% duty, about a tenth of the contention current**, with peaks
+  short enough that **~500 uF of bulk across VCC/VSS can supply them** (against the ~0.1 F a 60 ms
+  clocked window would need). `bus_set_half_period_us` still sets both, so wifi and general are
+  unchanged; the tester gains `p US [LOW]`.
+  **[user suggestion, endorsed] a 10k (better 47k) from the CLK0 pad TP25 to VSS TP35** would hold
+  the board in its quiet state whenever nothing drives the clock — BOOTSEL, reset, between
+  firmwares — which is when every failure this evening happened. A pull-UP would be the worst
+  possible choice: it parks cclk high and turns all 32 precharge FETs on permanently.
+  **Unpowered meter check after the rework matches the 2026-08-12 baseline** (2k: 310 vs 314 ohm;
+  20k: 3.6k vs 3.77k; both polarities conduct, range-dependent) — **nothing is shorted**, though
+  that test probes at ~0.5 V and cannot see a fault that only conducts when powered.
+  **[user] epoxy was applied to the rework sites today** as strain relief; epoxy is insulating and
+  the risk is mechanical — a lifted pin 3 pressed back onto its pad shorts out the series resistor
+  and reverts that site. **Audit the sixteen with the FLIR: they should now be cold.**
+  **Not yet run to a verdict on hardware.** Next: the pull-down, the asymmetric-clock build, and
+  the 16 remaining precharge sites.
 
 - 2026-08-28: **THE CPU COMPUTES — 23 datapath subtests pass — and the stack fault that
   produced `FAILED at $02F3` was a single leaking transistor, found and replaced.**
