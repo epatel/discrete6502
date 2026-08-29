@@ -115,3 +115,12 @@ button.primary{background:var(--acc);color:#08140f;border-color:var(--acc);font-
 .grp .n{font:11px var(--mono);color:var(--dim)}
 .grp.bad{border-color:var(--hot)}
 .grp.on{border-color:var(--acc);background:#12362b}
+
+.credit{margin:18px 0 0;padding-top:10px;border-top:1px solid var(--line);
+  font-size:11px;line-height:1.5;color:var(--dim)}
+.credit a{color:var(--dim)}
+.credit a:hover{color:var(--acc)}
+
+.readonly{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:50;
+  background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  padding:9px 16px;border-radius:6px;font-size:12px;box-shadow:0 6px 20px #0008}

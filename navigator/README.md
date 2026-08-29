@@ -127,3 +127,36 @@ live in `gen/board_routed_golden.kicad_pcb`; for connectivity questions the
 authorities remain `tools/check_gaps.py` and `tools/extract_netlist.py`.
 Positions come from `gen/layout.json`, which is dumped from
 `gen/discrete6502.kicad_pcb` by `tools/dump_layout.py` under KiCad's python.
+
+## Deployment
+
+A public copy runs at **https://ai.memention.net/d6502navigator/** — the same
+page and the same API, served by nginx from a systemd unit on the `ai` host.
+
+```
+navigator/deploy.sh          # rsync + restart; HOST=ai by default
+```
+
+It ships `data/board.json` and the two renders as prebuilt artifacts, so the
+server needs nothing but python3 stdlib — no KiCad, no PIL, no numpy.  Rebuild
+`board.json` with `build_data.py` after any placement change, then redeploy.
+
+**Reads are public; writes need a token.**  Anyone can pan, search, click parts
+and open groups' read side, but `POST`/`DELETE` return 401 without the token,
+which lives only on the server in `/etc/d6502navigator.env` (root, 0600) and is
+passed to the service by systemd — never on a command line, where `ps` would
+show it.  Drive the deployment the same way as a local one:
+
+```
+export NAV_URL=https://ai.memention.net/d6502navigator NAV_TOKEN=...
+python3 navigator/navctl.py show Q2577 --label "leaky FET"
+```
+
+In a browser, `?key=<token>` turns the page from a read-only map into a full
+controller; without it, an attempted annotation says so rather than failing
+silently.
+
+Serving under a prefix is handled by `--base /d6502navigator`: the server strips
+it from every request and injects it into the page as `<body data-base>`, which
+is where `app.js` gets the prefix for its own fetches and the WebSocket.  With
+no `--base` the navigator is exactly what it was, at the root of its own port.

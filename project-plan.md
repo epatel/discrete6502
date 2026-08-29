@@ -264,6 +264,25 @@ _(append-only; timestamp and mark locked decisions)_
   the test in one 15 ms window, park `clk0` LOW, then repeat the verdict twice a second for as long as
   the rail lasts. **Not yet run to a verdict on hardware.**
 
+- 2026-08-30: **The board navigator is deployed — the map of the board is now a URL, not a
+  localhost port.** Live at **https://ai.memention.net/d6502navigator/**, served by nginx on the
+  `ai` VPS from a systemd unit, `navigator/deploy.sh` to redeploy. Nothing about the board, the
+  netlist or the fab package changed; this is tooling. **Reads are public, writes are token-gated**
+  — anyone can pan, search and click parts, but `POST`/`DELETE` return 401 without the token, which
+  lives only in `/etc/d6502navigator.env` (root, 0600, handed to the service by systemd, never on a
+  command line where `ps` would show it). `navctl.py` takes `--token`/`$NAV_TOKEN`, and the page
+  itself becomes a controller with `?key=<token>`; without it an attempted annotation says
+  *read-only* rather than failing silently. Serving under a prefix is a `--base` argument: the
+  server strips it and injects it into the page as `<body data-base>`, which is where `app.js`
+  gets the prefix for its fetches and its WebSocket — **local use is byte-for-byte the old
+  behaviour** (verified: no `--base`, no token, writes open). The deployment ships `data/board.json`
+  and the two renders as **prebuilt artifacts**, so the VPS needs python3 stdlib and nothing else
+  — no KiCad, no PIL, no numpy; rebuild `board.json` with `build_data.py` after any placement
+  change and redeploy. The page now carries the **visual6502 CC BY-NC-SA attribution** that a
+  public deployment requires and that it had been missing. One trap recorded because it cost a
+  round trip: on that host `/etc/nginx/sites-enabled/` holds **regular files, not symlinks**, so
+  editing `sites-available` changes nothing while `nginx -t` still passes.
+
 - 2026-08-29 (later): **The excess current has a named cause, and `clk0` must never be left
   floating — both settled by tracing the netlist rather than arguing.** [user, thermal camera]
   **Q1830 and the seven parts above it ran very hot with the adh/adl rework already done.** The

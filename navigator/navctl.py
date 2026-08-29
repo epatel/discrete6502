@@ -19,7 +19,9 @@ updates immediately over its WebSocket.
 drops a labelled pin on the part and flies the viewport there in one call.
 """
 import argparse
+import functools
 import json
+import os
 import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -28,13 +30,16 @@ COLORS = dict(red="#ff4757", yellow="#ffd23f", cyan="#3fd0ff",
               green="#7bed9f", violet="#c792ff", orange="#e2653f")
 
 
-def call(base, path, data=None, method=None):
+def _call(base, path, data=None, method=None, token=""):
     url = base.rstrip("/") + path
     if isinstance(data, dict):                     # None means "not supplied"
         data = {k: v for k, v in data.items() if v is not None}
     body = json.dumps(data).encode() if data is not None else None
+    headers = {"Content-Type": "application/json"}
+    if token:                                      # only mutations need it
+        headers["X-Nav-Token"] = token
     req = Request(url, data=body, method=method or ("POST" if data is not None else "GET"),
-                  headers={"Content-Type": "application/json"})
+                  headers=headers)
     try:
         with urlopen(req, timeout=10) as r:
             return json.loads(r.read() or b"{}")
@@ -52,7 +57,9 @@ def color(c):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--url", default="http://127.0.0.1:8624")
+    ap.add_argument("--url", default=os.environ.get("NAV_URL", "http://127.0.0.1:8624"))
+    ap.add_argument("--token", default=os.environ.get("NAV_TOKEN", ""),
+                    help="required by a deployment that gates writes; $NAV_TOKEN")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("find"); p.add_argument("query"); p.add_argument("--limit", type=int, default=25)
@@ -86,6 +93,7 @@ def main():
 
     a = ap.parse_args()
     u = a.url
+    call = functools.partial(_call, token=a.token)
 
     if a.cmd == "find":
         r = call(u, f"/api/find?limit={a.limit}&q=" + a.query.replace(" ", "%20"))

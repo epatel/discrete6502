@@ -43,6 +43,14 @@ STATIC = NAV / "static"
 DATA = NAV / "data" / "board.json"
 STATE_FILE = NAV / "data" / "state.json"
 
+# Set by main() when the navigator is served under a URL prefix (a reverse
+# proxy that preserves the path, e.g. nginx `proxy_pass .../d6502navigator/`).
+# Empty means "served at the root", which is the local default.
+BASE = ""
+# When set, POST/DELETE require it in X-Nav-Token or ?key=.  Reads stay open,
+# so a public deployment is a live map for everyone and writable only by us.
+TOKEN = ""
+
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 # ---------------------------------------------------------------- board data
@@ -247,6 +255,18 @@ def make_annotation(d):
 
 # ------------------------------------------------------------------- server
 
+def strip_base(path):
+    """The request path with the deployment prefix removed, or None if the
+    request fell outside it (which a correctly configured proxy never does)."""
+    if not BASE:
+        return path
+    if path == BASE:
+        return "/"
+    if path.startswith(BASE + "/"):
+        return path[len(BASE):]
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "boardnav"
@@ -278,6 +298,14 @@ class Handler(BaseHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(n) or b"{}")
 
+    def _authorized(self):
+        """Reads are public; mutations need the token when one is configured."""
+        if not TOKEN:
+            return True
+        given = self.headers.get("X-Nav-Token") or \
+            (parse_qs(urlparse(self.path).query).get("key") or [""])[0]
+        return given == TOKEN
+
     def log_message(self, fmt, *args):
         if os.environ.get("NAV_VERBOSE"):
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
@@ -285,12 +313,16 @@ class Handler(BaseHTTPRequestHandler):
     # -- GET --------------------------------------------------------------
     def do_GET(self):
         u = urlparse(self.path)
-        path, qs = u.path, parse_qs(u.query)
+        path, qs = strip_base(u.path), parse_qs(u.query)
+        if path is None:
+            return self._send("not found", "text/plain", 404)
 
         if path == "/ws":
             return self.do_websocket()
         if path in ("/", "/index.html"):
-            return self._file(STATIC / "index.html", "text/html; charset=utf-8")
+            html = (STATIC / "index.html").read_text(encoding="utf-8")
+            html = html.replace('data-base=""', f'data-base="{BASE}"')
+            return self._send(html, "text/html; charset=utf-8")
         if path == "/app.js":
             return self._file(STATIC / "app.js", "text/javascript")
         if path == "/style.css":
@@ -305,7 +337,13 @@ class Handler(BaseHTTPRequestHandler):
             allowed = {v["file"] for v in _board["images"].values()}
             if name not in allowed:
                 return self._send("not found", "text/plain", 404)
+            # In a checkout the renders live in ../gen; a deployment ships
+            # them beside the app instead, so accept either.
             p = ROOT / "gen" / name
+            if not p.exists():
+                p = NAV / "gen" / name
+            if not p.exists():
+                return self._send("render missing", "text/plain", 404)
             self.send_response(200)
             self.send_header("Content-Type", "image/png")
             self.send_header("Content-Length", str(p.stat().st_size))
@@ -358,7 +396,11 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- POST / DELETE ----------------------------------------------------
     def do_POST(self):
-        path = urlparse(self.path).path
+        path = strip_base(urlparse(self.path).path)
+        if path is None:
+            return self._send("not found", "text/plain", 404)
+        if not self._authorized():
+            return self._json(dict(error="a token is required to change the board"), 401)
         try:
             d = self._body()
         except ValueError as e:
@@ -475,7 +517,11 @@ class Handler(BaseHTTPRequestHandler):
         return self._send("not found", "text/plain", 404)
 
     def do_DELETE(self):
-        path = urlparse(self.path).path
+        path = strip_base(urlparse(self.path).path)
+        if path is None:
+            return self._send("not found", "text/plain", 404)
+        if not self._authorized():
+            return self._json(dict(error="a token is required to change the board"), 401)
         if path.startswith("/api/annotation/"):
             aid = unquote(path[len("/api/annotation/"):])
             with state_lock:
@@ -523,18 +569,27 @@ def nearest(p, n):
 
 
 def main():
+    global BASE, TOKEN
     args = [a for a in sys.argv[1:]]
     port = 8624
-    for a in args:
+    host = "127.0.0.1"
+    for i, a in enumerate(args):
         if a.isdigit():
             port = int(a)
+        elif a == "--base" and i + 1 < len(args):
+            BASE = "/" + args[i + 1].strip("/")
+        elif a == "--host" and i + 1 < len(args):
+            host = args[i + 1]
+    # The token never appears on a command line (ps is world-readable).
+    TOKEN = os.environ.get("NAV_TOKEN", "")
     load_board()
     load_state()
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    srv = ThreadingHTTPServer((host, port), Handler)
     srv.daemon_threads = True
-    url = f"http://127.0.0.1:{port}/"
+    url = f"http://{host}:{port}{BASE}/"
     print(f"board navigator (rev A) on {url}")
     print(f"  {len(_index)} parts, {len(_nets)} nets — API: {url}api/find?q=Q2577")
+    print("  writes are token-gated" if TOKEN else "  writes are open (no NAV_TOKEN set)")
     if "--open" in args:
         webbrowser.open(url)
     try:

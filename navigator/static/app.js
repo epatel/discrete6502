@@ -1,3 +1,22 @@
+const BASE = document.body.dataset.base || '';  // URL prefix when reverse-proxied
+// Reads are open; changing the board needs the token.  Supply it as ?key=... and
+// this page becomes a controller — without it the map is simply read-only.
+const KEY = new URLSearchParams(location.search).get('key') || '';
+const keyed = p => KEY ? p + (p.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(KEY) : p;
+// A deployment gates writes, so say so once rather than failing silently.
+let toldReadOnly = false;
+async function write(path, opts) {
+  const r = await fetch(keyed(BASE + path), opts);
+  if (r.status === 401 && !toldReadOnly) {
+    toldReadOnly = true;
+    const b = document.createElement('div');
+    b.className = 'readonly';
+    b.textContent = 'read-only — this navigator is shared; annotating needs the token';
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 6000);
+  }
+  return r;
+}
 /* discrete6502 board navigator — canvas viewer + live agent channel */
 'use strict';
 
@@ -308,7 +327,7 @@ function renderState() {
       <button class="x" title="delete">×</button>`;
     el.onclick = e => {
       if (e.target.classList.contains('x')) {
-        fetch('/api/annotation/' + encodeURIComponent(a.id), { method: 'DELETE' });
+        write('/api/annotation/' + encodeURIComponent(a.id), { method: 'DELETE' });
         return;
       }
       if (a.side !== side) setSide(a.side);
@@ -423,7 +442,7 @@ function runSearch() {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(async () => {
     if (!q) { renderResults([], ''); return; }
-    const r = await fetch('/api/find?limit=200&q=' + encodeURIComponent(q));
+    const r = await fetch(BASE + '/api/find?limit=200&q=' + encodeURIComponent(q));
     const j = await r.json();
     renderResults(j.parts, q);
     if (j.parts.length === 1) select(j.parts[0].ref, true);
@@ -433,7 +452,7 @@ function runSearch() {
 /* ------------------------------------------------------------------ groups */
 let activeGroup = '';
 async function loadGroups() {
-  const { groups } = await (await fetch('/api/groups')).json();
+  const { groups } = await (await fetch(BASE + '/api/groups')).json();
   const box = $('#groups'); box.innerHTML = '';
   for (const g of groups) {
     const el = document.createElement('button');
@@ -445,10 +464,10 @@ async function loadGroups() {
     el.disabled = !!g.error;
     el.onclick = async () => {
       if (activeGroup === g.id) {                 // click again to drop it
-        await fetch('/api/clear', { method: 'POST', body: JSON.stringify({ what: 'all' }) });
+        await write('/api/clear', { method: 'POST', body: JSON.stringify({ what: 'all' }) });
         activeGroup = '';
       } else {
-        await fetch('/api/group', { method: 'POST', body: JSON.stringify({ id: g.id }) });
+        await write('/api/group', { method: 'POST', body: JSON.stringify({ id: g.id }) });
         activeGroup = g.id;
       }
       markGroups();
@@ -464,7 +483,7 @@ function markGroups() {
 
 /* --------------------------------------------------------------- websocket */
 function connect() {
-  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + BASE + '/ws');
   ws.onopen = () => { $('#live').className = 'live on'; $('#live').textContent = 'live'; };
   ws.onclose = () => {
     $('#live').className = 'live off'; $('#live').textContent = 'offline';
@@ -478,7 +497,7 @@ function connect() {
 
 /* ------------------------------------------------------------------- start */
 async function main() {
-  B = await (await fetch('/api/board')).json();
+  B = await (await fetch(BASE + '/api/board')).json();
   const keys = B.schema;
   PARTS = B.parts.map(row => {
     const o = {}; keys.forEach((k, i) => o[k] = row[i]); return o;
@@ -493,7 +512,7 @@ async function main() {
   for (const [s, meta] of Object.entries(B.images)) {
     const im = new Image();
     im.onload = draw;
-    im.src = '/img/' + meta.file;
+    im.src = BASE + '/img/' + meta.file;
     images[s] = im;
   }
 
@@ -507,7 +526,7 @@ async function main() {
   $('#fit').onclick = fit;
   $('#pinMode').onclick = () => togglePin(!pinMode);
   $('#clearAnn').onclick = () =>
-    fetch('/api/clear', { method: 'POST', body: JSON.stringify({ what: 'annotations' }) });
+    write('/api/clear', { method: 'POST', body: JSON.stringify({ what: 'annotations' }) });
   ['tParts', 'tLabels', 'tAnn', 'opacity'].forEach(id => $('#' + id).oninput = draw);
   $('#q').oninput = runSearch;
 
@@ -515,7 +534,7 @@ async function main() {
     const dlg = $('#pinDlg');
     if (dlg.returnValue !== 'ok' || !pending) { pending = null; return; }
     const f = dlg.querySelector('form');
-    fetch('/api/annotate', {
+    write('/api/annotate', {
       method: 'POST',
       body: JSON.stringify({
         x: pending.x, y: pending.y, side: pending.side, ref: pending.ref,
@@ -529,7 +548,7 @@ async function main() {
   window.addEventListener('resize', resize);
   resize(); fit();
 
-  state = await (await fetch('/api/state')).json();
+  state = await (await fetch(BASE + '/api/state')).json();
   if (state.view) lastViewTs = state.view.ts;      // do not fly on first load
   renderState();
   connect();
