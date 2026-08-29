@@ -10,4 +10,11 @@ target_include_directories(selftest PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../common)
 target_link_libraries(selftest pico_stdlib)
 pico_enable_stdio_usb(selftest 1)
 pico_enable_stdio_uart(selftest 0)
+# -DUSB_ONLY=ON builds the diagnostic that never clocks the board.
+# (Do NOT pass -DCMAKE_C_FLAGS for this: it replaces the SDK's own arch flags
+# and the RP2350 coprocessor instructions in bus6502.c stop assembling.)
+option(USB_ONLY "build the never-clocks diagnostic" OFF)
+if(USB_ONLY)
+    target_compile_definitions(selftest PRIVATE SELFTEST_USB_ONLY)
+endif()
 pico_add_extra_outputs(selftest)

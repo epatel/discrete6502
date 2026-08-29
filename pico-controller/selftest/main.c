@@ -22,6 +22,8 @@
 #include <string.h>
 
 #include "pico/stdlib.h"
+#include "pico/stdio_usb.h"
+#include "hardware/gpio.h"
 
 #include "bus6502.h"
 #include "selftest_image.h"
@@ -79,31 +81,54 @@ static void report(uint16_t addr, uint32_t pass) {
            (unsigned long)pass, addr);
 }
 
+#ifdef SELFTEST_USB_ONLY
+// Diagnostic build: identical stdio setup, but the board is NEVER clocked.
+// If this one holds a USB link while the normal build resets within 200 ms of
+// the host opening the port, then clocking the board is what kills the Pico --
+// and no amount of firmware tuning will change that.
+int main(void) {
+    stdio_init_all();
+    for (uint32_t n = 1;; n++) {
+        printf("SELFTEST pass %lu: $0000  USB-ONLY DIAGNOSTIC -- board not clocked\n",
+               (unsigned long)n);
+        sleep_ms(500);
+    }
+}
+#else
 int main(void) {
     // stdio FIRST: the 1200-baud reset path must be alive before anything else
     // can hang, or a soldered-down Pico stops being reprogrammable.
     stdio_init_all();
 
+    // RUN FIRST, TALK AFTERWARDS.
+    //
+    // Measured on 2026-08-29: the board's load on VSYS (pin 39 ties it to board
+    // VCC) browns the Pico out. Clocking, it lasts about a second; with clk0
+    // left floating, about sixteen -- long enough for 29 clean printed lines.
+    // So do not try to hold a link while clocking. Take the measurement in the
+    // first 60 ms, release clk0, then spend the whole surviving window
+    // repeating the verdict until the rail gives out.
     bus_init(false);                       // push-pull; there is no pull-up on clk0
     bus_set_half_period_us(HALF_PERIOD_US);
     load_image();
 
+    bus_trace_clear();
+    bus_reset_sequence();                  // reset and run must be ONE operation:
+    bus_run(RUN_CYCLES);                   // dynamic state decays in about 1 ms
+    uint16_t addr = settled_address(64);
+    uint32_t cycles = bus_cycle_count;
+
+    // Stop loading the rail: float clk0, the state the USB-only diagnostic
+    // survived 16 s in. The CPU stops here -- the verdict is already latched.
+    gpio_set_dir(PIN_CLK0, GPIO_IN);
+
     for (uint32_t pass = 1;; pass++) {
-        bus_trace_clear();
-        bus_reset_sequence();              // reset and run must be ONE operation:
-        bus_run(RUN_CYCLES);               // dynamic state decays in about 1 ms
-        uint16_t addr = settled_address(64);
-
-        // Print the banner and the verdict together and repeatedly, so a USB
-        // window of any length lands on a complete, self-describing line.
-        printf("\ndiscrete6502 selftest firmware -- %d subtests, %d bytes, "
-               "%lu us half-period\n", SELFTEST_NTESTS, SELFTEST_CODE_LEN,
-               (unsigned long)HALF_PERIOD_US);
+        printf("\ndiscrete6502 selftest -- %d subtests, %d bytes, %lu us half-period\n",
+               SELFTEST_NTESTS, SELFTEST_CODE_LEN, (unsigned long)HALF_PERIOD_US);
         report(addr, pass);
-        printf("cycles %lu\n", (unsigned long)bus_cycle_count);
-
-        // Keep clocking between passes rather than parking: parked is the
-        // high-current state, and this is the whole reason for this firmware.
-        for (int i = 0; i < 20; i++) bus_run(200);
+        printf("cycles %lu (test ran at boot; clk0 now floating)\n",
+               (unsigned long)cycles);
+        sleep_ms(500);
     }
 }
+#endif
