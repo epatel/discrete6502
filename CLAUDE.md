@@ -59,4 +59,12 @@ Load the matching card from `cards/` when a trigger fits the current task:
 - `cards/navigator.md` — when the answer is a place on the board (where is Q2577, what is next to
   it, which parts are on `s0`), when the user is at the bench and something should be pointed at
   live, or when working on `navigator/` itself; deeper reference in `navigator/README.md`
+- `cards/bring-up-log.md` — when you need what a measurement on board #1 actually showed between
+  2026-08-12 and 2026-08-26, or why one of those conclusions was later retracted
+- `cards/build-log.md` — when you need why a tool, gate or pipeline step exists (2026-07-18 …
+  2026-08-08), and before changing anything in `tools/`
+- `cards/fab-order.md` — when costing a respin, or judging a board defect against the yield model;
+  also holds the reusable stackup- and placement-verification methods
+- `cards/driver-contention.md` — when current draw, a hot site, rev B, or a series-resistor rework
+  is in question
 - `cards/layout.md` — when working on the PCB (`gen/discrete6502.kicad_pcb`), the routing pipeline (`tools/route_nc.*` + finishing passes), DRC severity rationale, silkscreen (`tools/add_silk.py`), or the fab outputs in `gen/fab/`
