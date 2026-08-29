@@ -230,6 +230,40 @@ _(append-only; timestamp and mark locked decisions)_
 
 ## Current state / handoff
 
+- 2026-08-29: **The board cannot be clocked on the present bench supply — measured to the
+  millisecond — and the self-test firmware that found this is the way to a verdict once the
+  supply is fixed.** Nothing in the netlist, the board or the fab package changed.
+  **The number: unclocked the Pico runs at least 16 s and prints 29 clean lines at 2 Hz;
+  clocked it dies in under 15 ms, five times out of five, on a USB link that was already open
+  and talking.** The last trace is unambiguous — the firmware prints `link up, running 23
+  subtests now`, starts the clock, and the link drops inside the test. VSYS is board VCC (pin 39
+  soldered), so the board's draw takes the Pico down with it. **What is needed is 5 V at >=3 A on
+  a real connector**, fed to TP36/TP35 or soldered to pins 38/39 — not croc clips, not a USB
+  charger. No firmware change can reach this: the current is clock-independent (2026-08-25, same
+  at 500 Hz as at 10 kHz), so it cannot be slowed under the limit, and riding out even 15 ms at
+  ~1.5 A would need order 0.1 F of bulk capacitance.
+  **An hour of firmware theories was excluded by experiment, which is what the diagnostic build
+  is for.** `-DUSB_ONLY=ON` builds the identical firmware with clocking removed; it enumerated in
+  under a second and printed continuously, proving the Pico, the cable, the port and tinyusb are
+  all healthy. Every `ENXIO / device not configured` of the evening was the module resetting.
+  Also excluded: USB task starvation (polling `stdio_usb_connected()` every 100 cycles changed
+  nothing), enumeration ordering (enumerating first, then clocking, still dies), and a bad UF2
+  (family id and load address are byte-identical to the tester's).
+  **The CPU itself is not implicated, and two independent observations say so.** Resting current
+  is **0.27 A** against a 0.30 A measurement on 2026-08-26 and a 0.548 A passive ceiling — a
+  degraded board reads high, not at the design figure. And a 17.7 s video at 18:31 shows the
+  board executing continuously with LEDs live. [user observation] **S1 blinking at ~2 Hz with no
+  serial device present is the boot loop made visible**: nothing clocks the board after the first
+  60 ms, so a repeating blink can only be the Pico rebooting and re-running the test. **S0 dark is
+  expected** — its driver FET is the one transplanted into Q2577 on 2026-08-28.
+  **New: `pico-controller/selftest/`** (`tools/gen_selftest_image.py` embeds the image from
+  `tools/quick_selftest.py`, so firmware, wifi panel and serial path share one definition and one
+  verdict rule). It exists because the tester stops clocking the moment a terminal attaches, and a
+  parked clock is the high-current state — measured twice, the port died ~1 s after attach, so the
+  observer destroyed what it was observing. The shipped shape is: wait for the host, announce, run
+  the test in one 15 ms window, float `clk0`, then repeat the verdict twice a second for as long as
+  the rail lasts. **Not yet run to a verdict on hardware.**
+
 - 2026-08-28: **THE CPU COMPUTES — 23 datapath subtests pass — and the stack fault that
   produced `FAILED at $02F3` was a single leaking transistor, found and replaced.**
   `tools/quick_selftest.py` covers TXS/TSX, TAX/TXA/TAY/TYA, INX/DEX/INY/DEY with wrap,

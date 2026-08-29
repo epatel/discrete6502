@@ -28,8 +28,14 @@
 #include "bus6502.h"
 #include "selftest_image.h"
 
-#define RUN_CYCLES 600u        // the whole test is ~200 cycles; 600 is slack
-#define HALF_PERIOD_US 50u     // 10 kHz, the firmware default
+// Shortest window that still runs the test to completion. The rail collapses
+// inside the old 60 ms (600 cycles at 100 us): the firmware printed "running
+// 23 subtests now" and the link died before the verdict. 300 cycles at 20 kHz
+// is 15 ms -- four times less time to survive. 20 kHz is the measured design
+// ceiling (sim/fanout_speed.sp), so a PASS here is conclusive; a FAIL could be
+// a speed artifact and would need rechecking at 10 kHz.
+#define RUN_CYCLES 300u
+#define HALF_PERIOD_US 25u     // 20 kHz, the design ceiling -- see RUN_CYCLES
 
 static void load_image(void) {
     uint8_t *m = bus_mem();
@@ -108,6 +114,19 @@ int main(void) {
     // So do not try to hold a link while clocking. Take the measurement in the
     // first 60 ms, release clk0, then spend the whole surviving window
     // repeating the verdict until the rail gives out.
+    // ENUMERATE QUIET, THEN TEST. Clocking at boot browns the Pico out before
+    // USB is up, so it reboots, re-runs the 60 ms test, and reboots again --
+    // seen directly on 2026-08-29 as S1 blinking at about 2 Hz with no serial
+    // device ever appearing, while the never-clocks build enumerated in under a
+    // second. So do nothing at all until the host is attached: that is the
+    // configuration measured to survive 16 s. Only then spend 60 ms clocking.
+    // If the rail dies during the test we are no worse off; if it holds, the
+    // verdict lands on a link that is already open.
+    for (int i = 0; i < 3000 && !stdio_usb_connected(); i++) sleep_ms(10);
+    sleep_ms(300);                         // let the host finish opening the port
+    printf("\ndiscrete6502 selftest -- link up, running %d subtests now\n",
+           SELFTEST_NTESTS);
+
     bus_init(false);                       // push-pull; there is no pull-up on clk0
     bus_set_half_period_us(HALF_PERIOD_US);
     load_image();
