@@ -16,6 +16,14 @@ python3 navigator/server.py            # http://127.0.0.1:8624 ; --open launches
 Check whether it is already up (`curl -s -m2 http://127.0.0.1:8624/api/state`) before starting a
 second one — the user usually has it open. Full reference: `navigator/README.md`.
 
+**There is also a public deployment**, https://ai.memention.net/d6502navigator/ — same code behind
+an nginx prefix, redeployed by `navigator/deploy.sh`. Use it when the user is not at this machine
+or wants to share a view; use the local one for everything else, because **the deployment is
+read-only to you**: `POST`/`DELETE` need a token that lives only in `/etc/d6502navigator.env` on
+the VPS, and `navctl.py` will 401 without `--token`/`$NAV_TOKEN`. So annotations, highlights and
+`view` go to the local server. It also serves a prebuilt `data/board.json`, so after any placement
+change rebuild with `build_data.py` and redeploy, or the two disagree.
+
 ## Use it to answer, not just to display
 
 The API answers questions in one call, without loading 0.6 MB of parts into context:
