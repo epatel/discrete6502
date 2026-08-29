@@ -54,6 +54,28 @@ typedef bool (*bus_watch_fn)(const bus_trace_t *t);
 void bus_init(bool clk_open_drain);
 
 void bus_set_half_period_us(uint32_t us);  // default 50 (=> 10 kHz, see bus6502.c)
+
+// Asymmetric phases: phi2 (clock HIGH) for high_us, phi1 (clock LOW) for low_us.
+//
+// This is a POWER lever, and a large one. cclk follows clk0 -- traced through
+// the netlist: clk0 low parks cclk low and every one of the 32 cclk-gated
+// precharge FETs is off; clk0 high turns them all on against whatever holds
+// their bus low. So contention current flows almost entirely during the high
+// phase, and the average scales with duty cycle.
+//
+// The two bounds are measured, not guessed:
+//   high >= ~25 us   logic settling, sim/fanout_speed.sp (PLA lines drive up
+//                    to 71 gates behind a 10k pull-up; ~7 us to flip the
+//                    receiving stage, ~25 us to a comfortable level)
+//   low  <= ~500 us  charge retention, measured on board #1 2026-08-24:
+//                    1.9-2.3 nA/FET, worst node sb6 holds 1.13 ms. Half that
+//                    for margin.
+// 40 us high / 400 us low is ~2.3 kHz at 9% duty: roughly a tenth of the
+// contention current, and short enough peaks that a few hundred uF of bulk
+// across VCC/VSS can supply them (50 us at 2 A into 0.2 V droop = 500 uF).
+void bus_set_phase_us(uint32_t high_us, uint32_t low_us);
+uint32_t bus_get_high_us(void);
+uint32_t bus_get_low_us(void);
 void bus_set_io(bus_io_fn fn);
 void bus_set_watch(bus_watch_fn fn);  // NULL to remove
 

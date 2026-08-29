@@ -248,7 +248,12 @@ static void help(void) {
            "  d [N]      dump last N trace entries (default 32)\n"
            "  x A L      hexdump L bytes of image at offset A (hex)\n"
            "  m A B..    poke bytes at offset A (all hex)\n"
-           "  p US       set clock half-period in us (default 50 = 10 kHz). Live\n"
+           "  p US [LOW] clock: US us high, LOW us low (default both 50 = 10 kHz).\n"
+           "             Asymmetric is a power lever: contention flows only while\n"
+           "             the clock is HIGH (cclk follows clk0), so duty sets the\n"
+           "             average. Try p 40 400 -- 2.3 kHz at 9%% duty. Bounds:\n"
+           "             high >= ~25 us to settle, low <= ~500 us against the\n"
+           "             measured 1.13 ms retention floor. Live\n"
            "             only -- S clock N then S save to make it the default.\n"
            "  z          zero cycle counter + trace\n"
            "  L          load an Intel hex image pasted into this terminal\n"
@@ -487,14 +492,24 @@ int main(void) {
             // clock on every change would destroy the CPU's state each time.
             // 'S clock N' then 'S save' is the deliberate way to keep it.
             char *a = strtok(NULL, " ");
+            char *b = strtok(NULL, " ");     // optional: separate LOW time
             if (a) {
-                uint32_t us = (uint32_t)strtoul(a, NULL, 0);
-                if (us) {
-                    bus_set_half_period_us(us);
-                    printf("clock now %lu us half-period (%lu Hz)%s\n",
-                           (unsigned long)us, (unsigned long)(500000UL / us),
-                           us == settings()->half_period_us
+                uint32_t hi = (uint32_t)strtoul(a, NULL, 0);
+                uint32_t lo = b ? (uint32_t)strtoul(b, NULL, 0) : hi;
+                if (hi && lo) {
+                    bus_set_phase_us(hi, lo);
+                    uint32_t period = hi + lo;
+                    printf("clock now %lu us high / %lu us low (%lu Hz, %lu%% duty)%s\n",
+                           (unsigned long)hi, (unsigned long)lo,
+                           (unsigned long)(1000000UL / period),
+                           (unsigned long)(100UL * hi / period),
+                           (hi == lo && hi == settings()->half_period_us)
                                ? "" : " -- not saved; S clock N then S save to keep it");
+                    if (hi != lo)
+                        printf("  asymmetric: contention flows while the clock is HIGH "
+                               "(cclk follows clk0), so duty cycle sets the average\n"
+                               "  bounds: high >= ~25 us to settle, low <= ~500 us "
+                               "against the 1.13 ms retention floor\n");
                 }
             }
             break;

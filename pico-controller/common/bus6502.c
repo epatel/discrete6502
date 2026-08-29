@@ -13,7 +13,8 @@ static uint32_t trace_count;  // total entries ever written (min with LEN for av
 // 10k pull-up) needs ~7us at 5V / ~11us at 3.3V just to flip the receiving
 // stage, and ~25us to reach a comfortable level.  Speed up with 'p' once the
 // CPU is known good.
-static uint32_t half_us = 50;
+static uint32_t high_us = 50;   // phi2, clock HIGH -- see bus_set_phase_us
+static uint32_t low_us = 50;    // phi1, clock LOW
 static bool clk_od;
 static bus_io_fn io_fn;
 static bus_watch_fn watch_fn;
@@ -89,7 +90,14 @@ void bus_init(bool clk_open_drain) {
     bus_cycle_count = 0;
 }
 
-void bus_set_half_period_us(uint32_t us) { half_us = us ? us : 1; }
+void bus_set_half_period_us(uint32_t us) { high_us = low_us = us ? us : 1; }
+
+void bus_set_phase_us(uint32_t h, uint32_t l) {
+    high_us = h ? h : 1;
+    low_us = l ? l : 1;
+}
+uint32_t bus_get_high_us(void) { return high_us; }
+uint32_t bus_get_low_us(void) { return low_us; }
 void bus_set_io(bus_io_fn fn) { io_fn = fn; }
 void bus_set_watch(bus_watch_fn fn) { watch_fn = fn; }
 bool bus_aborted(void) { return aborted; }
@@ -109,7 +117,7 @@ bus_trace_t bus_step_cycle(void) {
 
     // phi1: clock low -- the CPU puts out the new address and r/w
     clk_low();
-    sleep_us(half_us);
+    sleep_us(low_us);
     t.addr = ab_read();
     t.rw_read = gpio_get(PIN_RW) ? 1 : 0;
     t.sync = gpio_get(PIN_SYNC) ? 1 : 0;
@@ -121,13 +129,13 @@ bus_trace_t bus_step_cycle(void) {
         if (!(io_fn && io_fn(t.addr, false, &v))) v = mem[t.addr & (BUS_MEM_SIZE - 1)];
         db_drive(v);
         t.data = v;
-        sleep_us(half_us);
+        sleep_us(high_us);
         clk_low();          // CPU latches on the falling edge...
         sleep_us(1);        // ...small hold, then get off the bus
         db_release();
     } else {
         db_release();
-        sleep_us(half_us);  // CPU drives data through phi2
+        sleep_us(high_us);  // CPU drives data through phi2
         t.data = db_read(); // sample just before the edge
         clk_low();
         uint8_t v = t.data;

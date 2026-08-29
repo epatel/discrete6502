@@ -35,7 +35,21 @@
 // ceiling (sim/fanout_speed.sp), so a PASS here is conclusive; a FAIL could be
 // a speed artifact and would need rechecking at 10 kHz.
 #define RUN_CYCLES 300u
-#define HALF_PERIOD_US 25u     // 20 kHz, the design ceiling -- see RUN_CYCLES
+// Asymmetric clock, and it is the difference between running and tripping the
+// supply. cclk follows clk0, so all 32 cclk-gated precharge FETs conduct only
+// while the clock is HIGH; the average current scales with duty cycle. 40 us
+// high satisfies the ~25 us settling bound (sim/fanout_speed.sp); 400 us low
+// is well inside the measured 1.13 ms retention floor (board #1, 2026-08-24).
+// 9% duty, ~2.3 kHz -- roughly a tenth of the contention current, with peaks
+// short enough for a few hundred uF of bulk to supply.
+#define PHASE_HIGH_US 40u
+#define PHASE_LOW_US 400u
+
+// clk0 low, actively driven, and left that way.
+static void clk_park_low(void) {
+    gpio_set_dir(PIN_CLK0, GPIO_OUT);
+    gpio_put(PIN_CLK0, 0);
+}
 
 static void load_image(void) {
     uint8_t *m = bus_mem();
@@ -128,7 +142,7 @@ int main(void) {
            SELFTEST_NTESTS);
 
     bus_init(false);                       // push-pull; there is no pull-up on clk0
-    bus_set_half_period_us(HALF_PERIOD_US);
+    bus_set_phase_us(PHASE_HIGH_US, PHASE_LOW_US);
     load_image();
 
     bus_trace_clear();
@@ -137,13 +151,19 @@ int main(void) {
     uint16_t addr = settled_address(64);
     uint32_t cycles = bus_cycle_count;
 
-    // Stop loading the rail: float clk0, the state the USB-only diagnostic
-    // survived 16 s in. The CPU stops here -- the verdict is already latched.
-    gpio_set_dir(PIN_CLK0, GPIO_IN);
+    // Park the clock LOW -- do NOT float it. Traced through the netlist on
+    // 2026-08-29: clk0 low holds cclk low and all 32 precharge FETs off (the
+    // 0.30 A state); clk0 high or drifting high turns them all on at once (2+ A).
+    // An earlier version floated this pin "to reduce the load" and had it
+    // exactly backwards -- there is no pull-up or pull-down on clk0.
+    clk_park_low();
 
     for (uint32_t pass = 1;; pass++) {
-        printf("\ndiscrete6502 selftest -- %d subtests, %d bytes, %lu us half-period\n",
-               SELFTEST_NTESTS, SELFTEST_CODE_LEN, (unsigned long)HALF_PERIOD_US);
+        printf("\ndiscrete6502 selftest -- %d subtests, %d bytes, "
+               "%lu us high / %lu us low (%lu%% duty)\n",
+               SELFTEST_NTESTS, SELFTEST_CODE_LEN,
+               (unsigned long)PHASE_HIGH_US, (unsigned long)PHASE_LOW_US,
+               (unsigned long)(100UL * PHASE_HIGH_US / (PHASE_HIGH_US + PHASE_LOW_US)));
         report(addr, pass);
         printf("cycles %lu (test ran at boot; clk0 now floating)\n",
                (unsigned long)cycles);
