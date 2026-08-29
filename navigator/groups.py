@@ -131,6 +131,41 @@ def _bond_pads(index):
     return [p["ref"] for p in parts], [], note
 
 
+def _precharge(index, bus):
+    """The cclk-gated precharge devices for one internal bus.
+
+    Same 1:1 ratio defect as every other vcc_side FET, and the same fix, but
+    these were never in the adh/adl rework set -- which is why the idb column
+    was found at 80+ C on 2026-08-29 AFTER that rework was done. Their gate is
+    cclk, so with the clock stopped high they all conduct at once: eight of
+    them at the simulated 262 mA is 2.1 A, which is the order of the whole
+    board's unexplained draw.
+    """
+    hits = []
+    for p in _by_role(index, "vcc_side"):
+        if p["pins"].get("1") != "cclk":
+            continue
+        ch = channel_net(p["pins"])
+        if ch.startswith(bus) and ch[len(bus):].isdigit():
+            hits.append((int(ch[len(bus):]), ch, p))
+    hits.sort()
+    anns = [dict(ref=p["ref"], id=f"pc-{ch}", label=f"{ch} · {p['ref']}",
+                 color=RED, shape="circle", r=2.2,
+                 text=(f"{p['ref']} pin 3 -> 10k in series.\n"
+                       f"cclk-gated precharge for {ch}; contends whenever cclk is "
+                       f"high and the bus bit is pulled low.\n"
+                       "NOT part of the adh/adl rework."))
+            for _, ch, p in hits]
+    note = (f"The {len(hits)} cclk-gated precharge FETs for the {bus} bus.\n\n"
+            "Same ratio defect and same fix as the adh/adl sixteen -- 10k in series "
+            "with pin 3 -- but they were never in that rework set. Found at 80+ C "
+            "on 2026-08-29, in a column, with the adh/adl rework already done.\n\n"
+            "Their gate is cclk, so a stopped clock parked high turns all of them on "
+            "at once against whatever holds the bus low. Eight at the simulated "
+            "262 mA is 2.1 A.")
+    return [p["ref"] for _, _, p in hits], anns, note
+
+
 def _vcc_side(index):
     parts = sorted(_by_role(index, "vcc_side"), key=lambda p: p["ref"])
     note = ("All 164 enhancement-mode VCC-side FETs — the ratio defect population.\n\n"
@@ -151,6 +186,12 @@ GROUPS = [
     dict(id="rework-dor", label="Data-out rework (8)", color=RED, expect=8,
          desc="dor0-7 drivers — the 2026-08-01 contention find, already reworked",
          resolve=_rework_dor, side="F"),
+    dict(id="precharge-idb", label="idb precharge (8)", color=RED, expect=8,
+         desc="cclk-gated idb0-7 precharge — hot on 2026-08-29, NOT yet reworked",
+         resolve=lambda ix: _precharge(ix, "idb"), side="F"),
+    dict(id="precharge-sb", label="sb precharge (8)", color=AMBER, expect=8,
+         desc="cclk-gated sb0-7 precharge — same defect, same fix, also unreworked",
+         resolve=lambda ix: _precharge(ix, "sb"), side="F"),
     dict(id="vcc-side", label="VCC-side FETs (164)", color=AMBER, expect=164,
          desc="the whole ratio-defect population rev B fixes",
          resolve=_vcc_side, side="F"),
