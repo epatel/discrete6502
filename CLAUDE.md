@@ -59,6 +59,8 @@ Load the matching card from `cards/` when a trigger fits the current task:
 - `cards/navigator.md` — when the answer is a place on the board (where is Q2577, what is next to
   it, which parts are on `s0`), when the user is at the bench and something should be pointed at
   live, or when working on `navigator/` itself; deeper reference in `navigator/README.md`
+- `cards/decision-log.md` — when a condensed entry in the plan's Decisions section is not enough and
+  you need its numbers, the method behind it, or why it was later corrected
 - `cards/bring-up-log.md` — when you need what a measurement on board #1 actually showed between
   2026-08-12 and 2026-08-26, or why one of those conclusions was later retracted
 - `cards/build-log.md` — when you need why a tool, gate or pipeline step exists (2026-07-18 …
