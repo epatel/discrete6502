@@ -184,6 +184,86 @@ and by date, because this file is `@`-imported into every session and history is
 firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of the form "the
 2026-08-24 entry" resolves by date in whichever of the three files covers that date.
 
+- 2026-08-30 (evening, bench session): **The polarity is inverted from everything this plan has
+  assumed: the board is quiet with `CLK0` held LOW and draws an unstable 1–2 A when it is not.**
+  Nothing in the netlist, the board or the fab package changed. All board changes were temporary
+  clip-on experiments; the 31 kΩ pull-down on the `CLK0` pad is still fitted.
+  **Use silk labels, not `TPnn`** [user directive, asked twice]. The bond pads are labelled `CLK0`,
+  `VCC`, `VSS`, `A0`–`A15` … on the silk; `TPnn` designators exist only in `gen/netlist.json` and
+  are invisible at the bench. For translation: `TP25` = `CLK0`, `TP35` = `VSS`, `TP36` = `VCC`.
+  There is only **one `VSS` pad** on the ring, so "clip the ground somewhere else" is not available.
+  **THE RESULT, measured two ways:**
+
+  | `CLK0` pad | Board current | Rail (DSO112 on `VCC`/`VSS`) | Pico |
+  |---|---|---|---|
+  | grounded through 1 kΩ to `VSS` — **60 mV** | **0.24 A** | **stable** | **will not start** |
+  | not grounded (31 kΩ only) — **1.7 V** | **1–2 A, swinging** | — | starts |
+
+  **This reconciles the orphan measurement the plan has carried as a contradiction since 08-29** —
+  "clock parked, 2.2 A" with `clk0` floating against "clock parked, 0.30 A" with it driven. Same
+  words, opposite pin states. Floating is the bad state; low is the good one. **"Park `clk0` low"
+  was never the problem, and the 08-30 proposal to invert it in `selftest`, `tester` and `wifi` must
+  not be carried out.**
+  **RETRACTED, and it is listed as an established fact in `docs/plan-2026-08-30.md` §1:**
+  *"`clk0` above ~1 V ⇒ the board draws 2+ A — 0.77 V → 0.24 A; 1.76 V → 2.5 A."* Measured tonight:
+  **1.7 V and 0.24 A simultaneously.** The most likely reading of the original pair is that 1.76 V
+  was measured *while* the board already drew 2.5 A and the charger had folded to 3.6 V — an effect
+  of the sagging rail, recorded as its cause. That table row is struck in the file.
+  **The mystery current is measured cleanly for the first time: ~62 µA sourced into `CLK0`.**
+  60 mV across 1 kΩ ∥ 31 kΩ ≈ 969 Ω. Consistent with the 55–85 µA implied by the 0.77 V and 1.7 V
+  readings, and independent of the 31 kΩ. **Two candidates, neither yet tested.** (a) **`D66`** — a
+  `1N4148WS` clamp on this net, **cathode to `vcc`, anode to `clk0`**, so its reverse leakage flows
+  from `VCC` *into* `clk0`, exactly the observed direction; a healthy part leaks tens of nA, so 62 µA
+  would mean a degraded one. Testable **unpowered**: a healthy clamp shows a diode drop, a leaky one
+  does not. (b) **RP2350 GPIO input leakage (the `E9` erratum class)**, whose documented workaround
+  is an external pull-down of ~8.2 kΩ or stiffer — check it against the datasheet, SDK 2.1.1 does not
+  name it. **This substantially weakens the contamination hypothesis in the entry above**, which was
+  built on the premise that 62 µA had no legitimate source. It has at least two.
+  **The `CLK0` net topology, which was being reasoned about wrongly.** The pad is **not** on net
+  `clk0`:
+
+      U1 pin 29 (GP22) --[R1107 1k]-- clk0_ext --[R1079 100R]-- clk0 --+-- Q2229 gate
+                                          |                            +-- Q2420 gate
+                                    CLK0 pad, 31k                      +-- D66 -> vcc  (clamp up)
+                                                                       +-- D67 -> vss  (clamp dn)
+
+  **UNEXPLAINED, and left standing rather than explained away: with `CLK0` grounded the Pico will not
+  start** — no USB, no BOOTSEL — while `VCC`–`VSS` reads **4.97 V**, current is 0.24 A and the scope
+  shows a stable rail. **It is not a power problem.** Nor is there an obvious path: GP22 sits behind
+  1 kΩ + 100 Ω, and at reset RP2350 pads are `PADS_BANK0_GPIO0_RESET = 0x116` — `IE=0` (input buffer
+  **disabled**), `OD=0`, `PUE=0`, `PDE=1` — and `usbonly` never touches the pin, so that pad is
+  electrically inert. Disconnecting the 1 kΩ with power applied lets the Pico start again.
+  **The live hypothesis, and the next measurement, both concern the board rather than the Pico:**
+  a swinging 1–2 A with an undefined input on the node feeding on-board clock regeneration suggests
+  **the chain is self-oscillating** — `CLK0` at 1.7 V sits in the inverter gain region, and the chain
+  drives `cclk` (13 nF) and `cp1` (5.4 nF). **Put the scope probe on the `CLK0` pad with the 1 kΩ
+  removed.** Oscillating ⇒ the board free-runs whenever `CLK0` is undefined, which would explain the
+  1–2 A, three days of brownouts, and why every firmware touching the pin behaved unpredictably.
+  Flat at 1.7 V ⇒ the current comes from elsewhere.
+  **Firmware and tooling, all working.** `python3 tools/pico_flash.py usbonly` flashed **via the
+  1200-baud touch with no button and no supply cycle** — the tool does what it claims. The board then
+  ran **181 consecutive passes over 90.01 s, 181 of 181 expected, no gap over 0.5 s, no counter reset**,
+  and the counter was already at 56 when the port was opened, so **~118 s of continuous uptime**
+  against the 45 s `usbonly` managed on 08-30. Rest current 0.24–0.29 A. **The Pico, the cable, the
+  port and the rail at rest are healthy**, and [user] **a data-only USB cable (red wire cut) works** —
+  tinyusb forces `VBUS_DETECT_OVERRIDE_EN` (`dcd_rp2040.c:364`), so the module enumerates self-powered.
+  **Five models were proposed and falsified tonight, listed so nobody re-proposes them:** (1) a
+  "forbidden zone" in which no `CLK0` logic state is safe — grounding it is safe; (2) grounding `CLK0`
+  browns out the rail — current does not move; (3) an `E9` synthesis in which `clk0` was never truly
+  low — it is now, and the board likes it; (4) DMM-blindness to microsecond transients — the scope
+  shows a stable rail; (5) the clip disturbing the power feed — `VCC` reads 4.97 V with it fitted.
+  Each died on the next measurement, which is the process working, but **the record should carry the
+  measurements and not the models.**
+  **Operational:** **leave the 1 kΩ fitted from the `CLK0` pad to `VSS` whenever the Pico is not in
+  use** — 0.24 A with a stable rail is the safe storage state, and 1–2 A swinging is what the board
+  defaults to without it. **`gen/firmware/wifi-known-good-0891df4.uf2` is built and waiting but must
+  not be flashed yet** — at `0891df4` `defaults()` sets `autorun = 1` and the flash is erased, so it
+  would start clocking at power-up.
+  **Next:** (1) scope the `CLK0` pad, oscillating or not; (2) check `D66` unpowered for the 62 µA;
+  (3) the 16 `idb`/`sb` precharge reworks, starting at `idb7`/Q1830 — [user] **`idb` heat confirmed
+  with the camera, `sb` not yet examined**; (4) ~500 µF low-ESR across `VCC`/`VSS`; (5) only then the
+  known-good image and a 23-subtest verdict.
+
 - 2026-08-30 (later): **The regression hunt eliminated every candidate the previous entries were
   built on, and the leading explanation is now contamination from the 2026-08-28 water rinse.**
   Nothing on the board, in the netlist or in the fab package changed today.
