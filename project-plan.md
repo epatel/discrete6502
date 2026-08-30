@@ -264,6 +264,49 @@ firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of
   with the camera, `sb` not yet examined**; (4) ~500 µF low-ESR across `VCC`/`VSS`; (5) only then the
   known-good image and a 23-subtest verdict.
 
+  **LATER THE SAME EVENING — the board has hysteresis, and that is why every model kept dying.**
+  [user, with the DSO112 on the `CLK0` pad] The node is **intermittent**: sometimes below 1 V,
+  sometimes above 1.5 V, wandering across the switching threshold on its own. tty presence tracks the
+  **voltage**, not the current — tty appears when `CLK0` is above ~1.5 V, and in that condition the
+  board is *usually* at 1.5–2.5 A but was once seen at 0.27 A. **The same voltage giving two different
+  currents is the tell:** the board's state is not a function of `CLK0`'s present level.
+  **The sequence that shows it, and it should be impossible:** with tty up and the board running, the
+  1 kΩ was fitted → **tty vanished**; removing it did **not** bring the tty back; the tty returned only
+  when the **DSO112 was clipped from `VSS` to the `CLK0` pad**, at which point the board also began
+  drawing more current. **A ~1 MΩ scope input cannot pull that node anywhere** — it is thirty times
+  weaker than the 31 kΩ already fitted. What it can do is give stored charge somewhere to go, or
+  perturb a node balanced at a tipping point.
+  **So the board's behaviour depends on where `CLK0` has recently been, not only on where it is** —
+  and the discharged state **persists after the 1 kΩ is removed**. There is a state variable nobody has
+  been tracking. Plausible storage: the `Q2229`/`Q2420` gates and the `D66`/`D67` junction capacitance
+  on `clk0` itself, and one stage back `cclk` (13 nF) and `cp1` (5.4 nF), which are large.
+  **This is the single best explanation for the whole three days**, and specifically for why five
+  successive models each died on the next measurement (listed above): every one of them assumed the
+  node's voltage determined the state. **Treat any single-point reading of `CLK0` as meaningless
+  unless its recent history is recorded with it.**
+  **It also reframes the Pico puzzle and reopens it.** The statement is not "the Pico will not start
+  when `CLK0` is low" but "**the Pico will not start when the board is in the discharged state**" —
+  a state that outlives the resistor that caused it. Whether GP22 is involved at all is **open again**;
+  the `IE=0`/`PDE=1` argument for the pad being inert still stands and is now less obviously in conflict
+  with anything.
+  **Pull-down sizing, now against a measured leak of ~62 µA** (superseding the 47 kΩ and 4.7 kΩ figures
+  in `docs/clk0-pulldown.md`, both sized against a leak nobody had measured):
+
+  | pull-down | `CLK0` sits at | observed |
+  |---|---|---|
+  | **31 kΩ (currently fitted)** | **1.9 V** — above threshold | 1.5–2.5 A, wanders |
+  | 4.7 kΩ | 0.29 V | untried — the obvious candidate |
+  | **1 kΩ** | **0.062 V** — matches the measured 60 mV | 0.24 A, stable rail |
+
+  **NEXT MEASUREMENT, and it needs only the scope already connected:** leave the probe on `CLK0` and
+  watch it **while fitting and then removing the 1 kΩ**. A charge-storage node recovers on an RC ramp,
+  and the timebase that shows the ramp gives the capacitance — 62 µA into a few hundred pF is
+  microseconds, into the nanofarad range is milliseconds. **If it snaps back instantly, charge storage
+  on `CLK0` is the wrong idea and the memory lives deeper in the chain.**
+  **Standing warning:** whenever the board is at 1.5–2.5 A, **check whether it is warming.** Sustained
+  amps through the 16 un-reworked `idb`/`sb` precharge sites is the one mechanism by which this
+  diagnostic work could do lasting damage, and it is the state the board keeps falling back into.
+
 - 2026-08-30 (later): **The regression hunt eliminated every candidate the previous entries were
   built on, and the leading explanation is now contamination from the 2026-08-28 water rinse.**
   Nothing on the board, in the netlist or in the fab package changed today.
