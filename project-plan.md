@@ -225,6 +225,41 @@ firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of
   the test in one 15 ms window, park `clk0` LOW, then repeat the verdict twice a second for as long as
   the rail lasts. **Not yet run to a verdict on hardware.**
 
+- 2026-08-30: **The fault is isolated to a single pin transition, and it falsifies the model this
+  plan has carried since yesterday. Full handoff for a fresh agent:
+  [`docs/session-2026-08-30.md`](docs/session-2026-08-30.md).** Nothing on the board, in the netlist
+  or in the fab package changed.
+  **The isolation, by three builds that each remove one variable:** a firmware touching no pin at
+  all holds a USB link for **45 s** (91 lines); `bus_init` with `clk0` left an *input* is healthy for
+  **8.5 s**; **driving `clk0` low kills the module in 230 ms, and a 1 ms pulse is enough.** So the
+  Pico, the cable, the port and the rail at rest are all cleared — every failure is caused by one
+  GPIO transition.
+  **The model gap that matters:** `docs/clk0-pulldown.md` traced `clk0` → `cclk` and concluded
+  "clk0 low is the quiet state". **It never traced `cp1`.** Traced now — `clk0` LOW → `n358` HIGH →
+  `n1715` LOW → `n1399` HIGH → **`cp1` HIGH**, 198 gate loads, and φ1 is when the pass gates conduct.
+  So clk0 low turns 32 precharge FETs off *and* 198 gates on, and only the first half was ever
+  checked. **All three firmwares park `clk0` low on the strength of that half-trace.**
+  **Unresolved, and left standing rather than explained away:** undriven, `clk0` sits at 0.77 V —
+  below the 0.8 V threshold, logically identical to ground — and the board draws 0.24 A; driving the
+  same pin to ground is fatal. Eliminated: the Mac cutting the port (no overcurrent in the logs), a
+  pin-mapping error (GP22 → pin 29 → `clk0`, all 26 signals on real GPIOs), a short (the 9.5 k/8 k
+  readings are diode paths). **Withdrawn: my claim that 1 ms was too fast for a sagging rail** — the
+  Pico's ~10 µF of VSYS bulk collapses in microseconds at 2.5 A.
+  **Next, and it needs clips rather than firmware:** flash `usbonly` (touches no pin), then move
+  `clk0` by hand — a clip to VSS and a 10 k to VCC — and read the ammeter. If a hard clip to VSS
+  draws 2.5 A then **park-low is backwards and must be inverted everywhere**.
+  **Also measured:** the 16 un-reworked precharge sites contend **14.7–16.0%** under real code
+  (`tools/contention_duty.py --halves 600`) ≈ **0.65 A**, mapped in
+  `docs/rework-precharge-marked.jpg`; **the 31 kΩ pull-down the user fitted is too weak and the
+  47 kΩ I recommended would have been worse** (25–57 µA is sourced into that node — 4.7 kΩ is right);
+  and the **asymmetric clock did not save it**, because the brownout is peak-limited, not average.
+  **New tooling:** `tools/pico_flash.py` flashes via the 1200-baud touch, so the BOOTSEL button —
+  awkward because pin 39 ties VSYS to board VCC — is never needed again.
+  **Repo restructure the same day:** `project-plan.md` 158 KB → 41 KB, history moved verbatim into
+  `cards/bring-up-log.md`, `cards/build-log.md`, `cards/fab-order.md`, `cards/driver-contention.md`
+  and `cards/decision-log.md`, each with a trigger in `CLAUDE.md`. **Append new handoff entries
+  here, not to those logs.**
+
 - 2026-08-30: **The board navigator is deployed — the map of the board is now a URL, not a
   localhost port.** Live at **https://ai.memention.net/d6502navigator/**, served by nginx on the
   `ai` VPS from a systemd unit, `navigator/deploy.sh` to redeploy. Nothing about the board, the
