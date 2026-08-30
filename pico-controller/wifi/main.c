@@ -1151,17 +1151,28 @@ int main(void) {
     TRACE("settings loaded: ssid %s, %u chars of password",
           settings()->wifi_ssid[0] ? "set" : "EMPTY",
           (unsigned)strlen(settings()->wifi_pass));
+    // Traced one call at a time. On 2026-08-30 the board died somewhere in this
+    // block with no serial device ever appearing, and "somewhere in this block"
+    // was not narrow enough to act on: bus_init drives exactly ONE pin (clk0,
+    // LOW -- everything else becomes an input), so the obvious suspect is nearly
+    // inert and the answer had to be measured rather than reasoned.
+    TRACE("bus_init: driving clk0 low, all other pins to inputs");
     bus_init(settings()->clk_open_drain);  // push-pull: no board pull-up on clk0
+    TRACE("bus_init returned");
     s_half = settings()->half_period_us;
     s_low = settings()->low_period_us;
     bus_set_phase_us(s_half, s_low ? s_low : s_half);
     bus_set_watch(publish);
     bus_set_io(console_io);   // dormant until the panel turns it on
     functest_set_quiet(true);  // core 1 must never block on stdio
+    TRACE("clock %lu/%lu us; loading the boot image", (unsigned long)s_half,
+          (unsigned long)(s_low ? s_low : s_half));
     // Prefer a stored boot image; fall back to the counter so there is always
     // something visible before any upload.
     if (!settings_program_load_into_ram()) retention_load_image();
+    TRACE("boot image in RAM");
     queue_init(&cmd_q, sizeof(cmd_t), 16);
+    TRACE("command queue ready");
     TRACE("launching core 1");
     multicore_launch_core1(core1_main);
     TRACE("core 1 up");
