@@ -171,6 +171,26 @@ and by date, because this file is `@`-imported into every session and history is
 firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of the form "the
 2026-08-24 entry" resolves by date in whichever of the three files covers that date.
 
+- 2026-08-30: **The asymmetric clock did not save it, and that is a real result: the brownout is
+  peak-limited, not average-limited.** Flash erased with `picotool erase -a` and the 9%-duty selftest
+  (40 us high / 400 us low, ~2.3 kHz) flashed clean. **Two attaches, identical both times: the link
+  comes up, prints `link up, running 23 subtests now`, and drops 0.32-0.36 s later** — the firmware
+  sleeps 300 ms after the banner and then clocks, so the rail collapses within roughly 20-60 ms of
+  the first clock edge, and the verdict never prints. The Pico then takes ~27 s to come back, which
+  is its own 30 s USB wait, i.e. it is rebooting and re-running, not hung.
+  **What this rules out:** cutting the average current is not enough. The 2026-08-29 entry predicted
+  9% duty would give "about a tenth of the contention current" and it does — but VSYS browns out on
+  the **40 us peak**, which duty cycle does not touch. That was in the same entry as a condition
+  ("peaks short enough that ~500 uF of bulk across VCC/VSS can supply them") and the bulk capacitor
+  was never fitted, so the experiment tested half the proposal.
+  **Consequence: bulk capacitance is now the gating item, not an option** — order 500 uF+ low-ESR
+  across VCC/VSS (TP36/TP35), or the 16 remaining `idb0-7`/`sb0-7` precharge sites reworked to remove
+  the peak at source. The clk0 pull-down (`docs/clk0-pulldown.md`) fixes the *undriven* state and
+  would not have helped here, since the clock was being driven throughout.
+  **Not a firmware problem, and one more possibility is closed:** `tools/quick_selftest.py` documents
+  itself as a ~200-cycle test, so `RUN_CYCLES = 300` is adequate and the missing verdict is not the
+  test being cut short.
+
 - 2026-08-29: **The board cannot be clocked on the present bench supply — measured to the
   millisecond — and the self-test firmware that found this is the way to a verdict once the
   supply is fixed.** Nothing in the netlist, the board or the fab package changed.
