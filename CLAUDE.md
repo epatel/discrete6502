@@ -55,7 +55,7 @@ Load the matching card from `cards/` when a trigger fits the current task:
 - `pico-controller/README.md` — when working on bring-up firmware, the Pico pin map, logic levels
   (3.3 V vs 5 V, the missing clk0 pull-up), or how board and Pico get powered
 - `cards/bond-pad-ring.md` — when working on the 36-pad edge ring, `rim_slot`/pad placement in `tools/gen_pcb.py`, locating a bond pad for probing, or comparing the board against visual6502's die view (records the rev A pad-order defect: A6, VSS, D7, R/W are in the wrong slot)
-- `cards/rev-b-plan.md` — when generating rev B (`DISCRETE6502_REV_B=1`), touching `has_pulldown`/`series_r_for` in `tools/gen_netlist.py`, or deciding whether a respin is worth it; records that the 142-site count is wrong (all 164 want a resistor) and everything else a new board must change
+- `cards/rev-b-plan.md` — when generating rev B (`DISCRETE6502_REV_B=1`), touching `has_pulldown`/`series_r_for` in `tools/gen_netlist.py`, or deciding whether a respin is worth it; **section 0 holds the binding rules for every respin** (die-true pad order, VCC/VSS as back-side power pads); records that the 142-site count is wrong (all 164 want a resistor) and everything else a new board must change
 - `cards/navigator.md` — when the answer is a place on the board (where is Q2577, what is next to
   it, which parts are on `s0`), when the user is at the bench and something should be pointed at
   live, or when working on `navigator/` itself; deeper reference in `navigator/README.md`

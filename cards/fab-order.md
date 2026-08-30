@@ -2,7 +2,7 @@
 
 Split out of `project-plan.md` on 2026-08-30, verbatim and unedited. All of it is closed: the
 order is paid, both confirmation gates passed, the boards are delivered. **Read it before any
-respin, when reasoning about what a rev B or rev C would cost, or when a defect on board #1 needs
+respin, when reasoning about what rev B would cost, or when a defect on board #1 needs
 to be judged against what the yield model predicted.**
 
 The two verification sections are the reusable part — they record *methods* (identify a plane by

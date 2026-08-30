@@ -85,8 +85,8 @@ reordering impossible. (Exact minimum-displacement is PAVA/isotonic regression; 
 clamp is within a fraction of a millimetre here and far easier to keep correct.)
 
 **Cost:** `gen_pcb.py` only, but it moves pad positions, so it forces the whole pipeline from
-`gen_pcb.py` onward — placement, power, routing, finishing, silk, fab outputs. Rev B/C territory,
-not a patch. Do not apply it to rev A: `gen/board_routed_golden.kicad_pcb` is what was fabricated
+`gen_pcb.py` onward — placement, power, routing, finishing, silk, fab outputs. Rev B territory, not a patch — and rev B is the next board, so this is
+where it gets applied (rule R1, `cards/rev-b-plan.md` §0). Do not apply it to rev A: `gen/board_routed_golden.kicad_pcb` is what was fabricated
 and its fingerprints are pinned in `gen/fab/RELEASE.md`.
 
 **Verification after the fix:** re-run the order check — project each edge pad through `die2board`,

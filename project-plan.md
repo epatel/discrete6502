@@ -175,6 +175,30 @@ narrative entries — hardware findings and milestones filed as decisions — we
   The VBUS→VSYS Schottky hazard is therefore closed, and **BOOTSEL mode is the guaranteed recovery
   path** because the bootrom drives no pin and leaves the board at 0.24 A.
 
+- 2026-08-31 **[user directive]** **Rev B has not been generated or fabricated, so rev B is the next
+  board and everything planned goes into it — nothing is deferred to a rev C, which is not on the
+  roadmap.** Rules written up as section 0 of [`cards/rev-b-plan.md`](cards/rev-b-plan.md).** **R1: bond pads sit at their
+  die-true positions, in die order, on all four edges** — rev A's four misplaced pads (A6, VSS, D7,
+  R/W) are a defect a respin must not repeat, and the order-preserving allocator gets a gate that
+  asserts placed order equals die order per edge. **R2: VCC and VSS come off the ring's order
+  constraint and become large solderable pads on B.Cu**, sized for the ≥ 3 A bench supply that has
+  blocked the acceptance run since 08-28; ampacity lives in the via array (≥ 20 × 0.3 mm per pad),
+  not the plane, which is ≈ 0.6 mΩ end to end and needs only one feed point per rail. **R2 is what
+  makes R1 achievable** — the two power pads both sit on edge B, the crowded one, so removing them
+  frees **39.4 mm** of slack there, and `VSS` projects *inside* the corner exclusion so it could
+  never have been die-true anyway. R3: any pad/pitch/footprint change forces the whole pipeline.
+  R4: none of it touches rev A. The **package/pitch question** (SOT-523/723 vs the current SOT-323;
+  −30 to −40% area, or a 2× wider routing channel and a shot at 4 layers) is therefore a **rev B**
+  decision and is recorded as open in §7 of the same card, with the measured geometry table.
+  **R5 [user directive]: a whole-board current budget, computed and gated before fab** —
+  `tools/power_budget.py`, to be written. Rev A was never asked how many amps it draws: five gates
+  checked topology, `contention_duty.py` checked strength per site, and none produced a number for
+  the board, which cost most of 08-24 → 08-31. It must enumerate **every parked state**
+  exhaustively — rev A's *default* park (`clk0` high ⇒ `cclk` high ⇒ all 32 precharge FETs on at
+  100% duty) was the worst state available to it — plus running states swept over addresses, plus
+  per-part dissipation against rating. **Calibration requirement: it must run on rev A and
+  reproduce rev A's measured failure**, or it is not a gate.
+
 ## Current state / handoff
 
 **Newest first, and only the live entries.** Everything older was moved out on 2026-08-30, verbatim
@@ -183,6 +207,23 @@ and by date, because this file is `@`-imported into every session and history is
 (2026-08-12 … 2026-08-26) and [`cards/build-log.md`](cards/build-log.md) the design, fab-package and
 firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of the form "the
 2026-08-24 entry" resolves by date in whichever of the three files covers that date.
+
+- 2026-08-31: **Rev B is specified but PARKED — board #1 bring-up continues and comes first**
+  [user]. Nothing on the board, in the netlist or in the fab package changed today; this was
+  documentation only. `cards/rev-b-plan.md` §0 now holds five binding rules for the next board
+  (**R1** die-true pad order with a per-edge assertion, **R2** VCC/VSS off the ring onto large B.Cu
+  pads with a ≥20-via array, **R3** any pad/pitch/footprint change forces the whole pipeline, **R4**
+  never touch rev A, **R5** a whole-board current budget gated before fab and calibrated by
+  reproducing rev A's failure), and §7 carries the package/pitch question with measured geometry.
+  **Rev B has not been generated or fabricated, so there is no rev C** — every deferred item was
+  retargeted to rev B.
+  **Do not start rev B work, or write `tools/power_budget.py`, until the user says so.** The live
+  work is unchanged and is the 08-30 list below: (a) ground pin 37 (`3V3_EN`) powered and re-measure
+  the `CLK0` pad, to decide whether the ~62 µA is the Pico's GP22 or a gate-drain leak in `Q2229`/
+  `Q2420`; (b) if it persists, unpowered gate-to-drain on both FETs against each other; (c) the 16
+  `idb`/`sb` precharge reworks, planned for today; (d) a stiff pull-down on `CLK0`. **The standing
+  warning still applies: do not leave the board powered without a stiff pull-down fitted** — its
+  default state cooks the sixteen un-reworked sites.
 
 - 2026-08-30 (evening, bench session): **The polarity is inverted from everything this plan has
   assumed: the board is quiet with `CLK0` held LOW and draws an unstable 1–2 A when it is not.**
@@ -770,8 +811,7 @@ _(design questions from M1–M4 are settled and live in Decisions; only live ite
   shift registers, which puts a hidden microcontroller inside a board whose premise is that there
   isn't one. **Space was measured, not the blocker**: the top face is 41% component-free but only in
   strips, the largest usable being **233.5 x 11.5 mm** along the bottom edge (also 163.5 x 8.5 mm
-  above the decode PLA), which would take a row of twelve 0.28" digits. Any of this is a **rev C
-  respin** in any case — the full pipeline from `gen_pcb.py` onward, placement and routing included,
+  above the decode PLA), which would take a row of twelve 0.28" digits. Any of this is a **respin** in any case — the full pipeline from `gen_pcb.py` onward, placement and routing included,
   and new nets would hang off `ab`/`db`, the most congested signals on a board that already needed
   6 layers. Revisit only if a rev B respin is ever fabricated.
 - **Licensing**: `segdefs.js` is CC BY-NC-SA (noncommercial). Fine for this hobby build;
