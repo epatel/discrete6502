@@ -162,6 +162,19 @@ narrative entries — hardware findings and milestones filed as decisions — we
   survives both on core 1; only the observation channel dies, which is why the verdict is printed to
   USB serial. [full entry](cards/decision-log.md)
 
+- 2026-08-30 **[M6, settled — hardware facts about the Pico site]** Three things about `U1` that
+  close recurring proposals. **(a) Pico VSYS cannot be decoupled from board VCC.** Pad 39 is a B.Cu
+  SMD pad with a via-in-pad 0.28 mm off centre and **no attached tracks**, so it reaches `vcc` only
+  through the In4 plane — there is nothing to cut, and lifting the pin is impossible with the module
+  soldered. **Stop proposing it.** **(b) `RUN` (pin 30) is `nc30`, unconnected** — so the module can
+  be reset without unplugging: hold BOOTSEL and short pin 30 to pin 28 (`vss`), *avoiding pin 29
+  which is `clk0`*. Equivalently, cycle the board supply with BOOTSEL held, since VSYS is board VCC.
+  **BOOTSEL was never broken** — unplugging USB simply never reset anything. **(c) `VBUS` (pin 40) is
+  `nc40`**, and with the user's data-only cable there is no host-to-board path but ground; tinyusb
+  forces `VBUS_DETECT_OVERRIDE_EN` (`dcd_rp2040.c:364`) so the module still enumerates self-powered.
+  The VBUS→VSYS Schottky hazard is therefore closed, and **BOOTSEL mode is the guaranteed recovery
+  path** because the bootrom drives no pin and leaves the board at 0.24 A.
+
 ## Current state / handoff
 
 **Newest first, and only the live entries.** Everything older was moved out on 2026-08-30, verbatim
@@ -170,6 +183,82 @@ and by date, because this file is `@`-imported into every session and history is
 (2026-08-12 … 2026-08-26) and [`cards/build-log.md`](cards/build-log.md) the design, fab-package and
 firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of the form "the
 2026-08-24 entry" resolves by date in whichever of the three files covers that date.
+
+- 2026-08-30 (later): **The regression hunt eliminated every candidate the previous entries were
+  built on, and the leading explanation is now contamination from the 2026-08-28 water rinse.**
+  Nothing on the board, in the netlist or in the fab package changed today.
+  **First, a correction that resets the baseline: 2026-08-28 was never a healthy state.** The same
+  entry that records 23 subtests passing also records the Pico **losing power every 25–45 s** —
+  cycle counter to zero, USB gone, mDNS dropped — and the decimal test's 98 s ended when the network
+  dropped. So the comparison is not working→broken but **25–45 s of clocking (08-28) → 15 ms
+  (08-29)**, roughly 1000×. **Withdrawn: my claim that the failure is monotonically worsening** —
+  230 ms (08-30) is *longer* than 15 ms (08-29), and those were different firmwares under different
+  workloads. Only the 08-28 → 08-29 step is a clean comparison.
+  **Four candidates eliminated, each by evidence rather than argument:** [user] the **epoxied
+  `adh`/`adl` sites run cold**, so no lifted pin 3 shorted out its series resistor and reverted a
+  site — the failure mode the plan warned about did not happen; [user] the **supply never changed**
+  — the same 2.4 A charger throughout, so a supply swap explains nothing; `git diff
+  0891df4..HEAD -- pico-controller/common/bus6502.c` touches **only the phase-split setters**, so
+  **`bus_init` and its clk0 handling are byte-identical to the build that ran on 08-28** — the board
+  was already being parked clk0-low on the day it clocked for tens of seconds; and the **31 kΩ
+  pull-down postdates the 08-29 step**, so it cannot be its cause.
+  **That leaves no human action between the 28th and the 29th, which points at a delayed-onset
+  physical change — and the 08-28 IPA wash and water rinse is the only candidate.** No drying
+  protocol is recorded. It fits three things otherwise unexplained: the `cclk` fault that the wash
+  cleared was itself diagnosed as **conductive residue, not damage**, so this board has a
+  demonstrated contamination history and a water rinse redistributes as easily as it removes;
+  trapped moisture under 5,425 packages evaporates over hours to days, which is exactly the
+  overnight onset; and **the 25–57 µA sourced into `clk0` should not exist** — that node's only
+  loads are two FET gates and one Pico pin, so gate leakage is picoamps and 25 µA is seven orders
+  of magnitude too much. **Treat that current as the smoking gun, not as an open question.**
+  **The pull-down sizing debate is a distraction and should stop.** 31 kΩ versus 4.7 kΩ argues about
+  how firmly to hold `clk0` near ground, while **driving it hard to ground is what kills the board in
+  1 ms**. A push-pull drive is stronger than any pull-down; if low were safe the hard drive would be
+  the safest case. No resistor value addresses that. **Leave the 31 kΩ fitted and unchanged** until
+  the other variables are closed — swapping it tests nothing.
+  **Withdrawn: lifting pin 39 to decouple Pico VSYS from board VCC.** [user caught it — the module is
+  soldered] Checked in the board file: pad 39 is a **B.Cu SMD pad with a via-in-pad 0.28 mm from its
+  centre and zero attached track segments**, so it reaches VCC only by dropping into the In4 plane.
+  There is nothing to cut; separating it means drilling a via into an internal plane on a 6-layer
+  board. **Do not attempt it.**
+  **The reflashing difficulty has a free fix instead: `U1` pin 30 is `RUN` and the netlist has it as
+  `nc30` — entirely unconnected.** Reset the module without unplugging by holding BOOTSEL and
+  momentarily shorting **pin 30 (board 30.31, 102.27) to pin 28 (VSS, 30.31, 107.35)**. **Pin 29 sits
+  between them and it is `clk0`** — fine probe, not a clip. Simpler still, and needing no probing:
+  **charger off, hold BOOTSEL, charger on** — VSYS *is* board VCC, so cycling the board supply is a
+  real power-on reset with BOOTSEL sampled. The button was never broken; unplugging USB just never
+  reset anything.
+  **[user] A data-only USB cable now exists (red wire cut), and it is verified to work.**
+  `lib/tinyusb/src/portable/raspberrypi/rp2040/dcd_rp2040.c:364` writes
+  `USB_PWR_VBUS_DETECT | VBUS_DETECT_OVERRIDE_EN` at device-controller init, so the module enumerates
+  self-powered with no VBUS. Combined with **pin 40 (VBUS) being `nc40`**, there is now **no
+  electrical path from the host to the board except ground** — the VBUS→VSYS Schottky hazard is
+  structurally impossible rather than procedurally avoided, and the host is permanently off the
+  suspect list. **It also cleans up a confounded signal: any future USB dropout is now unambiguously
+  the board rail folding.** The cost is that the Pico is powered only from board VCC, so every USB
+  session needs the board rail up. **The guaranteed recovery path is BOOTSEL mode**, where the
+  bootrom runs instead of user firmware, nothing drives `clk0`, and the board stays at its 0.24 A
+  rest current. *Caveat: on a C-to-C cable, cutting VBUS may also break CC attach negotiation.*
+  **TRAP, before anyone flashes the known-good image: at `0891df4` `defaults()` sets
+  `live.autorun = 1`, and the flash is erased.** That build will start clocking at power-up and go
+  straight to the 2.5 A state. The "blank flash does not autorun" guard was added on 08-30 and is
+  **not** in it. **Do not flash `wifi-known-good-0891df4.uf2` until the 16 `idb`/`sb` reworks are
+  done.**
+  **Built and waiting: `gen/firmware/wifi-known-good-0891df4.uf2`** (781,312 bytes, 1,526 blocks;
+  ABSOLUTE block at `0x10ffff00` plus RP2350_ARM_S `0x10000000–0x1005f500`, structurally identical to
+  the current builds). Built from `git archive 0891df4` in a scratch tree; the working copy was not
+  touched, and `gen/firmware/` is gitignored. No build-time wifi credentials are needed.
+  **Next, in this order and none of it needs the board clocked:** (1) flash `usbonly` (HEAD build —
+  it does not exist at `0891df4`) by BOOTSEL + supply cycle; (2) **re-clean and dry properly** — IPA
+  flood, a second IPA pass to displace water, then a real dry, an hour at 60–70 °C or several hours
+  of warm airflow — then with the board powered and nothing driving the pin, **re-measure `clk0` to
+  VSS**; if 0.77 V falls toward ground and the 25–57 µA disappears, the last two days were chasing a
+  contamination artifact; (3) the **16 `idb`/`sb` precharge reworks**, starting at `idb7`/Q1830 where
+  the thermal camera and the duty model agree — [user] **new heat is confirmed at `idb`; `sb` has not
+  been looked at yet**; (4) only then flash the known-good image and look for the 23-subtest verdict.
+  **The clean comes before the rework on purpose:** sixteen more rework operations on a board that
+  may be leaking would leave the next set of measurements as ambiguous as this one, and if the
+  leakage is real the reworks will not fix it.
 
 - 2026-08-30: **The asymmetric clock did not save it, and that is a real result: the brownout is
   peak-limited, not average-limited.** Flash erased with `picotool erase -a` and the 9%-duty selftest

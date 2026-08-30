@@ -42,3 +42,4 @@ gen/discrete6502_revb.net
 
 # navigator: generated index + live annotation state
 navigator/data/
+gen/firmware/

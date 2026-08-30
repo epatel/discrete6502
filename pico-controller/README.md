@@ -712,10 +712,27 @@ in this repository depends on that path.
 
 To flash a firmware:
 
-1. Hold BOOTSEL and plug in the USB cable.
+1. **Board supply off**, hold BOOTSEL, **board supply on**, release.
 2. Copy `build/tester.uf2` to the mass-storage device.
 
-You can also run `picotool load -f build/tester.uf2`.
+**"Hold BOOTSEL and plug in USB" does not work on this board** (corrected
+2026-08-30). Pin 39 is soldered, so VSYS *is* board VCC: unplugging USB does not
+remove power and therefore does not reset the module, and BOOTSEL is only
+sampled at reset. Cycling the *board* supply is the real power-on reset. This is
+doubly true with a data-only cable, where USB carries no power at all.
+
+If cycling the supply is inconvenient, **`RUN` (pin 30) is `nc30` — unconnected,
+a free castellation.** Hold BOOTSEL and momentarily short pin 30 (board
+`30.31, 102.27`) to pin 28 (`vss`, `30.31, 107.35`). **Pin 29 sits between them
+and it is `clk0`** — use a fine probe, not a clip.
+
+You can also run `picotool load -f build/tester.uf2`, or
+`python3 tools/pico_flash.py <target>`, which uses the 1200-baud touch and needs
+no button at all — but that needs an already-enumerated port, so BOOTSEL remains
+the recovery path when the firmware on the board will not stay up.
+
+**BOOTSEL mode is always safe**: the bootrom runs instead of your firmware, so
+nothing drives `clk0` and the board stays at its ~0.24 A rest current.
 
 The `wifi/` build also needs the `lib/cyw43-driver` and `lib/lwip` SDK
 submodules. It needs credentials as well. The credentials have no defaults, so
