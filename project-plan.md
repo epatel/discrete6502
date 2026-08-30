@@ -336,6 +336,55 @@ firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of
   (`tools/mark_rework_precharge.py`). Start at **`idb7`/Q1830**, where camera and duty model agree.
   **[user] The 16 reworks are planned for 2026-08-31.**
 
+  **THE 62 µA IS DOWN TO TWO CANDIDATES, AND THE SHORTLIST IS THE HEAD OF TOMORROW'S LIST.**
+  [user, unpowered twin comparison] **`D66` looks healthy**, so the board-side clamps are exonerated.
+  The method was the one that cracked Q2577: every 6502 input pin carries an identical protection
+  network, so `IRQ` and `NMI` — same clamp pair, same 100 Ω, and like `clk0` no pull-up — are matched
+  twins for `CLK0`, measured pad to pad with the board unpowered.
+
+  | signal | clamp to VCC | clamp to VSS | series R |
+  |---|---|---|---|
+  | **`clk0`** | **D66** | **D67** | R1079 |
+  | `res` / `irq` / `nmi` / `rdy` / `so` | D56 / D58 / D60 / D62 / D64 | D57 / D59 / D61 / D63 / D65 | R1074–R1078 |
+
+  **The `clk0` net is small, which is what makes this decisive.** It carries only `R1079` (100 Ω to the
+  pad), `D66`/`D67`, the gates of `Q2229` and `Q2420`, and `R1107` (1 kΩ to the Pico's GP22). Gate
+  oxide passes no DC unless it is punctured. **With the diodes eliminated, exactly two things can
+  source 62 µA into that node:**
+  **(1) The Pico's GP22 pad**, leaking from its 3.3 V rail through `R1107`. Mechanism: the board is
+  **5 V** and `D66` clamps `clk0` to `VCC`, but RP2350 pads are **not 5 V tolerant** — the only
+  protection is the 1 kΩ + 100 Ω limiting ESD-diode current to ~1.5 mA, so **GP22's ESD diode conducts
+  every time `clk0` goes high**, and it has done so for hours at a stretch over three days. A degraded
+  ESD diode leaks in exactly the observed direction.
+  **(2) A gate-drain leak in `Q2229` or `Q2420`** — the Q2577 failure mode, on this board, again.
+  **Both drains carry a 10 kΩ pull-up to VCC** (`R314` on `n519`, `R219` on `n358`) and `clk0` has no
+  pull-down of its own, which is the identical topology to Q2577's `n983`/`s0`. **The arithmetic fits
+  too well to ignore:** VCC through the 10 kΩ pull-up, through a leak `R`, into `clk0`, out through the
+  31 kΩ — 62 µA at 5 V needs 80 kΩ total, so **`R` ≈ 39 kΩ**, and `clk0` lands at 62 µA × 31 kΩ =
+  **1.9 V**, which is what was measured. Q2577's leak was 20 kΩ; same order, same mode.
+  **TOMORROW, IN THIS ORDER — both need no soldering iron, and both come before the 16 reworks:**
+  **(a) Ground pin 37 (`3V3_EN`, `nc37` — unconnected on this board) with the board powered**, and
+  measure the `CLK0` pad to `VSS`. This shuts down the Pico's 3.3 V regulator **without desoldering the
+  module**. Leak gone ⇒ candidate (1), the Pico. Leak persists ⇒ candidate (2), the board.
+  **(b) If it persists: unpowered, measure gate-to-drain on each FET** — `clk0`↔`n519` for `Q2229`,
+  `clk0`↔`n358` for `Q2420` — **and compare them.** They share the gate node, but **their drains are
+  independent**, which is precisely the condition that resolved Q2577 after three parts had been
+  wrongly condemned on single in-circuit readings. Expect the culprit near 39 kΩ against a twin in the
+  hundreds of kΩ. Repair precedent: Q2577 was fixed by transplanting the FET from `Q4050`, an LED
+  driver the CPU does not use — no donor board, cost is one more dark LED.
+  **Why this would be good news:** a leaking FET is a located, repairable, single-part fault of a kind
+  already fixed once on this board, and it would explain the wandering `CLK0`, the 1.9 V rest level,
+  the hysteresis and the board's habit of falling into the state that cooks the sixteen — all from one
+  defect sitting on top of an independently unfinished rework.
+  **Also settled, and it answers "if the Pico is partly broken, is the board toast?" — no.**
+  Three Pico pins are unconnected on this board: **pin 37 `3V3_EN` (`nc37`)**, **pin 30 `RUN`
+  (`nc30`)**, **pin 40 `VBUS` (`nc40`)**. So the module can be **powered down or held in reset without
+  desoldering it**, and `CLK0` is a bond pad on the edge ring — so the worst realistic case, a degraded
+  GP22, costs **one pin**: drive the clock onto the `CLK0` pad with a single external wire and keep the
+  Pico for the other 25 signals. Even total Pico loss is survivable, since every signal it drives is
+  exposed on the ring. **The Pico's core is not in doubt** — 181 of 181 passes over 90 s, UF2 accepted
+  over the 1200-baud touch, clean enumeration on a data-only cable.
+
 - 2026-08-30 (later): **The regression hunt eliminated every candidate the previous entries were
   built on, and the leading explanation is now contamination from the 2026-08-28 water rinse.**
   Nothing on the board, in the netlist or in the fab package changed today.
