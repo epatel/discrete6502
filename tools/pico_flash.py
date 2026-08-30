@@ -33,6 +33,7 @@ NAMED = {
     "wifi": "pico-controller/wifi/build/wifi.uf2",
     "trace": "pico-controller/wifi/build_trace/wifi.uf2",
     "selftest": "pico-controller/selftest/build/selftest.uf2",
+    "usbonly": "pico-controller/selftest/build_usbonly/selftest.uf2",
     "tester": "pico-controller/tester/build/tester.uf2",
     "general": "pico-controller/general/build/general.uf2",
 }
@@ -65,7 +66,8 @@ def copy_uf2(uf2):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("target", help="wifi | trace | selftest | tester | general | a .uf2 path")
+    ap.add_argument("target",
+                    help="wifi | trace | selftest | usbonly | tester | general | a .uf2 path")
     ap.add_argument("--timeout", type=float, default=300.0)
     a = ap.parse_args()
 
