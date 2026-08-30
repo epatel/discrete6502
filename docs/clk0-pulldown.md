@@ -63,6 +63,43 @@ PY
 It prints **32**, on `adh0-7`, `adl0-7`, `idb0-7`, `sb0-7`. Sixteen of them (`adh`, `adl`) have the
 10 kΩ series rework; **`idb0-7` and `sb0-7` do not**, which is the standing hardware fault.
 
+## 1b. THE HOLE IN §1, found 2026-08-30 by experiment
+
+§1 traces `clk0` to `cclk` and stops. **It never traces `cp1`, and `cp1` is the other half of the
+clock.** Traced now, from the same netlist:
+
+`clk0` LOW → `n358` HIGH → Q2891 on → `n1715` LOW → Q1537 off → R841 pulls `n1399` HIGH →
+Q2482 on → **`cp1` HIGH** (and Q1957 on → `n1105` LOW → Q1705 off, which agrees).
+
+So `clk0` LOW gives **`cclk` LOW *and* `cp1` HIGH** — complementary, as a two-phase clock must be.
+`cp1` gates **198 loads**, and in a 6502 φ1 is when the pass gates conduct. So "clk0 low is the
+quiet state" was only ever half-established: the half that was checked (32 precharge FETs off) is
+right, and the half that was not (198 gates on) may be where the current goes.
+
+**The experiment that exposed this** (`SELFTEST_BUS_ONLY`, three builds, board #1):
+
+| Test | Result |
+|---|---|
+| Nothing driven, `stdio` only | **91 lines over 45 s — stable** |
+| `bus_init(open_drain=true)`: 22 pins to inputs, `clk0` left an input | **8.5 s, 17 prints — healthy** |
+| Drive `clk0` LOW, push-pull | **dead in 230 ms** |
+| Drive `clk0` LOW for **1 ms**, then release | **dead** |
+
+So one millisecond of *driving* the pin is fatal, while leaving it undriven is indefinitely fine —
+even though the undriven node sits at 0.77 V, below the 0.8 V threshold and therefore logically the
+same level. **That contradiction is unresolved.** The DC states should be equivalent and the
+observed behaviour is not.
+
+Two things this rules out. The Mac is **not** cutting the port — macOS logs show no overcurrent and
+no "device disabled" across the whole session. And 1 ms does **not** rule out a sagging rail, as an
+earlier version of this note claimed: the Pico carries ~10 µF on VSYS, which at 2.5 A collapses in
+microseconds, so a 1 ms current step is more than enough to brown it out.
+
+**Consequence for the firmware:** `pico-controller/selftest/main.c` parks `clk0` LOW on the strength
+of §1, and the tester and wifi builds do the same through `bus_init`. If `cp1` HIGH is the expensive
+state, **that is backwards** — and it would be the second time the parking polarity has been wrong.
+Do not treat either polarity as settled until the ammeter has been read in both.
+
 ## 2. Why the polarity matters so much
 
 `clk0` has **no pull-up and no pull-down anywhere on the board.** Its only connections are:

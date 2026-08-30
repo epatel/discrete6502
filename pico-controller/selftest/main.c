@@ -116,31 +116,39 @@ static void report(uint16_t addr, uint32_t pass) {
 // The USB_ONLY build already proved the link holds for 45 s+ with nothing
 // driven. Anything less here is caused by this one call.
 int main(void) {
-    stdio_init_all();
-    for (int i = 0; i < 3000 && !stdio_usb_connected(); i++) sleep_ms(10);
-    sleep_ms(300);
-    // bus_init does two separable things: it releases 22 pins to inputs, and it
-    // DRIVES clk0. Run them apart, with a pause and a flush between, so the
-    // serial log names which one kills the board. Measured 2026-08-30: the
-    // combined call dies inside bus_init, and the netlist says clk0 LOW should
-    // be the QUIET state -- so one of those two beliefs is wrong.
-    printf("\nA/B DIAGNOSTIC. Watch the ammeter against these lines.\n");
-    printf("[A] bus_init(open_drain=true): 22 pins to inputs, clk0 LEFT AS AN "
-           "INPUT (held by the external pull-down). Calling now...\n");
-    sleep_ms(200);
-    bus_init(true);
-    for (int i = 0; i < 16; i++) {
-        printf("[A] survived %d.%d s -- pins released, clk0 NOT driven\n", i / 2, (i % 2) * 5);
-        sleep_ms(500);
-    }
-    printf("[B] >>> DRIVING clk0 LOW NOW <<<  watch the ammeter\n");
-    sleep_ms(200);
+    // HOLD LOW FROM COLD, WITH NO USB IN THE PICTURE.
+    //
+    // Measured 2026-08-30: driving clk0 low for ONE MILLISECOND resets the
+    // module, while leaving it as an input is healthy indefinitely. 1 ms is far
+    // too fast for a rail to sag or anything to warm, so the two survivors are:
+    //   (a) the board really does draw a large current the instant clk0 is
+    //       driven, and the supply cannot deliver the step; or
+    //   (b) nothing to do with the board -- the act of enumerating USB *and*
+    //       driving that pad together is what the module cannot do here.
+    //
+    // This build separates them by removing USB from the experiment. It drives
+    // clk0 low BEFORE stdio comes up and holds it there forever, then blinks
+    // the on-board LED as a liveness signal that needs no host at all.
+    //
+    // The liveness signal is ENUMERATION ITSELF -- the LED is on the CYW43 on a
+    // Pico 2 W and reaching it would mean starting the radio, which is exactly
+    // the variable being removed.
+    //   It enumerates and prints -> the module is fine holding clk0 low, so the
+    //       killer is doing it *after* USB is up, i.e. (b), a power step while
+    //       the link is live.
+    //   It never enumerates -> driving clk0 low is fatal on its own, (a).
+    //
+    // READ THE AMMETER while this runs. That is the measurement the 1 ms pulse
+    // made impossible, and it is the whole point of the build.
+    gpio_init(PIN_CLK0);
     gpio_put(PIN_CLK0, 0);
-    gpio_set_dir(PIN_CLK0, GPIO_OUT);
-    for (uint32_t n = 1;; n++) {
-        printf("[B] survived pass %lu -- clk0 driven LOW, both halves are innocent\n",
+    gpio_set_dir(PIN_CLK0, GPIO_OUT);   // driven low from the first instruction
+
+    stdio_init_all();                   // no waiting for anybody
+    for (uint32_t n = 0;; n++) {
+        printf("HOLD-LOW pass %lu: clk0 has been driven LOW since boot\n",
                (unsigned long)n);
-        sleep_ms(500);
+        sleep_ms(250);
     }
 }
 #elif defined(SELFTEST_USB_ONLY)
