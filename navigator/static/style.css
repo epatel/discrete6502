@@ -29,6 +29,8 @@ button.armed{background:var(--warn);color:#1a1400;border-color:var(--warn);font-
 .live{font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid var(--line)}
 .live.on{color:var(--acc);border-color:#1d4b3c;background:#0f2019}
 .live.off{color:var(--dim)}
+/* read-only viewer: selections are private to this browser */
+.live.local{color:var(--dim);border-style:dashed}
 
 main{flex:1;display:flex;min-height:0}
 aside{width:330px;flex:0 0 auto;background:var(--panel);border-right:1px solid var(--line);

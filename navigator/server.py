@@ -253,6 +253,33 @@ def make_annotation(d):
     )
 
 
+def group_payload(gid, index, annotate=True, goto=True, zoom=None):
+    """Everything applying a group produces, computed without touching state.
+
+    Both `POST /api/group` (which broadcasts) and `GET /api/group/<id>` (which a
+    read-only viewer applies locally in its own browser) go through here, so the
+    shared page and the token-holder cannot end up drawing different sets."""
+    g, refs, anns, note = GROUPS.resolve(gid, index)
+    out = dict(
+        id=g["id"], label=g["label"], desc=g["desc"], color=g["color"],
+        side=g["side"], refs=refs,
+        highlight=dict(refs=refs, color=g["color"],
+                       label=f"{g['label']} — {g['desc']}"),
+        annotations=[make_annotation(a) for a in anns] if (annotate and anns) else [],
+        note=dict(title=g["label"], text=note),
+        view=None,
+    )
+    if goto and refs:
+        xs = [index[r]["x"] for r in refs]
+        ys = [index[r]["y"] for r in refs]
+        # span lets the page frame the whole group; it knows the canvas size
+        # and the server does not
+        out["view"] = dict(x=(min(xs) + max(xs)) / 2, y=(min(ys) + max(ys)) / 2,
+                           w=max(max(xs) - min(xs), 4.0),
+                           h=max(max(ys) - min(ys), 4.0),
+                           side=g["side"], zoom=zoom, ts=time.time())
+    return out
+
 # ------------------------------------------------------------------- server
 
 def strip_base(path):
@@ -356,6 +383,24 @@ class Handler(BaseHTTPRequestHandler):
                         break
                     self.wfile.write(chunk)
             return
+        if path == "/api/config":
+            # The page cannot tell a token-gated deployment from an open local
+            # one by looking at the URL, and it needs to know which it is before
+            # deciding whether a group click writes or stays in the browser.
+            return self._json(dict(gated=bool(TOKEN), authed=self._authorized()))
+        if path.startswith("/api/group/"):
+            # Read-only: what applying this group WOULD do.  A viewer with no
+            # token applies it locally instead of asking the server to change
+            # what everyone else sees.
+            gid = unquote(path[len("/api/group/"):])
+            try:
+                return self._json(group_payload(
+                    gid, _index,
+                    annotate=(qs.get("annotate") or ["1"])[0] != "0"))
+            except KeyError as e:
+                return self._json(dict(error=str(e)), 404)
+            except ValueError as e:
+                return self._json(dict(error=str(e)), 409)
         if path == "/api/groups":
             out = []
             for g in GROUPS.GROUPS:
@@ -458,29 +503,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(dict(ok=True, count=len(uniq), unknown=unknown))
 
             if path == "/api/group":
-                g, refs, anns, note = GROUPS.resolve(d.get("id", ""), _index)
-                want_pins = d.get("annotate", True) and anns
+                gp = group_payload(d.get("id", ""), _index,
+                                   annotate=d.get("annotate", True),
+                                   goto=d.get("goto", True), zoom=d.get("zoom"))
                 with state_lock:
-                    state["highlight"] = dict(refs=refs, color=g["color"],
-                                              label=f"{g['label']} — {g['desc']}")
-                    state["annotations"] = ([make_annotation(a) for a in anns]
-                                            if want_pins else [])
-                    state["note"] = dict(title=g["label"], text=note)
-                    if d.get("goto", True):
-                        xs = [_index[r]["x"] for r in refs]
-                        ys = [_index[r]["y"] for r in refs]
-                        # span lets the page frame the whole group; it knows the
-                        # canvas size and the server does not
-                        state["view"] = dict(x=(min(xs) + max(xs)) / 2,
-                                             y=(min(ys) + max(ys)) / 2,
-                                             w=max(max(xs) - min(xs), 4.0),
-                                             h=max(max(ys) - min(ys), 4.0),
-                                             side=g["side"],
-                                             zoom=d.get("zoom"), ts=time.time())
-                        state["side"] = g["side"]
+                    state["highlight"] = gp["highlight"]
+                    state["annotations"] = gp["annotations"]
+                    state["note"] = gp["note"]
+                    if gp["view"]:
+                        state["view"] = gp["view"]
+                        state["side"] = gp["side"]
                     bump_and_broadcast()
-                return self._json(dict(ok=True, id=g["id"], count=len(refs),
-                                       pins=len(state["annotations"]), refs=refs))
+                return self._json(dict(ok=True, id=gp["id"], count=len(gp["refs"]),
+                                       pins=len(gp["annotations"]), refs=gp["refs"]))
 
             if path == "/api/view":
                 x, y, side = resolve_point(d) if (d.get("ref") or "x" in d) else \

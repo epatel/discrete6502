@@ -54,8 +54,15 @@ python3 navigator/build_data.py
   net — never from a list of positions, and every group states the count it
   expects.  A group whose count has moved is disabled in the sidebar with the
   mismatch as its subtitle, rather than drawing a map that is quietly short a
-  site.  The same definitions serve `POST /api/group` and the CLI, so the page
-  and the shell cannot disagree.
+  site.  The same definitions serve `POST /api/group`, `GET /api/group/<id>` and
+  the CLI, so the page and the shell cannot disagree.
+
+  **On the public deployment, groups work without the token — privately.**  A
+  viewer with no `?key=` clicks a group and the page applies it *in that
+  browser*: it asks `GET /api/group/<id>` what the group contains and draws the
+  highlight, pins, note and framing itself, without asking the server to change
+  what anyone else sees.  Nothing is stored and nothing is broadcast, so two
+  people can read two different groups at once.
 
 - **+ pin** (or `p`) then click the board to drop an annotation.
 - Keys: `f` fit · `t`/`b` side · `p` pin mode · `Esc` deselect.
@@ -93,7 +100,9 @@ python3 navigator/navctl.py clear all
 |---|---|---|
 | GET | `/api/board` | the whole part index (0.6 MB, what the page loads) |
 | GET | `/api/state` | annotations, highlight, note, last view |
+| GET | `/api/config` | `{gated, authed}` — whether writes need a token, and whether this caller has it |
 | GET | `/api/groups` | the named sets, with live counts and any mismatch |
+| GET | `/api/group/<id>` | read-only: refs, pins, note and framing a group *would* apply, changing nothing |
 | POST | `/api/group` | `{id, annotate:true, goto:true, zoom}` |
 | GET | `/api/find?q=&limit=` | same query language as the search box |
 | GET | `/api/part/<ref>` | one part plus its nearest neighbours |
@@ -155,6 +164,19 @@ python3 navigator/navctl.py show Q2577 --label "leaky FET"
 In a browser, `?key=<token>` turns the page from a read-only map into a full
 controller; without it, an attempted annotation says so rather than failing
 silently.
+
+**A read-only viewer is not a passive one.**  Group selection works for everyone
+— it is just local, applied client-side from `GET /api/group/<id>` and never
+written back.  Two consequences worth knowing:
+
+- **Read-only pages do not open the websocket and do not load `/api/state`**, so
+  they never show the live agent feed.  That is deliberate: the feed exists for
+  whoever holds the token, and a pushed annotation arriving mid-read would wipe
+  a visitor's local selection.  Open the page with `?key=` when you want to
+  watch what an agent is pointing at.
+- The page asks `GET /api/config` which mode it is in rather than guessing from
+  the URL — a navigator run locally with no `NAV_TOKEN` has no key either, and
+  its writes are open, so it must keep behaving exactly as it always has.
 
 Serving under a prefix is handled by `--base /d6502navigator`: the server strips
 it from every request and injects it into the page as `<body data-base>`, which

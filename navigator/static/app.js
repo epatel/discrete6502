@@ -3,17 +3,23 @@ const BASE = document.body.dataset.base || '';  // URL prefix when reverse-proxi
 // this page becomes a controller — without it the map is simply read-only.
 const KEY = new URLSearchParams(location.search).get('key') || '';
 const keyed = p => KEY ? p + (p.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(KEY) : p;
+// Whether this page may change what everyone else sees.  Asked of the server
+// rather than inferred from the URL: an open local navigator has no key either.
+let canWrite = true;
+function toast(msg, ms = 6000) {
+  const b = document.createElement('div');
+  b.className = 'readonly';
+  b.textContent = msg;
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), ms);
+}
 // A deployment gates writes, so say so once rather than failing silently.
 let toldReadOnly = false;
 async function write(path, opts) {
   const r = await fetch(keyed(BASE + path), opts);
   if (r.status === 401 && !toldReadOnly) {
     toldReadOnly = true;
-    const b = document.createElement('div');
-    b.className = 'readonly';
-    b.textContent = 'read-only — this navigator is shared; annotating needs the token';
-    document.body.appendChild(b);
-    setTimeout(() => b.remove(), 6000);
+    toast('read-only — groups work here privately; annotating needs the token');
   }
   return r;
 }
@@ -463,12 +469,17 @@ async function loadGroups() {
     el.title = g.error || `${g.desc}\n${g.count} parts on the ${g.side === 'B' ? 'bottom' : 'top'} face`;
     el.disabled = !!g.error;
     el.onclick = async () => {
-      if (activeGroup === g.id) {                 // click again to drop it
-        await write('/api/clear', { method: 'POST', body: JSON.stringify({ what: 'all' }) });
-        activeGroup = '';
+      const drop = activeGroup === g.id;          // click again to drop it
+      activeGroup = drop ? '' : g.id;
+      if (canWrite) {
+        await (drop
+          ? write('/api/clear', { method: 'POST', body: JSON.stringify({ what: 'all' }) })
+          : write('/api/group', { method: 'POST', body: JSON.stringify({ id: g.id }) }));
       } else {
-        await write('/api/group', { method: 'POST', body: JSON.stringify({ id: g.id }) });
-        activeGroup = g.id;
+        // No token: apply the group in this browser only.  Nobody else sees it,
+        // nothing is stored, and the server is asked for membership rather than
+        // told to change — so the shared page keeps whatever the agent put there.
+        await applyGroupLocally(drop ? '' : g.id);
       }
       markGroups();
     };
@@ -479,6 +490,24 @@ async function loadGroups() {
 function markGroups() {
   document.querySelectorAll('.grp').forEach(el =>
     el.classList.toggle('on', el.dataset.id === activeGroup));
+}
+
+async function applyGroupLocally(gid) {
+  if (!gid) {
+    state = { annotations: [], highlight: { refs: [], label: '', color: '#ffd23f' },
+              note: {}, seq: -1 };
+    return renderState();
+  }
+  const r = await fetch(BASE + '/api/group/' + encodeURIComponent(gid));
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    activeGroup = '';
+    return toast(e.error || 'that group could not be resolved');
+  }
+  const gp = await r.json();
+  state = { annotations: gp.annotations, highlight: gp.highlight,
+            note: gp.note, view: gp.view, seq: -1 };
+  renderState();
 }
 
 /* --------------------------------------------------------------- websocket */
@@ -548,10 +577,24 @@ async function main() {
   window.addEventListener('resize', resize);
   resize(); fit();
 
-  state = await (await fetch(BASE + '/api/state')).json();
-  if (state.view) lastViewTs = state.view.ts;      // do not fly on first load
-  renderState();
-  connect();
+  const cfg = await (await fetch(keyed(BASE + '/api/config'))).json()
+    .catch(() => ({ gated: false, authed: true }));
+  canWrite = !cfg.gated || cfg.authed;
+
+  if (canWrite) {
+    state = await (await fetch(BASE + '/api/state')).json();
+    if (state.view) lastViewTs = state.view.ts;    // do not fly on first load
+    renderState();
+    connect();
+  } else {
+    // Read-only viewers get a private map: no shared state, no websocket, so an
+    // agent annotating for the token-holder cannot wipe a local group selection
+    // — and a public page costs the server no connection while it sits idle.
+    $('#live').className = 'live local';
+    $('#live').textContent = 'local';
+    $('#live').title = 'read-only — group selections stay in this browser';
+    renderState();
+  }
   renderResults([], '');
 }
 main();
