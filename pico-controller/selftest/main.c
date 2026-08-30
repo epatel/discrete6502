@@ -101,7 +101,49 @@ static void report(uint16_t addr, uint32_t pass) {
            (unsigned long)pass, addr);
 }
 
-#ifdef SELFTEST_USB_ONLY
+#ifdef SELFTEST_BUS_ONLY
+// Diagnostic build: bus_init and NOTHING else. It never clocks.
+//
+// This isolates one call. On 2026-08-30 the BOOT_TRACE wifi build died
+// immediately after settings_load(), and bus_init() is the next thing it does
+// -- but bus_init sets every data and address pin to an INPUT with pulls
+// disabled and drives exactly one pin, clk0, LOW. The netlist says clk0 LOW
+// holds cclk LOW and all 32 precharge FETs OFF, i.e. the 0.24 A state. So
+// either that call is innocent and the killer is later (the radio, core 1, or
+// clocking), or driving clk0 low does something the model does not predict --
+// which would be worth knowing more than anything else on the board.
+//
+// The USB_ONLY build already proved the link holds for 45 s+ with nothing
+// driven. Anything less here is caused by this one call.
+int main(void) {
+    stdio_init_all();
+    for (int i = 0; i < 3000 && !stdio_usb_connected(); i++) sleep_ms(10);
+    sleep_ms(300);
+    // bus_init does two separable things: it releases 22 pins to inputs, and it
+    // DRIVES clk0. Run them apart, with a pause and a flush between, so the
+    // serial log names which one kills the board. Measured 2026-08-30: the
+    // combined call dies inside bus_init, and the netlist says clk0 LOW should
+    // be the QUIET state -- so one of those two beliefs is wrong.
+    printf("\nA/B DIAGNOSTIC. Watch the ammeter against these lines.\n");
+    printf("[A] bus_init(open_drain=true): 22 pins to inputs, clk0 LEFT AS AN "
+           "INPUT (held by the external pull-down). Calling now...\n");
+    sleep_ms(200);
+    bus_init(true);
+    for (int i = 0; i < 16; i++) {
+        printf("[A] survived %d.%d s -- pins released, clk0 NOT driven\n", i / 2, (i % 2) * 5);
+        sleep_ms(500);
+    }
+    printf("[B] >>> DRIVING clk0 LOW NOW <<<  watch the ammeter\n");
+    sleep_ms(200);
+    gpio_put(PIN_CLK0, 0);
+    gpio_set_dir(PIN_CLK0, GPIO_OUT);
+    for (uint32_t n = 1;; n++) {
+        printf("[B] survived pass %lu -- clk0 driven LOW, both halves are innocent\n",
+               (unsigned long)n);
+        sleep_ms(500);
+    }
+}
+#elif defined(SELFTEST_USB_ONLY)
 // Diagnostic build: identical stdio setup, but the board is NEVER clocked.
 // If this one holds a USB link while the normal build resets within 200 ms of
 // the host opening the port, then clocking the board is what kills the Pico --
