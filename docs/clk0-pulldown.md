@@ -1,6 +1,16 @@
 # Proposal: a pull-down resistor from CLK0 to VSS
 
-**Status: proposed, not fitted. Written 2026-08-30 for review by another agent.**
+**Status: FITTED AND MEASURED 2026-08-30. The mechanism is confirmed; the SIZING BELOW IS WRONG.**
+
+> **Correction, same day, from hardware.** A 31 kΩ pull-down was fitted and the node measured at
+> **0.77 V (board 0.24 A) and 1.76 V (board 2.5 A)** — straddling the 0.8–1.5 V Vgs(th) band, which
+> confirms §1 and §2 exactly. But it also shows **25–57 µA is being sourced into that node**, where
+> §3 below assumed the only load was two FET gates drawing nothing. At that leak, 47 kΩ would sit at
+> ~2.7 V — **fully on, the worst possible outcome** — and 31 kΩ demonstrably does. **Use 4.7 kΩ**:
+> 0.12–0.27 V parked, still 2.72 V driven, against a 1.5 V worst-case threshold. 10 kΩ works with
+> less margin (0.57 V at the observed leak). §3's table is left as written so the error is visible;
+> read this box instead of it. **What sources the 25–57 µA is not yet known** and is question 5.
+
 Origin: [user suggestion, endorsed] recorded in `project-plan.md`'s 2026-08-29 (later) handoff entry.
 
 **The claim being reviewed:** fitting a 10 kΩ (better 47 kΩ) resistor from the `CLK0` bond pad to
@@ -136,6 +146,11 @@ right answer if this becomes permanent.
 3. Option A vs Option B: is the divider loss (3.3 → 2.97 V at 10 kΩ) worth any concern at all given
    Vgs(th) is 0.8–1.5 V, or is the convenience argument decisive?
 4. Anything in `D66`/`D67` (the clamp pair) that a permanent DC path to VSS interacts with badly?
+5. **What sources 25–57 µA into `clk0`?** Two FET gates draw no DC current and the clamp diodes leak
+   nanoamps, so this was not predicted. Candidates: an internal pull-up on the Pico's GP pin (a
+   ~30 kΩ pull-up through `R1107`'s 1 kΩ fits the arithmetic closely), or the meter reading the mean
+   of a driven clock rather than a DC level. **A scope on TP25 settles it** — a flat 1.76 V is one
+   answer, a 3.3 V square wave is quite another, and they call for opposite fixes.
 
 ## Sources
 
