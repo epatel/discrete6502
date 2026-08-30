@@ -284,7 +284,9 @@ int main(void) {
     // clk0, so open-drain only works with an external 10k from the PHI0
     // bond pad to VCC (croc clips). See README "Logic levels".
     bus_init(settings()->clk_open_drain);
-    bus_set_half_period_us(settings()->half_period_us);
+    bus_set_phase_us(settings()->half_period_us,
+                     settings()->low_period_us ? settings()->low_period_us
+                                               : settings()->half_period_us);
     bus_set_watch(functest_watch);  // dormant until 'k on'
     bus_set_io(console_io);         // dormant until 'C on'
 
@@ -387,7 +389,11 @@ int main(void) {
             if (!strcmp(a, "autorun") && b) settings()->autorun = !strcmp(b, "on");
             else if (!strcmp(a, "clock") && b) {
                 uint32_t us = (uint32_t)strtoul(b, NULL, 0);
-                if (us) { settings()->half_period_us = us; bus_set_half_period_us(us); }
+                if (us) {
+                    settings()->half_period_us = us;
+                    settings()->low_period_us = 0;   // symmetric
+                    bus_set_half_period_us(us);
+                }
             } else if (!strcmp(a, "store")) {
                 // Whatever is in emulated memory becomes the boot image. If a
                 // built-in test is loaded we know its name and how long it runs,
@@ -498,6 +504,10 @@ int main(void) {
                 uint32_t lo = b ? (uint32_t)strtoul(b, NULL, 0) : hi;
                 if (hi && lo) {
                     bus_set_phase_us(hi, lo);
+                    // Remember both phases so "set clock" persists what is
+                    // actually running, not just the high phase.
+                    settings()->half_period_us = hi;
+                    settings()->low_period_us = (lo == hi) ? 0u : lo;
                     uint32_t period = hi + lo;
                     printf("clock now %lu us high / %lu us low (%lu Hz, %lu%% duty)%s\n",
                            (unsigned long)hi, (unsigned long)lo,

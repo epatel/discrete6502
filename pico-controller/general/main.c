@@ -47,7 +47,9 @@ int main(void) {
     stdio_init_all();
     settings_load();
     bus_init(settings()->clk_open_drain);  // push-pull; see README "Logic levels"
-    bus_set_half_period_us(settings()->half_period_us);
+    bus_set_phase_us(settings()->half_period_us,
+                     settings()->low_period_us ? settings()->low_period_us
+                                               : settings()->half_period_us);
     console_enable(true);   // this firmware exists to run programs that talk
     bus_set_io(io);
 

@@ -57,6 +57,7 @@ static void defaults(void) {
     // 50 us half-period = 10 kHz. Inside the window measured on board #1:
     // floor 456-871 Hz from charge retention, ceiling ~20 kHz from PLA fanout.
     live.half_period_us = 50;
+    live.low_period_us = 0;  // 0 = symmetric, the long-standing behaviour
     live.autorun = 1;
     live.clk_open_drain = 0;
 }

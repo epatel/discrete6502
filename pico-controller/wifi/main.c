@@ -59,7 +59,7 @@
 // Core 1 writes, core 0 reads. Fields are word-sized and individually atomic
 // on ARM; a reader can still catch two adjacent cycles mixed, which for a
 // twice-a-second display is not worth a lock in the clock loop.
-static volatile uint32_t s_cycle, s_half = 50;
+static volatile uint32_t s_cycle, s_half = 50, s_low = 0;  // s_low 0 = symmetric
 static volatile uint16_t s_addr, s_trap_addr;
 static volatile uint8_t s_data, s_flags, s_test_case, s_trapped, s_ft_on;
 // The trap verdict, which the firmware already knows and never told anyone:
@@ -84,7 +84,7 @@ typedef struct {
     uint8_t op;
     uint32_t arg;
 } cmd_t;
-enum { CMD_RUN, CMD_STOP, CMD_RESET, CMD_STEP, CMD_CLOCK, CMD_FT,
+enum { CMD_RUN, CMD_STOP, CMD_RESET, CMD_STEP, CMD_CLOCK, CMD_CLOCKLOW, CMD_FT,
        CMD_RET, CMD_RETSCAN, CMD_RESETRUN };
 
 // ---- core 1: the bus engine ----------------------------------------------
@@ -185,7 +185,18 @@ static void __not_in_flash_func(core1_main)(void) {
             case CMD_STOP: run = false; break;
             case CMD_RESET: run = false; bus_reset_sequence(); break;
             case CMD_STEP: run = false; bus_step_instruction(64); break;
-            case CMD_CLOCK: bus_set_half_period_us(c.arg); s_half = c.arg; break;
+            case CMD_CLOCK:
+                s_half = c.arg;
+                bus_set_phase_us(s_half, s_low ? s_low : s_half);
+                break;
+            // The LOW phase alone. Contention flows only while the clock is
+            // HIGH, so a long low phase cuts the average current without
+            // touching settling time. Keep low under ~500 us: the worst dynamic
+            // node holds charge for 1.13 ms (measured, board #1).
+            case CMD_CLOCKLOW:
+                s_low = c.arg;
+                bus_set_phase_us(s_half, s_low ? s_low : s_half);
+                break;
             case CMD_FT:
                 if (c.arg) functest_enable(FUNCTEST_CASE_ADDR_DEFAULT);
                 else functest_disable();
@@ -544,7 +555,7 @@ static void status_json(char *b, size_t cap) {
              "{\"run\":%u,\"cyc\":%lu,\"half\":%lu,\"a\":%u,\"d\":%u,\"f\":%u,"
              "\"ft\":%u,\"tc\":%u,\"tr\":%u,\"ta\":%u,"
              "\"rb\":%u,\"rv\":%u,\"rs\":%lu,\"rms\":%lu,\"rok\":%u,"
-             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"tcyc\":%lu,\"tk\":%u,\"tp\":%u,\"tl\":%u,\"ar\":%u,\"shalf\":%lu,\"pname\":\"%s\",\"ip\":\"%s\"}",
+             "\"rg\":%lu,\"rbad\":%lu,\"img\":%lu,\"secs\":%lu,\"tcyc\":%lu,\"tk\":%u,\"tp\":%u,\"tl\":%u,\"ar\":%u,\"low\":%lu,\"shalf\":%lu,\"slow\":%lu,\"pname\":\"%s\",\"ip\":\"%s\"}",
              s_running ? 1u : 0u, (unsigned long)s_cycle, (unsigned long)s_half, s_addr,
              s_data, s_flags, s_ft_on, s_test_case, s_trapped, s_trap_addr,
              s_ret_busy, s_ret_verdict, (unsigned long)s_ret_seq,
@@ -554,7 +565,9 @@ static void status_json(char *b, size_t cap) {
              (unsigned long)settings_program_seconds(),
              (unsigned long)settings()->program_cycles,
              s_trap_known, s_trap_pass, s_trap_line, settings()->autorun,
+             (unsigned long)s_low,
              (unsigned long)settings()->half_period_us,
+             (unsigned long)settings()->low_period_us,
              settings()->program_name,
              ip4addr_ntoa(netif_ip4_addr(netif_default)));
 }
@@ -587,6 +600,7 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
     else if (!strcmp(op, "reset")) push(CMD_RESET, 0);
     else if (!strcmp(op, "step")) push(CMD_STEP, 0);
     else if (!strcmp(op, "clock")) push(CMD_CLOCK, val ? val : 1);
+    else if (!strcmp(op, "clocklow")) push(CMD_CLOCKLOW, val);
     else if (!strcmp(op, "ft")) push(CMD_FT, val);
     else if (!strcmp(op, "ret") || !strcmp(op, "retscan")) {
         if (s_ret_busy) {
@@ -636,7 +650,10 @@ static void do_cmd(struct tcp_pcb *pcb, conn_t *c) {
         // reset it back to where it was. Losing state is unavoidable; leaving
         // the CPU in an undefined one afterwards is not.
         bool was_running = s_running;
-        if (op[0] == 'c') settings()->half_period_us = s_half;
+        if (op[0] == 'c') {
+            settings()->half_period_us = s_half;
+            settings()->low_period_us = s_low;
+        }
         else settings()->autorun = val ? 1u : 0u;
         bool ok = settings_save();
         push(was_running ? CMD_RESETRUN : CMD_RESET, 0);
@@ -979,9 +996,12 @@ static void banner(void) {
                                        : (settings_program_len() ? "stored" : "built-in counter"),
            settings_program_seconds() ? "" : " (runtime unknown)");
     if (settings_program_seconds()) printf("runtime : about %s at this clock\n", d);
-    printf("clock   : %lu us half-period (%lu Hz)%s\n",
-           (unsigned long)s_half, (unsigned long)(500000UL / (s_half ? s_half : 1)),
-           s_half == settings()->half_period_us ? "" : "  [not saved]");
+    printf("clock   : %lu us high / %lu us low (%lu Hz, %lu%% duty)%s\n",
+           (unsigned long)s_half, (unsigned long)(s_low ? s_low : s_half),
+           (unsigned long)(1000000UL / (s_half + (s_low ? s_low : s_half))),
+           (unsigned long)(100UL * s_half / (s_half + (s_low ? s_low : s_half))),
+           (s_half == settings()->half_period_us &&
+            s_low == settings()->low_period_us) ? "" : "  [not saved]");
     printf("tests   : %s\n", functest_images_available()
            ? "compiled in" : "not compiled in (build -DEMBED_FUNCTEST=ON)");
     printf("console : %s\n", console_enabled() ? "on" : "off");
@@ -1132,7 +1152,9 @@ int main(void) {
           settings()->wifi_ssid[0] ? "set" : "EMPTY",
           (unsigned)strlen(settings()->wifi_pass));
     bus_init(settings()->clk_open_drain);  // push-pull: no board pull-up on clk0
-    bus_set_half_period_us(settings()->half_period_us);
+    s_half = settings()->half_period_us;
+    s_low = settings()->low_period_us;
+    bus_set_phase_us(s_half, s_low ? s_low : s_half);
     bus_set_watch(publish);
     bus_set_io(console_io);   // dormant until the panel turns it on
     functest_set_quiet(true);  // core 1 must never block on stdio
@@ -1155,9 +1177,26 @@ int main(void) {
     // reset were all floating and the dynamic nodes drifted. With the Pico on
     // and the clock parked, board #1 draws 0.30 A; executing, 1.70 A. Clocking
     // costs about 1.4 A. Autorun is still right, for the ordinary reason.
-    if (settings()->autorun) {
+    // AUTORUN, BUT NOT ON A BOARD THAT HAS JUST BEEN ERASED.
+    //
+    // Clocking starts here, before cyw43_arch_init(), so a rail that cannot
+    // carry the clocked current takes the Pico down before the radio is up:
+    // no AP, no station, no USB, and nothing to tell you why. Measured
+    // 2026-08-30 -- picotool erase -a, reflash, and the board boot-looped with
+    // no serial device and no AP ever appearing.
+    //
+    // settings_were_stored() distinguishes "the user chose autorun" from "flash
+    // is blank and these are just defaults". A blank board therefore comes up
+    // QUIET: it reaches the network, serves the panel, and waits to be told to
+    // clock. Save any setting from the panel and autorun behaves as it always
+    // has. This costs nothing on a provisioned board and is the difference
+    // between a diagnosable board and a dark one.
+    if (settings()->autorun && settings_were_stored()) {
         push(CMD_RESETRUN, 0);
         TRACE("autorun: reset and run");
+    } else if (settings()->autorun) {
+        printf("[boot] flash is blank -- NOT autorunning. The clock is parked "
+               "(the low-current state); start it from the panel.\n");
     }
 
     TRACE("cyw43_arch_init...");

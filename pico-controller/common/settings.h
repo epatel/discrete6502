@@ -30,7 +30,7 @@
 #include <stdint.h>
 
 #define SETTINGS_MAGIC 0x36353032u  // '6502'
-#define SETTINGS_VERSION 2
+#define SETTINGS_VERSION 3
 
 #define SETTINGS_SSID_MAX 33
 #define SETTINGS_PASS_MAX 65
@@ -41,7 +41,15 @@ typedef struct {
     uint16_t size;
     uint32_t crc;  // CRC32 of everything after this field
 
-    uint32_t half_period_us;  // clock; 50 us = 10 kHz, the measured-safe default
+    uint32_t half_period_us;  // clock HIGH phase (phi2); 50 us = 10 kHz symmetric
+    // Clock LOW phase (phi1). 0 means "same as high", i.e. a symmetric clock and
+    // exactly the old behaviour. Splitting the phases matters because contention
+    // flows only while the clock is HIGH -- cclk follows clk0, and all 32
+    // cclk-gated precharge FETs conduct together -- so the average current
+    // scales with duty cycle. Bounds are measured, not guessed: high >= ~25 us
+    // to settle (sim/fanout_speed.sp), low <= ~500 us against the 1.13 ms
+    // retention floor (board #1, 2026-08-24).
+    uint32_t low_period_us;
     uint8_t autorun;          // clock the CPU at boot instead of parking it
     uint8_t clk_open_drain;   // almost always false: clk0 has no board pull-up
     uint8_t have_program;     // a stored image is present and CRC-valid
