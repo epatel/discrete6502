@@ -307,6 +307,35 @@ firmware work that preceded it (2026-07-18 … 2026-08-08). A cross-reference of
   amps through the 16 un-reworked `idb`/`sb` precharge sites is the one mechanism by which this
   diagnostic work could do lasting damage, and it is the state the board keeps falling back into.
 
+  **THERMAL CONFIRMATION, end of evening — all sixteen un-reworked sites heat, and the 2026-08-29
+  model is vindicated end to end.** [user, board now powered off] **`sb0-7` AND `idb0-7` all got hot**,
+  the first direct thermal evidence on the `sb` half, which until tonight was "not looked at yet".
+  **The heat tracks tty** — i.e. it appears when `CLK0` is above ~1.5 V — "sometimes only briefly on
+  power up, most times it stays on while tty is on".
+  **That is exactly what the 2026-08-29 entry predicted:** *"`clk0` LOW parks `cclk` LOW and all 32
+  precharge FETs off; `clk0` HIGH turns them all on at once."* `CLK0` above threshold → `cclk` high →
+  all 32 precharge FETs on → the 16 with no series resistor contend → 2.5 A and hot. **The 2026-08-30
+  `cp1` worry is retired: park-`clk0`-low is correct**, and my "the polarity is inverted" framing above
+  overstated it — nothing inverted, the 08-29 trace was right and is now confirmed thermally.
+  **A stuck-HIGH `CLK0` is worse than clocking the board.** Clocking gives those sites ~50% duty;
+  sitting at 1.9 V gives them **100%**, conducting continuously. That is the 2.5 A now against the
+  **0.5 A measured while actually clocking on 08-28**, and it retroactively explains that day's
+  "startup trap: with the clock parked the board draws 2.2 A". **So the board's default state with the
+  31 kΩ fitted is the most damaging one available to it**, and every hour it has sat powered and
+  unattended since 08-29 has been cooking those sixteen parts. **Do not leave the board powered until
+  a stiff pull-down is fitted** — the hysteresis means it sometimes lands quiet and sometimes lands
+  hot, so "it looked fine when I walked away" is not predictive.
+  **Two fixes, independent, neither substituting for the other:**
+  **(1) A stiff pull-down on the `CLK0` pad to `VSS` — 4.7 kΩ (0.29 V) or 1 kΩ (0.062 V, measured).**
+  Makes the *resting* state safe. Urgent, one part, and it protects the board during the rework.
+  Try **4.7 kΩ first**: it is comfortably below the 0.8 V threshold while presenting a much higher
+  impedance than the 1 kΩ, which is the value the Pico demonstrably objects to.
+  **(2) The 16 series resistors (10 kΩ in series with pin 3), `idb0-7` and `sb0-7`.** Makes the board
+  *operable*: clocking **requires** driving `CLK0` high, so those FETs conduct by design and the
+  resistor is what stops that being 262 mA each. Map: `docs/rework-precharge-marked.jpg`
+  (`tools/mark_rework_precharge.py`). Start at **`idb7`/Q1830**, where camera and duty model agree.
+  **[user] The 16 reworks are planned for 2026-08-31.**
+
 - 2026-08-30 (later): **The regression hunt eliminated every candidate the previous entries were
   built on, and the leading explanation is now contamination from the 2026-08-28 water rinse.**
   Nothing on the board, in the netlist or in the fab package changed today.
